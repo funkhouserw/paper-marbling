@@ -1,4 +1,4 @@
-import { Marble, runScript, maxRadius, WEAVE_POINTS } from './engine.js';
+import { Marble, runScript, maxRadius, WEAVE_POINTS, WEAVE_SHAPES } from './engine.js';
 import { toMm, dialToValue, valueToDial } from './api.js';
 import { TOOLS, TURNS, PAGE_UNITS, isDial } from './tools.js';
 import { MODELS } from './models.js';
@@ -369,6 +369,10 @@ function showTool(name) {
     box.append(row);
   }
   for (const [key, [label, options]] of Object.entries(def.choices ?? {})) {
+    if (key === 'waveShape') {
+      box.append(weavePicker(name, label, options));
+      continue;
+    }
     const select = document.createElement('select');
     for (const [k, text] of Object.entries(options)) select.add(new Option(text, k));
     select.value = values[name][key];
@@ -403,6 +407,46 @@ function showTool(name) {
     if (hint.textContent) wrap.append(hint);
     box.append(wrap);
   }
+}
+
+// Two repeats of a weave, drawn from the same curve the rake follows.
+function weaveIcon(shape) {
+  const points = [];
+  for (let i = 0; i <= 96; i++) {
+    const turns = (i / 96) * 2;
+    const [along, across] = WEAVE_SHAPES[shape](turns - Math.floor(turns));
+    points.push(`${((turns + along) * 22 + 2).toFixed(1)},${(11 - across * 8).toFixed(1)}`);
+  }
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 48 22');
+  svg.setAttribute('aria-hidden', 'true');
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  line.setAttribute('points', points.join(' '));
+  svg.append(line);
+  return svg;
+}
+
+function weavePicker(name, label, options) {
+  const wrap = document.createElement('div');
+  wrap.className = 'block';
+  wrap.append(label);
+  const grid = document.createElement('div');
+  grid.className = 'weaves';
+  const buttons = Object.entries(options).map(([shape, text]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.title = text;
+    b.append(weaveIcon(shape), text);
+    b.classList.toggle('on', values[name].waveShape === shape);
+    b.onclick = () => {
+      values[name].waveShape = shape;
+      for (const other of buttons) other.classList.toggle('on', other === b);
+    };
+    return b;
+  });
+  grid.append(...buttons);
+  wrap.append(grid);
+  return wrap;
 }
 
 // Swaps the swatches and bath colour straight away, without clearing the tank.

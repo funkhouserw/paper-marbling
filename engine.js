@@ -42,6 +42,25 @@ export const WEAVE_POINTS = 32;
 // Weave shapes: for t from 0 to 1 along one weave, [along, across], where along is in weave
 // lengths and across runs from -1 to 1 in weave heights. Overhangs and loops come from along.
 const TAU = 2 * Math.PI;
+// A shape drawn by hand: points [x, y] across one weave, x from 0 to 1, joined by a smooth
+// curve that repeats. Drawing out of order in x is what makes overhangs and curls.
+function drawn(points) {
+  const n = points.length;
+  const at = (i) => {
+    const k = Math.floor(i / n);
+    const [x, y] = points[i - k * n];
+    return [x + k, y];
+  };
+  return (t) => {
+    const u = t * n;
+    const i = Math.floor(u);
+    const f = u - i;
+    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    const blend = (a, b, c, d) => 0.5 * (2 * b + (c - a) * f + (2 * a - 5 * b + 4 * c - d) * f * f + (3 * b - a - 3 * c + d) * f * f * f);
+    return [blend(p0[0], p1[0], p2[0], p3[0]) - t, Math.max(-1, Math.min(1, blend(p0[1], p1[1], p2[1], p3[1])))];
+  };
+}
+
 export const WEAVE_SHAPES = {
   sine: (t) => [0, Math.sin(TAU * t)],
   scallop: (t) => [0, 2 * Math.abs(Math.sin(Math.PI * t)) - 1],
@@ -54,6 +73,16 @@ export const WEAVE_SHAPES = {
     const a = TAU * t;
     return [0.16 * Math.sin(a) + 0.09 * Math.sin(2 * a), -Math.cos(a)];
   },
+  // A surf wave: a long rise to the crest, which pitches forward and curls back under itself.
+  surf: drawn([[0, -0.9], [0.22, -0.55], [0.42, 0.25], [0.6, 0.85], [0.78, 0.95], [0.9, 0.55], [0.82, 0.15], [0.68, 0.2], [0.72, 0.5], [0.9, 0.2], [1, -0.5]]),
+  // Rolls right up into a spiral at the top of each wave.
+  roll: drawn([[0, -0.8], [0.25, -0.2], [0.45, 0.65], [0.68, 1], [0.92, 0.72], [0.9, 0.2], [0.7, 0.05], [0.58, 0.32], [0.7, 0.55], [0.82, 0.38], [0.86, -0.1], [1, -0.8]]),
+  // Overlapping arches, like a row of shells.
+  shell: drawn([[0, 0.1], [0.15, 0.8], [0.45, 1], [0.8, 0.75], [1, 0.15], [0.95, -0.4], [0.65, -0.65], [0.3, -0.5], [0.12, -0.15]]),
+  // A long low slide with a small flick at the end.
+  flick: drawn([[0, -0.1], [0.3, -0.35], [0.6, -0.75], [0.82, -0.95], [0.92, -0.45], [0.8, 0.1], [0.72, 0.5], [0.85, 0.75], [1, 0.2]]),
+  // A deep teardrop hanging from each crest.
+  hook: drawn([[0, 0.9], [0.2, 0.3], [0.32, -0.5], [0.5, -0.95], [0.68, -0.55], [0.58, -0.1], [0.42, -0.3], [0.55, -0.6], [0.78, 0.2], [1, 0.9]]),
   // Each weave loops right back over itself.
   curl: (t) => {
     const a = TAU * t;

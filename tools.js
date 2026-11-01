@@ -6,6 +6,7 @@ export const TURNS = { ccw: 'Counter-clockwise', cw: 'Clockwise' };
 
 const WEAVE_CHOICE = {
   sine: 'Sine', scallop: 'Scallop', points: 'Points', zigzag: 'Zigzag', fin: 'Fin', breaker: 'Breaker', curl: 'Curl',
+  surf: 'Surf', roll: 'Roll', shell: 'Shell', flick: 'Flick', hook: 'Hook',
 };
 
 export const TOOLS = {
