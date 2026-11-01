@@ -44,6 +44,11 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
   as `color`. `drop`, `print` and `text` take `shimmer` from 0 to 1 for metallic ink.
 - **Printed ink:** `text` and `print` ink never expands, but every later action moves it.
 
+## Dots and spray
+
+- **`fillDots`:** repeatedly finds the largest empty circle and puts a dot in it, an idea from florilegium and Wong, Zongker & Salesin (1998), so big dots land first and small ones fill the gaps. Add `rings` for targets.
+- **`spray`:** a burst of fine dots, mostly tiny and thickest in the middle. It's also a sidebar tool.
+
 ## Wake
 
 The **Wake** simulator is Film in a bath that keeps moving. Tools push momentum into a flow on a 7 mm grid, and the flow lasts longer the thinner the bath is: at viscosity 1000 it stops almost at once, so the picture stays close to Film, and at viscosity 5 to 60 ink coasts on for seconds and curls where the rake stopped. Past a Reynolds number of about 40 (speed x tine thickness / viscosity), tines also leave a wobble. Thin baths also narrow a tine's direct drag. Stir, vortex, jiggle and wriggle set the bath moving too, without the wobble. Drops, shift and turn don't. The flow's edge is the tank's edge, with or without walls.

@@ -106,6 +106,32 @@ text({ string: 'Ex Libris', font: 'serif', size: 17, color: '#f2e8d5' });
 wait(1);
 fullRake({ angle: 90, teeth: 9, speed: 9, D: 0.3 });
 `,
+  'Dot garden': `// Big dots first, small ones tucked into the gaps.
+const p = palette('Old Dutch');
+fillDots({ count: 220, min: 0.8, max: 9, colors: p.inks.slice(0, 4) });
+settle();
+`,
+  'Bead field': `// Dots of stacked rings, each layer settling before the next.
+fillDots({ count: 60, min: 1.5, max: 10, gap: 0.8, rings: 3, colors: palette('Copper & Verdigris').inks });
+settle();
+`,
+  'Starry spray': `// Dark dots with fine metallic spray over the top.
+const p = palette('Lapis & Gilt');
+bath({ color: p.bath });
+fillDots({ count: 40, min: 2, max: 12, gap: 1, colors: p.inks.slice(0, 3) });
+settle();
+spray({ x: 30, y: 40, radius: 40, n: 300, colors: [p.inks[4]] });
+spray({ x: 70, y: 65, radius: 40, n: 300, colors: [p.inks[3], p.inks[4]] });
+settle();
+`,
+  'Wave comb': `// A traced surf wave as the rake's path. Try it on any simulator.
+const p = palette('Old Dutch');
+for (let i = 0; i < 8; i++) {
+  for (let j = 0; j < 11; j++) drop({ x: 4 + j * 9.2, y: 6 + i * 12.5, quantity: 1.6, color: p.inks[i % 4] });
+}
+settle();
+fullRake({ angle: 0, teeth: 5, speed: 25, D: 1, waveAmp: 5, waveLength: 18, waveShape: 'wave' });
+`,
   'Verdigris waves': `// Copper and verdigris bands, shaken into waves.
 const inks = palette('Copper & Verdigris').inks;
 for (let r = 0; r < 7; r++) {
