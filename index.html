@@ -109,7 +109,12 @@
     <div class="row">
       <button id="png">PNG</button>
       <button id="svg">SVG</button>
+      <button id="print" title="A slow, high-resolution picture of the tank on paper. Doesn't change the tank.">Print</button>
     </div>
+    <label class="check" title="Ink that spread further is a thinner layer, so it tints the paper less"><input id="printPale" type="checkbox" checked> Thin ink looks paler</label>
+    <label class="check" title="Slightly deeper edges and uneven pigment. An artistic touch, not simulated"><input id="printTexture" type="checkbox" checked> Rims and texture</label>
+    <progress id="printProgress" max="1" value="0" hidden></progress>
+    <img id="printResult" alt="The last print" hidden>
   </details>
 </aside>
 <dialog id="viewer">

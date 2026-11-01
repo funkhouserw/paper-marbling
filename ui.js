@@ -2,6 +2,7 @@ import { Marble, runScript, maxRadius, WEAVE_POINTS, WEAVE_SHAPES } from './engi
 import { toMm, dialToValue, valueToDial } from './api.js';
 import { TOOLS, TURNS, PAGE_UNITS, isDial } from './tools.js';
 import { MODELS } from './models.js';
+import { renderPrint, PRINT_DEFAULTS } from './print.js';
 import { listSaves, addSave, deleteSave } from './saves.js';
 import { PALETTES, palette } from './palettes.js';
 import { FONTS, textContours, moveContours } from './text.js';
@@ -928,6 +929,33 @@ $('png').onclick = () => {
   c.toBlob((b) => download(b, 'marble.png'));
 };
 $('svg').onclick = () => download(new Blob([marble.toSVG()], { type: 'image/svg+xml' }), 'marble.svg');
+$('print').onclick = async () => {
+  const button = $('print');
+  const bar = $('printProgress');
+  button.disabled = true;
+  bar.hidden = false;
+  try {
+    const texture = $('printTexture').checked;
+    const { width, height, data } = await renderPrint(marble, {
+      paleness: $('printPale').checked ? PRINT_DEFAULTS.paleness : 0,
+      rim: texture ? PRINT_DEFAULTS.rim : 0,
+      mottle: texture ? PRINT_DEFAULTS.mottle : 0,
+      grain: texture ? PRINT_DEFAULTS.grain : 0,
+    }, (share) => { bar.value = share; });
+    const c = Object.assign(document.createElement('canvas'), { width, height });
+    c.getContext('2d').putImageData(new ImageData(data, width, height), 0, 0);
+    c.toBlob((blob) => {
+      download(blob, 'marble-print.png');
+      const img = $('printResult');
+      URL.revokeObjectURL(img.src);
+      img.src = URL.createObjectURL(blob);
+      img.hidden = false;
+    });
+  } finally {
+    button.disabled = false;
+    bar.hidden = true;
+  }
+};
 
 // ---- Paper pull -----------------------------------------------------------
 

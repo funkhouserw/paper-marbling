@@ -45,6 +45,8 @@ export class Film extends Marble {
   get spreadFactor() { return 4; }
   get evenWalls() { return true; }
 
+  get closeGaps() { return CLOSE_GAPS; }
+
   // Rebuilt when the walls change, because without walls the grid extends past the tank.
   _getGrid() {
     const pad = this.wallsOn ? 0 : MARGIN;
