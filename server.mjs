@@ -51,6 +51,7 @@ Sidebar sliders vs script numbers: the user also has sidebar sliders with plain 
 ${renderSliders()}
 
 Techniques:
+- Wake recipe: only the Wake simulator's bath keeps moving. For curls and long feathers, call viscosity({ value: 5 }) up to viscosity({ value: 60 }), first thing in the script, then rake fast with few teeth, for example fullRake({ angle: 0, teeth: 3, speed: 40 }), and use settle() so later actions wait for the flow to stop. Wriggle and stir in a thin bath give swirling, turbulent marbling. Viscosity 1000 stays crisp and still.
 - The user picks a simulator in the sidebar, so don't call openWater() unless they ask for a specific one. Under Spreading, bare water is the background, and ink spreads over it until it meets other ink. Under Classic, drops stay a fixed size and each pushes everything. To cover the surface, use enough or bigger drops; to keep bare water showing, use fewer or smaller ones.
 - Concentric rings or a target, including any request to stack or overlay drops on the same spot: drops that start together at one spot just cover each other, so only the last colour shows. Place one drop per spot for the outermost colour, call settle(), then repeat for each colour moving inward. With a grid of targets, loop over the colours on the outside and the positions on the inside, with settle() after each colour. Later drops push the earlier rings outward.
 

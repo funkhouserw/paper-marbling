@@ -342,6 +342,13 @@ export class Marble {
     return this;
   }
 
+  // Named apart from the `viscosity` value it sets.
+  setViscosity({ value = 1000 } = {}) {
+    this.viscosity = Math.max(5, Math.min(20000, value));
+    this.log.push({ fn: 'setViscosity', args: { value: this.viscosity } });
+    return this;
+  }
+
   // ---- Inks ------------------------------------------------------------
 
   // Fills the surface with dots of varying size, largest holes first. See fill.js. Sizes are
@@ -526,6 +533,9 @@ export class Marble {
       offsets, speed, D, waveAmp, waveLength, waveShape, width, at,
     });
   }
+
+  // Outline points past which fine detail starts to reduce.
+  get detailBudget() { return DETAIL_BUDGET; }
 
   // With this false, ink only slows when moving towards a wall. Back-and-forth flow beside a wall
   // then walks the ink away from it, because the moves away are bigger than the moves towards.
@@ -1140,7 +1150,7 @@ export class Marble {
     if (total >= this.maxVertices) { this.capped = true; return; }
     this.capped = false;
     // Past the budget, trade fine detail for speed instead of slowing without limit.
-    this.detail = Math.min(MAX_DETAIL, Math.max(1, total / DETAIL_BUDGET));
+    this.detail = Math.min(MAX_DETAIL, Math.max(1, total / this.detailBudget));
     const lim = this.maxEdge * this.detail;
     for (const poly of this.polys) {
       const { xy, n } = poly;
@@ -1457,6 +1467,7 @@ export class Marble {
     return this.log.map(({ fn, args }) => {
       if (fn === 'wait') return `wait(${args.seconds});`;
       if (fn === 'setBath') return `bath(${JSON.stringify(args)});`;
+      if (fn === 'setViscosity') return `viscosity(${JSON.stringify(args)});`;
       return `${fn}(${JSON.stringify(fromMm(fn, args, this))});`;
     }).join('\n');
   }

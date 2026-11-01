@@ -61,6 +61,41 @@ function makeNoise(seed) {
   return (x, y) => (at(x / 90, y / 90) * 0.5 + at(x / 31 + 40, y / 31) * 0.3 + at(x / 11, y / 11 + 90) * 0.2);
 }
 
+// The outline as a smooth curve through its points. Straight edges cut corners, and on a ribbon
+// of ink thinner than that shortcut, neighbouring outlines cross and draw as stripes.
+function smoothOutline({ xy, n }, step) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i + n - 1) % n;
+    const c = (i + 1) % n;
+    const d = (i + 2) % n;
+    const x0 = xy[a * 2], y0 = xy[a * 2 + 1];
+    const x1 = xy[i * 2], y1 = xy[i * 2 + 1];
+    const x2 = xy[c * 2], y2 = xy[c * 2 + 1];
+    const x3 = xy[d * 2], y3 = xy[d * 2 + 1];
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const parts = Math.max(1, Math.min(32, Math.ceil(len / step)));
+    // Sharp corners stay sharp: a curve through one would overshoot.
+    const turn = (x2 - x1) * (x3 - x2) + (y2 - y1) * (y3 - y2);
+    const back = (x1 - x0) * (x2 - x1) + (y1 - y0) * (y2 - y1);
+    const curved = parts > 1 && turn > 0 && back > 0;
+    for (let k = 0; k < parts; k++) {
+      const t = k / parts;
+      if (!curved) {
+        out.push(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t);
+        continue;
+      }
+      const t2 = t * t;
+      const t3 = t2 * t;
+      out.push(
+        0.5 * (2 * x1 + (x2 - x0) * t + (2 * x0 - 5 * x1 + 4 * x2 - x3) * t2 + (3 * x1 - x0 - 3 * x2 + x3) * t3),
+        0.5 * (2 * y1 + (y2 - y0) * t + (2 * y0 - 5 * y1 + 4 * y2 - y3) * t2 + (3 * y1 - y0 - 3 * y2 + y3) * t3),
+      );
+    }
+  }
+  return { xy: out, n: out.length / 2 };
+}
+
 // Which outline is on top at every sample.
 function paintLabels(marble, w, h, scale, labels) {
   const crossings = Array.from({ length: h }, () => []);
@@ -73,7 +108,7 @@ function paintLabels(marble, w, h, scale, labels) {
     let hi = -1;
     const first = p;
     do {
-      const { xy, n } = polys[p];
+      const { xy, n } = polys[p].group ? polys[p] : smoothOutline(polys[p], 4 / scale);
       for (let i = 0, j = n - 1; i < n; j = i++) {
         const y0 = toY(xy[j * 2 + 1]) - 0.5;
         const y1 = toY(xy[i * 2 + 1]) - 0.5;
@@ -182,13 +217,20 @@ export async function renderPrint(marble, options = {}, onProgress = () => {}) {
   for (let i = 0; i < w * h; i++) visible[nearest[i]]++;
   const plainOf = new Map();
   for (const op of marble.sources ?? []) if (op.poly && op.maxArea) plainOf.set(op.poly, op.maxArea * Math.PI);
+  const seenOf = new Map();
+  marble.polys.forEach((poly, p) => {
+    const root = poly.from ?? poly;
+    seenOf.set(root, (seenOf.get(root) ?? 0) + visible[p + 1]);
+  });
   const paper = parseColor(o.paper).slice(0, 3).map((v) => v / 255);
   const looks = [null];
   for (let p = 0; p < marble.polys.length; p++) {
     const poly = marble.polys[p];
     const [r, g, b, a] = parseColor(poly.color);
-    const seen = visible[p + 1] / (scale * scale);
-    const plain = plainOf.get(poly);
+    // An outline cut in two is still one drop of ink, at one thickness.
+    const root = poly.from ?? poly;
+    const seen = (seenOf.get(root) ?? 0) / (scale * scale);
+    const plain = plainOf.get(root);
     const thickness = plain && seen > 0 ? Math.min(4, plain / seen) : 1;
     // Strength 1 is the colour as chosen, which is how it looks at plain thickness.
     const strength = (1 - o.paleness) + o.paleness * Math.sqrt(thickness);

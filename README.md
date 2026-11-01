@@ -53,9 +53,11 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 
 The **Wake** simulator is Film in a bath that keeps moving. Tools push momentum into a flow on a 7 mm grid, and the flow lasts longer the thinner the bath is: at viscosity 1000 it stops almost at once, so the picture stays close to Film, and at viscosity 5 to 60 ink coasts on for seconds and curls where the rake stopped. Past a Reynolds number of about 40 (speed x tine thickness / viscosity), tines also leave a wobble. Thin baths also narrow a tine's direct drag. Stir, vortex, jiggle and wriggle set the bath moving too, without the wobble. Drops, shift and turn don't. The flow's edge is the tank's edge, with or without walls.
 
+Long sessions stretch outlines a long way, so Wake starts reducing detail at fewer points than Film and cuts off ribbons of ink thinner than 0.5 mm, which can split one drop's outline into several, so the point and drop counts on the status line rise. Scripts set the bath with `viscosity({ value })`.
+
 ## Print
 
-The **Print** button in Export makes a 3000 pixel picture of the tank on paper and downloads it as a PNG, showing its progress. It doesn't change the tank, and works with every simulator except for gap closing, which only Film does. **Thin ink looks paler** tints the paper less where a drop spread further. Nothing confirms real ink behaves this way, so it's subtle and can be turned off. **Rims and texture** are artistic touches, not simulated.
+The **Print** button in Export makes a 3000 pixel picture of the tank on paper and downloads it as a PNG, showing its progress. It draws outlines as smooth curves through their points, doesn't change the tank, and works with every simulator except for gap closing, which only Film does. **Thin ink looks paler** tints the paper less where a drop spread further. Nothing confirms real ink behaves this way, so it's subtle and can be turned off. **Rims and texture** are artistic touches, not simulated.
 
 ## Paper pull
 

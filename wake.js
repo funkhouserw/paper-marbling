@@ -17,6 +17,10 @@ const STROUHAL = 0.2;
 const MOST_SIDEWAYS = 0.6;
 const TOOL_GRIP = 0.6; // per second: how fast stir, vortex, jiggle and wriggle set the bath moving
 const FEEDS_FLOW = new Set(['stir', 'vortex', 'jiggle', 'wriggle']);
+const THINNEST = 0.5; // mm. Ribbons of ink narrower than this are cut, which is what keeps points bounded.
+const CUT_EVERY = 15; // ticks
+const MIN_CUT = 8; // points
+const MIN_PIECE = 24; // points
 const WIDEST_DRAG = 40; // mm. The closed-form tine drag is for thick baths, where it stays local.
 
 const sineTable = (n) => {
@@ -26,6 +30,9 @@ const sineTable = (n) => {
 };
 
 export class Wake extends Film {
+  // Long, stretched outlines are the normal state here, so detail starts to reduce sooner.
+  get detailBudget() { return 25000; }
+
   get _flowGrid() {
     if (this._fg) return this._fg;
     const nx = Math.round(this.width / CELL);
@@ -159,12 +166,106 @@ export class Wake extends Film {
     this._fed = false;
   }
 
+  // Contour surgery: stretching makes ribbons of ink ever longer and thinner, and each needs more
+  // points to draw, though past a certain width it can't be seen. So where an outline comes within
+  // THINNEST of itself, its thin end is cut off, or if both sides are large it becomes two outlines.
+  _cutFilaments() {
+    // At least as big as the longest edge, so that a nearby edge is always found from either end.
+    const cell = Math.max(4, this.maxEdge * this.detail * 1.5);
+    const key = (x, y) => (Math.floor(x / cell) + 2048) * 4096 + Math.floor(y / cell) + 2048;
+    const out = [];
+    for (const poly of this.polys) {
+      if (poly.group || poly.n < 64) { out.push(poly); continue; }
+      const pieces = this._cutOutline(poly, cell, key);
+      for (const piece of pieces) out.push(piece);
+    }
+    if (out.length !== this.polys.length || out.some((p, i) => p !== this.polys[i])) this.polys = out;
+  }
+
+  _cutOutline(poly, cell, key) {
+    const { xy, n } = poly;
+    const buckets = new Map();
+    for (let i = 0; i < n; i++) {
+      const k = key(xy[i * 2], xy[i * 2 + 1]);
+      const list = buckets.get(k);
+      if (list) list.push(i);
+      else buckets.set(k, [i]);
+    }
+    const near2 = THINNEST * THINNEST;
+    const closest = (i) => {
+      const x = xy[i * 2];
+      const y = xy[i * 2 + 1];
+      let best = -1;
+      for (let a = -1; a <= 1; a++) {
+        for (let b = -1; b <= 1; b++) {
+          const list = buckets.get(key(x + a * cell, y + b * cell));
+          if (!list) continue;
+          for (const j of list) {
+            // Points just along the outline from here are close because they're neighbours.
+            if (j <= i + MIN_CUT || n - (j - i) <= MIN_CUT || j + 1 >= n) continue;
+            const ax = xy[j * 2];
+            const ay = xy[j * 2 + 1];
+            const dx = xy[j * 2 + 2] - ax;
+            const dy = xy[j * 2 + 3] - ay;
+            const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+            const ex = ax + dx * t - x;
+            const ey = ay + dy * t - y;
+            if (ex * ex + ey * ey < near2 && j > best) best = j;
+          }
+        }
+      }
+      return best;
+    };
+    const piece = (from, to) => {
+      const count = to - from + 1;
+      const copy = new Float64Array(count * 4);
+      copy.set(xy.subarray(from * 2, (to + 1) * 2));
+      return { ...poly, xy: copy, n: count, from: poly.from ?? poly };
+    };
+    const areaLength = (from, to) => {
+      let area = 0;
+      let length = 0;
+      for (let i = from; i < to; i++) {
+        area += xy[i * 2] * xy[i * 2 + 3] - xy[i * 2 + 2] * xy[i * 2 + 1];
+        length += Math.hypot(xy[i * 2 + 2] - xy[i * 2], xy[i * 2 + 3] - xy[i * 2 + 1]);
+      }
+      area += xy[to * 2] * xy[from * 2 + 1] - xy[from * 2] * xy[to * 2 + 1];
+      return [Math.abs(area) / 2, length];
+    };
+    const kept = [];
+    const extra = [];
+    let i = 0;
+    while (i < n) {
+      kept.push(i);
+      const j = closest(i);
+      if (j < 0) { i++; continue; }
+      const [area, length] = areaLength(i, j);
+      if (area / length >= THINNEST) {
+        // A big piece behind a thin neck stands alone, unless it would take almost the whole outline.
+        if (j - i < n - MIN_PIECE && j - i >= MIN_PIECE) extra.push(piece(i + 1, j));
+        else { i++; continue; }
+      }
+      i = j + 1;
+    }
+    if (kept.length === n) return [poly];
+    if (kept.length < 16) return [poly];
+    const cleaned = new Float64Array(kept.length * 4);
+    kept.forEach((v, w) => {
+      cleaned[w * 2] = xy[v * 2];
+      cleaned[w * 2 + 1] = xy[v * 2 + 1];
+    });
+    poly.xy = cleaned;
+    poly.n = kept.length;
+    return [poly, ...extra];
+  }
+
   get busy() { return super.busy || this.flowing === true; }
 
   _releaseGates() { if (!this.flowing) super._releaseGates(); }
 
   step() {
     super.step();
+    if (this.tick % CUT_EVERY === 0 && (this.flowing || this.active.length) && !this.active.some((op) => op.kind === 'drop')) this._cutFilaments();
     if (this._push?.length || this._fed || this.flowing) this._stepFlow(this.dt);
   }
 

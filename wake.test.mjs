@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { runScript } from './engine.js';
 import { Wake } from './wake.js';
 
 const start = (viscosity) => {
@@ -105,3 +106,44 @@ for (const [name, use] of [
     assert.ok(thin > 2, `thin coasted ${thin}s`);
   });
 }
+
+test('a ribbon of ink too thin to see is cut off, and the rest stays', () => {
+  const m = new Wake({ width: 1000, height: 700 });
+  // A square with a long thin ribbon sticking out of it.
+  const xy = [];
+  for (let x = -100; x < 0; x += 2) xy.push(x, -50);
+  for (let x = 0; x < 200; x += 2) xy.push(x, -0.1);
+  for (let x = 200; x > 0; x -= 2) xy.push(x, 0.1);
+  for (let x = 0; x > -100; x -= 2) xy.push(x, 50);
+  for (let y = 50; y > -50; y -= 2) xy.push(-100, y);
+  m.polys.push({ xy: Float64Array.from(xy), n: xy.length / 2, color: '#112233' });
+  const before = m.polys[0].n;
+  m._cutFilaments();
+  const { xy: left, n } = m.polys[0];
+  assert.ok(n < before - 150, `${before} points, then ${n}`);
+  let farthest = -Infinity;
+  for (let i = 0; i < n; i++) farthest = Math.max(farthest, left[i * 2]);
+  assert.ok(farthest < 20, `the ribbon still reaches ${farthest}`);
+});
+
+test('a thick shape keeps every point', () => {
+  const m = new Wake({ width: 1000, height: 700 });
+  const xy = [];
+  for (let i = 0; i < 400; i++) xy.push(100 * Math.cos(i * 0.0157), 100 * Math.sin(i * 0.0157));
+  m.polys.push({ xy: Float64Array.from(xy), n: 400, color: '#112233' });
+  m._cutFilaments();
+  assert.equal(m.polys[0].n, 400);
+  assert.equal(m.polys.length, 1);
+});
+
+test('a script can set the viscosity, and it comes back in the script it writes', () => {
+  const m = new Wake({ width: 1000, height: 700 });
+  runScript(m, 'viscosity({ value: 10 });');
+  assert.equal(m.viscosity, 10);
+  assert.ok(m.toScript().includes('viscosity({"value":10});'));
+  const again = new Wake({ width: 1000, height: 700 });
+  again.replay(m.log);
+  assert.equal(again.viscosity, 10);
+  runScript(m, 'viscosity({ value: 1 });');
+  assert.equal(m.viscosity, 5);
+});

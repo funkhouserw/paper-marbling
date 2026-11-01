@@ -552,6 +552,8 @@ function syncToggles(entries) {
   if (water) showSpreading(water.args.on);
   $('walls').checked = entries.filter((e) => e.fn === 'walls').at(-1)?.args.on ?? false;
   // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
+  const thickness = entries.filter((e) => e.fn === 'setViscosity').at(-1);
+  if (thickness) $('visc').value = thickness.args.value;
   const bath = entries.filter((e) => e.fn === 'setBath').at(-1);
   if (bath) {
     $('useBath').checked = bath.args.color !== null;

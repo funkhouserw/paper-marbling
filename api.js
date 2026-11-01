@@ -154,6 +154,9 @@ export const COMMANDS = [
   { name: 'bath', engine: 'setBath', group: 'Tank', summary: 'Sets the colour of the water, which is the background. It applies straight away and is not ink, so tools do not move it.', params: [
     ['color', 'color', null, 'CSS colour or palette ink; null removes it, leaving the tank see-through in exports'],
   ] },
+  { name: 'viscosity', engine: 'setViscosity', group: 'Tank', summary: 'Sets how thick the bath is, for everything from here on. It applies straight away. Under the Wake simulator, thin baths keep moving after a tool stops: curls and long feathers need about 5 to 60, and 1000 stays crisp and still.', params: [
+    ['value', 'number', 1000, 'viscosity in mm²/s, from 5 (thin as water) to 20000'],
+  ] },
   // Timeline
   { name: 'inOrder', group: 'Timeline', summary: 'Each following action starts gap seconds after the previous one finishes.', params: [
     ['gap', 'number', 0.5, 'seconds'],

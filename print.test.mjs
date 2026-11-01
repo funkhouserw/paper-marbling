@@ -60,3 +60,14 @@ test('no rim is drawn between touching regions of one colour', async () => {
   const image = await renderPrint(m, { ...plainOptions, width: 1000, rim: 0.5, rimWidth: 2 });
   assert.deepEqual(pixel(image, 0, 0), pixel(image, 50, 0));
 });
+
+test('a print draws a many-sided outline as a curve, not straight chords', async () => {
+  const m = new Film(TANK);
+  const xy = [];
+  for (let i = 0; i < 16; i++) xy.push(200 * Math.cos((i / 16) * 2 * Math.PI), 200 * Math.sin((i / 16) * 2 * Math.PI));
+  m.polys.push({ xy: Float64Array.from(xy), n: 16, color: '#112233' });
+  const image = await renderPrint(m, { ...plainOptions, width: 1000 });
+  // Halfway along a side, the curve is on the circle and a straight chord would be 3.8 mm inside.
+  const angle = Math.PI / 16;
+  assert.ok(pixel(image, 198.5 * Math.cos(angle), 198.5 * Math.sin(angle))[0] < 60);
+});
