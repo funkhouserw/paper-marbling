@@ -805,6 +805,33 @@ test('a curl really does travel backwards along the rake', () => {
   assert.ok(back);
 });
 
+test('a saved state comes back exactly, mid-growth, and carries on the same', () => {
+  const run = (m) => { while (m.busy) m.step(); return m.polys.map((p) => Array.from(p.xy.subarray(0, p.n * 2))); };
+  const m = new Marble();
+  m.openWater();
+  m.drop({ x: -100, quantity: 2, dispersion: 1 });
+  m.drops({ n: 5, quantity: 0.2 });
+  for (let i = 0; i < 10; i++) m.step();
+  const state = m.saveState();
+  const first = run(m);
+  m.drop({ x: 200, quantity: 1 });
+  run(m);
+  const back = new Marble();
+  back.loadState(state);
+  assert.ok(back.busy, 'still growing');
+  assert.deepEqual(run(back), first);
+  assert.equal(back.active.every((op) => !op.poly || back.polys.includes(op.poly)), true);
+});
+
+test('a saved state keeps drops attached to their outlines', () => {
+  const m = new Marble();
+  const d = m.drop({ quantity: 1 });
+  for (let i = 0; i < 5; i++) m.step();
+  const back = new Marble().loadState(m.saveState());
+  assert.ok(back.active.length && back.polys.includes(back.active[0].poly));
+  assert.notEqual(back.polys[0], d.poly);
+});
+
 test('a rake without a weave takes one straight piece per tick', () => {
   const m = new Marble();
   let pieces = 0;

@@ -2,6 +2,7 @@ import { Marble, runScript, maxRadius, WEAVE_POINTS, WEAVE_SHAPES } from './engi
 import { toMm, dialToValue, valueToDial } from './api.js';
 import { TOOLS, TURNS, PAGE_UNITS, isDial } from './tools.js';
 import { MODELS } from './models.js';
+import { listSaves, addSave, deleteSave } from './saves.js';
 import { PALETTES, palette } from './palettes.js';
 import { FONTS, textContours, moveContours } from './text.js';
 import { TINTS, PULL_SECONDS, LAY_SECONDS, pullPrint, drawSweep, savePull, listPulls, deletePull } from './paper.js';
@@ -396,6 +397,7 @@ function showTool(name) {
     Object.assign(input, dial
       ? { type: 'range', min: 0, max: 100, step: 1, value: valueToDial(values[name][key], min, max) }
       : { type: 'range', min, max, step, value: values[name][key] });
+    input.dataset.key = key;
     const typed = typeBox(input);
     input.oninput = () => {
       values[name][key] = dial ? dialToValue(Number(input.value), min, max) : Number(input.value);
@@ -426,6 +428,8 @@ function weaveIcon(shape) {
   return svg;
 }
 
+const DEFAULT_WEAVE_HEIGHT = 30;
+
 function weavePicker(name, label, options) {
   const wrap = document.createElement('div');
   wrap.className = 'block';
@@ -440,6 +444,12 @@ function weavePicker(name, label, options) {
     b.classList.toggle('on', values[name].waveShape === shape);
     b.onclick = () => {
       values[name].waveShape = shape;
+      // With no height a shape does nothing, which looks like it's broken.
+      if (!values[name].waveAmp) {
+        const height = document.querySelector('#params input[data-key=waveAmp]');
+        height.value = DEFAULT_WEAVE_HEIGHT;
+        height.oninput();
+      }
       for (const other of buttons) other.classList.toggle('on', other === b);
     };
     return b;
@@ -487,10 +497,14 @@ let redoGroups = [];
 
 function act(fn) {
   const before = marble.log.length;
+  const state = marble.saveState();
   fn();
   if (marble.log.length > before) {
     undoMarks.push(before);
+    undoStates.push(state);
+    if (undoStates.length > KEPT_UNDO_STATES) undoStates[undoStates.length - KEPT_UNDO_STATES - 1] = null;
     redoGroups = [];
+    redoStates = [];
     updateHistoryButtons();
   }
 }
@@ -508,9 +522,15 @@ function syncToggles(entries) {
   }
 }
 
+const KEPT_UNDO_STATES = 30;
+let undoStates = [];
+let redoStates = [];
+
 function resetHistory() {
   undoMarks = [];
   redoGroups = [];
+  undoStates = [];
+  redoStates = [];
   updateHistoryButtons();
 }
 
@@ -529,18 +549,34 @@ function rebuild(entries) {
   updateHistoryButtons();
 }
 
+function showState(state) {
+  marble.loadState(state);
+  syncToggles(marble.log);
+  finishing = false;
+  owed = 0;
+  dirty = true;
+  updateHistoryButtons();
+}
+
 function undo() {
   if (pull || !undoMarks.length) return;
   const at = undoMarks.pop();
   redoGroups.push(marble.log.slice(at));
-  rebuild(marble.log.slice(0, at));
+  redoStates.push(marble.saveState());
+  // Puts the tank straight back. Only actions older than the kept states need replaying.
+  const state = undoStates.pop();
+  if (state) showState(state);
+  else rebuild(marble.log.slice(0, at));
 }
 
 function redo() {
   if (pull || !redoGroups.length) return;
   const group = redoGroups.pop();
   undoMarks.push(marble.log.length);
-  rebuild([...marble.log, ...group]);
+  undoStates.push(marble.saveState());
+  const state = redoStates.pop();
+  if (state) showState(state);
+  else rebuild([...marble.log, ...group]);
 }
 
 // ---- Canvas interaction -------------------------------------------------
@@ -815,6 +851,64 @@ $('examples').onchange = () => {
   $('script').value = EXAMPLES[$('examples').value];
   runSource();
 };
+
+// ---- Saved states ---------------------------------------------------------
+
+async function renderSaves() {
+  const saves = await listSaves();
+  $('saves').replaceChildren(...saves.reverse().map((save) => {
+    const row = document.createElement('div');
+    row.className = 'save';
+    const thumb = Object.assign(document.createElement('img'), { src: save.thumb, alt: '' });
+    const when = document.createElement('span');
+    when.textContent = new Date(save.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const restore = Object.assign(document.createElement('button'), { textContent: 'Restore' });
+    restore.onclick = () => restoreSave(save);
+    const remove = Object.assign(document.createElement('button'), { textContent: '✕', title: 'Delete this save' });
+    remove.onclick = async () => { await deleteSave(save.id); renderSaves(); };
+    row.append(thumb, when, restore, remove);
+    return row;
+  }));
+}
+
+$('saveState').onclick = async () => {
+  const shot = document.createElement('canvas');
+  shot.width = 120;
+  shot.height = Math.round((120 * tank.height) / tank.width) || 84;
+  shot.getContext('2d').drawImage(tank, 0, 0, shot.width, shot.height);
+  await addSave({
+    created: Date.now(),
+    thumb: shot.toDataURL('image/png'),
+    simulator: $('simulator').value,
+    script: $('script').value,
+    useBath: $('useBath').checked,
+    bath: $('bath').value,
+    visc: $('visc').value,
+    state: marble.saveState(),
+  });
+  renderSaves();
+};
+
+function restoreSave(save) {
+  $('simulator').value = save.simulator;
+  $('script').value = save.script;
+  $('useBath').checked = save.useBath;
+  $('bath').value = save.bath;
+  $('visc').value = save.visc;
+  $('tankW').value = save.state.width;
+  $('tankH').value = save.state.height;
+  newTank();
+  resetHistory();
+  marble.loadState(save.state);
+  queueEnd = 0;
+  syncToggles(marble.log);
+  $('simulator').value = save.simulator;
+  resize();
+  finishing = false;
+  owed = 0;
+  dirty = true;
+}
+renderSaves();
 
 // ---- Export -------------------------------------------------------------
 

@@ -73,10 +73,12 @@ export const WEAVE_SHAPES = {
     const a = TAU * t;
     return [0.16 * Math.sin(a) + 0.09 * Math.sin(2 * a), -Math.cos(a)];
   },
-  // A surf wave: a long rise to the crest, which pitches forward and curls back under itself.
-  surf: drawn([[0, -0.9], [0.22, -0.55], [0.42, 0.25], [0.6, 0.85], [0.78, 0.95], [0.9, 0.55], [0.82, 0.15], [0.68, 0.2], [0.72, 0.5], [0.9, 0.2], [1, -0.5]]),
-  // Rolls right up into a spiral at the top of each wave.
-  roll: drawn([[0, -0.8], [0.25, -0.2], [0.45, 0.65], [0.68, 1], [0.92, 0.72], [0.9, 0.2], [0.7, 0.05], [0.58, 0.32], [0.7, 0.55], [0.82, 0.38], [0.86, -0.1], [1, -0.8]]),
+  // Traced from the reference: a rising line over a crest that winds into a spiral. The tine
+  // has to come back out, so it retraces the spiral on its way to the next wave.
+  spiral: drawn([[0, -0.6], [0.2, -0.1], [0.4, 0.55], [0.6, 1], [0.82, 0.9], [0.95, 0.35], [0.88, -0.35], [0.66, -0.72], [0.48, -0.45], [0.45, -0.02], [0.58, 0.22], [0.7, 0.05], [0.58, 0.22], [0.45, -0.02], [0.48, -0.45], [0.66, -0.72], [0.85, -0.75]]),
+  // Traced from the reference: a surf wave. From the tip it runs over the crest, down into the
+  // trough, then up and under the next crest, whose tip overhangs it.
+  wave: drawn([[0, 0.95], [0.03, 0.98], [0.12, 1], [0.25, 0.93], [0.42, 0.35], [0.6, -0.55], [0.78, -1], [0.92, -0.85], [1.05, -0.35], [1.11, 0.2], [1.1, 0.62], [1.04, 0.92], [1.01, 0.95]]),
   // Overlapping arches, like a row of shells.
   shell: drawn([[0, 0.1], [0.15, 0.8], [0.45, 1], [0.8, 0.75], [1, 0.15], [0.95, -0.4], [0.65, -0.65], [0.3, -0.5], [0.12, -0.15]]),
   // A long low slide with a small flick at the end.
@@ -179,10 +181,32 @@ export class Marble {
     this.log = [];
     this.tick = 0;
     this.capped = false;
-    this.rng = mulberry32(this.seed);
+    this.rngState = this.seed >>> 0;
   }
 
-  random() { return this.rng(); }
+  random() {
+    this.rngState = (this.rngState + 0x6d2b79f5) >>> 0;
+    let t = this.rngState;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  // A complete copy of the tank, including ink still growing and anything queued. Fields
+  // starting with _ are only caches.
+  saveState() {
+    const state = {};
+    for (const [key, value] of Object.entries(this)) {
+      if (!key.startsWith('_') && typeof value !== 'function') state[key] = value;
+    }
+    return structuredClone(state);
+  }
+
+  loadState(state) {
+    for (const key of Object.keys(this)) if (key.startsWith('_')) delete this[key];
+    Object.assign(this, structuredClone(state));
+    return this;
+  }
 
   // ---- Scheduling ------------------------------------------------------
 

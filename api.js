@@ -53,9 +53,9 @@ export const COMMANDS = [
     ['offsets', 'number[]', null, 'sideways tooth positions, % of width, instead of teeth and spacing', 'sizes'],
     SPEED(10),
     size('D', 1, 'tooth size; the effect is steep: under about 0.4 barely moves ink at normal speed, about 1 to 2 drags a broad path, and faster tools drag more'),
-    size('waveAmp', 0, 'weave height'),
+    size('waveAmp', 0, 'weave height; 0 means a straight rake, so set this for waveShape to do anything'),
     size('waveLength', 10, 'length of one weave'),
-    ['waveShape', 'string', 'sine', 'the weave: sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), surf (a breaking wave), roll (spirals at the crest), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
+    ['waveShape', 'string', 'sine', 'the weave: sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
     AT,
   ] },
   { name: 'fullRake', group: 'Tools', summary: 'A rake across the whole tank with evenly spaced teeth.', params: [
@@ -64,9 +64,9 @@ export const COMMANDS = [
     size('offset', 0, 'slides the teeth sideways'),
     SPEED(20),
     size('D', 1, 'tooth size'),
-    size('waveAmp', 0, 'weave height'),
+    size('waveAmp', 0, 'weave height; 0 means a straight rake, so set this for waveShape to do anything'),
     size('waveLength', 10, 'length of one weave'),
-    ['waveShape', 'string', 'sine', 'the weave: sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), surf (a breaking wave), roll (spirals at the crest), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
+    ['waveShape', 'string', 'sine', 'the weave: sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
     AT,
   ] },
   { name: 'stylus', group: 'Tools', summary: 'One tine along a path.', params: [
