@@ -449,6 +449,7 @@ function weavePicker(name, label, options) {
     b.classList.toggle('on', values[name].waveShape === shape);
     b.onclick = () => {
       values[name].waveShape = shape;
+      for (const other of buttons) other.classList.toggle('on', other === b);
       const height = document.querySelector('#params input[data-key=waveAmp]');
       if (shape === 'straight') {
         height.value = 0;
@@ -460,7 +461,6 @@ function weavePicker(name, label, options) {
         height.value = DEFAULT_WEAVE_HEIGHT;
         height.oninput();
       }
-      for (const other of buttons) other.classList.toggle('on', other === b);
     };
     return b;
   });
