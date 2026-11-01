@@ -32,8 +32,9 @@ const PUSH_THROUGH_INK = 60;
 // How far past the edge of the ink a drop's push still carries, in mm. Bare water carries no
 // pressure, so this is only long enough to keep the outlines from folding. A longer push
 // makes drops shove each other away before they touch, leaving a film of water between them.
-const FADE_BASE = 1.5;
-const FADE_SHARE = 0;
+const PUSH_FADE = 1.5;
+// Directions around a drop in which its push knows exactly where the ink ends.
+const PUSH_DIRECTIONS = 48;
 
 // Straight pieces per weave of a rake, for both its path and its preview.
 export const WEAVE_POINTS = 16;
@@ -396,9 +397,9 @@ export class Marble {
 
   // Applies f(x, y, out) to every outline vertex and every landed drop's centre.
   // Drops that haven't landed yet are unaffected. With hard edges nothing crosses the walls.
-  _map(f, { slowNearWalls = true } = {}) {
+  _map(f, { slowNearWalls = true, clamp = true } = {}) {
     const out = [0, 0];
-    const walls = this.wallsOn;
+    const walls = this.wallsOn && clamp;
     const hw = this.width / 2;
     const hh = this.height / 2;
     // Hard edges resist: ink slows as it nears a wall and compresses against it, rather
@@ -445,16 +446,16 @@ export class Marble {
     // Mirror images stop a push flowing through the walls, which only matters for a push that
     // doesn't fade. A spreading drop's images would hold its ink back from the wall like water
     // pressure, so it just meets the wall and flattens there.
-    const fading = sources.some((src) => src[3] > 0);
+    const fading = sources.some((src) => src[3]);
     const walled = this.wallsOn && !fading;
     const per = walled ? 4 : 1;
     const count = sources.length * per;
     const sx = new Float64Array(count);
     const sy = new Float64Array(count);
     const sa = new Float64Array(count);
-    const sr = new Float64Array(count); // radius past which the push fades, or 0 for no fade
+    const limits = new Array(count); // where each push stops by direction, or nothing if it doesn't
     let total = 0;
-    sources.forEach(([cx, cy, da, radius = 0], k) => {
+    sources.forEach(([cx, cy, da, limit], k) => {
       const mx = cx >= 0 ? W - cx : -W - cx;
       const my = cy >= 0 ? H - cy : -H - cy;
       const spots = walled ? [[cx, cy], [mx, cy], [cx, my], [mx, my]] : [[cx, cy]];
@@ -462,7 +463,7 @@ export class Marble {
         sx[k * per + m] = ix;
         sy[k * per + m] = iy;
         sa[k * per + m] = da;
-        sr[k * per + m] = radius;
+        limits[k * per + m] = limit;
       });
       total += da;
     });
@@ -479,13 +480,20 @@ export class Marble {
           const d2 = dx * dx + dy * dy;
           if (d2 < 1e-12) continue;
           let a = Math.sqrt(1 + sa[i] / d2) - 1;
-          const R = sr[i];
-          if (R > 0 && d2 > R * R) {
-            // Past the drop's edge the water compresses instead of passing the push on.
-            const fade = FADE_BASE + FADE_SHARE * R;
-            const beyond = Math.sqrt(d2) - R;
-            if (beyond > fade * 5) continue;
-            a *= Math.exp(-beyond / fade);
+          const limit = limits[i];
+          if (limit) {
+            const d = Math.sqrt(d2);
+            if (d > limit.farthest + PUSH_FADE * 5) continue;
+            const u = (Math.atan2(dy, dx) / (2 * Math.PI) + 1) * PUSH_DIRECTIONS;
+            const k = Math.floor(u);
+            const t = u - k;
+            const R = limit[k % PUSH_DIRECTIONS] * (1 - t) + limit[(k + 1) % PUSH_DIRECTIONS] * t;
+            // Past the ink's edge is water, which carries no pressure.
+            if (d > R) {
+              const beyond = d - R;
+              if (beyond > PUSH_FADE * 5) continue;
+              a *= Math.exp(-beyond / PUSH_FADE);
+            }
           }
           x += dx * a;
           y += dy * a;
@@ -585,7 +593,7 @@ export class Marble {
   // A coarse map of which parts of the tank hold ink.
   _inkGrid() {
     const { width: W, height: H } = this;
-    const cell = Math.max(W, H) / 200;
+    const cell = Math.max(W, H) / 400;
     const cols = Math.ceil(W / cell);
     const rows = Math.ceil(H / cell);
     const inked = new Uint8Array(cols * rows);
@@ -649,16 +657,17 @@ export class Marble {
     // It can only fall: a drop that has met ink doesn't start spreading again when a neighbour
     // gets pushed away, which would have drops shoving each other back and forth for ever.
     op.exposure = op.poly ? Math.min(op.exposure, op.exposure * 0.8 + reading * 0.2) : reading;
-    op.inkReach = this._inkReach(op, grid);
+    this._inkRays(op, grid);
   }
 
-  // How far solid ink extends around a spot, on average. Ink can't compress, so a drop's
-  // push has to carry through all of it and only fade once it reaches water.
-  _inkReach(op, { inked, cell, cols, rows }) {
-    const RAYS = 16;
-    let total = 0;
-    for (let i = 0; i < RAYS; i++) {
-      const a = (i / RAYS) * 2 * Math.PI;
+  // How far solid ink extends from a spot in each direction. Ink can't compress, so a drop's
+  // push has to carry through it and only stop at water. Eased over time, because the map's
+  // cells would otherwise make the push's edge flicker from one reading to the next.
+  _inkRays(op, { inked, cell, cols, rows }) {
+    const first = !op.rays;
+    op.rays ??= new Float64Array(PUSH_DIRECTIONS);
+    for (let i = 0; i < PUSH_DIRECTIONS; i++) {
+      const a = (i / PUSH_DIRECTIONS) * 2 * Math.PI;
       let d = 0;
       for (;;) {
         const col = Math.round((op.x + Math.cos(a) * (d + cell) + this.width / 2) / cell - 0.5);
@@ -666,9 +675,36 @@ export class Marble {
         if (col < 0 || col >= cols || row < 0 || row >= rows || !inked[row * cols + col]) break;
         d += cell;
       }
-      total += d;
+      op.rays[i] = first ? d + cell : op.rays[i] + (d + cell - op.rays[i]) * 0.3;
     }
-    return total / RAYS + cell; // rays stop up to a cell short of the true edge
+  }
+
+  // Where this drop's push stops in each direction: its own outline, exactly, or further if
+  // solid ink carries the push on.
+  _pushLimits(op) {
+    const limits = new Float64Array(PUSH_DIRECTIONS);
+    if (op.poly) {
+      const { xy, n } = op.poly;
+      for (let i = 0; i < n; i++) {
+        const dx = xy[i * 2] - op.x;
+        const dy = xy[i * 2 + 1] - op.y;
+        const k = Math.round((Math.atan2(dy, dx) / (2 * Math.PI) + 1) * PUSH_DIRECTIONS) % PUSH_DIRECTIONS;
+        limits[k] = Math.max(limits[k], Math.hypot(dx, dy));
+      }
+      // A small outline can leave directions with no point in them.
+      for (let pass = 0; pass < 2; pass++) {
+        for (let k = 0; k < PUSH_DIRECTIONS; k++) {
+          if (!limits[k]) limits[k] = limits[(k + PUSH_DIRECTIONS - 1) % PUSH_DIRECTIONS] || limits[(k + 1) % PUSH_DIRECTIONS];
+        }
+      }
+    } else limits.fill(Math.sqrt(op.grown));
+    let farthest = 0;
+    for (let k = 0; k < PUSH_DIRECTIONS; k++) {
+      if (op.rays) limits[k] = Math.max(limits[k], Math.min(op.rays[k], limits[k] + PUSH_THROUGH_INK));
+      farthest = Math.max(farthest, limits[k]);
+    }
+    limits.farthest = farthest;
+    return limits;
   }
 
   _advanceOpenWaterDrop(op, dt) {
@@ -692,7 +728,7 @@ export class Marble {
     const done = resting && floor - op.grown < GROWTH_DONE * op.maxArea;
     if (op.poly && !done && op.owed < Math.sqrt(op.grown)) return false;
     if (op.owed > 0) {
-      this.growth.push([op.x, op.y, op.owed, Math.max(Math.sqrt(op.grown), Math.min(op.inkReach ?? 0, Math.sqrt(op.grown) + PUSH_THROUGH_INK))]);
+      this.growth.push([op.x, op.y, op.owed, this._pushLimits(op)]);
       if (!op.poly) this.landing.push([op, Math.sqrt(op.owed)]);
       op.owed = 0;
     }
@@ -878,9 +914,18 @@ export class Marble {
         break;
       }
       case 'fit': {
-        const fx = (1 + (op.sx - 1) * p1) / (1 + (op.sx - 1) * p0);
-        const fy = (1 + (op.sy - 1) * p1) / (1 + (op.sy - 1) * p0);
-        this._map((x, y, out) => { out[0] = x * fx; out[1] = y * fy; });
+        // Only ink in a band along each wall moves, and everything further in stays exactly
+        // where it is. Depth d past the band's start becomes d / (1 + c d), and because two
+        // of those in a row just add their c, the steps of the animation combine exactly.
+        const fold = (v, half, c) => {
+          const depth = Math.abs(v) - (half - op.band);
+          if (depth <= 0 || !c) return v;
+          return Math.sign(v) * (half - op.band + depth / (1 + c * depth));
+        };
+        this._map((x, y, out) => {
+          out[0] = fold(x, this.width / 2, op.cx * dp);
+          out[1] = fold(y, this.height / 2, op.cy * dp);
+        }, { slowNearWalls: false, clamp: false });
         break;
       }
       case 'shift': {
@@ -1006,7 +1051,10 @@ export class Marble {
       this.active = this.active.filter((op) => !gone.has(op.poly));
     }
     if (maxX > hw || maxY > hh) {
-      this.active.push({ kind: 'fit', sx: hw / maxX, sy: hh / maxY, duration: 0.8, elapsed: 0 });
+      // How hard to fold each axis so that the farthest ink ends up exactly on the wall.
+      const band = Math.min(this.width, this.height) * 0.1;
+      const strength = (far, half) => (far > half ? 1 / band - 1 / (far - (half - band)) : 0);
+      this.active.push({ kind: 'fit', cx: strength(maxX, hw), cy: strength(maxY, hh), band, duration: 0.8, elapsed: 0 });
     }
   }
 

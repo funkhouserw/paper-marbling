@@ -293,6 +293,23 @@ test('switching hard edges on eases ink already past the walls back inside', () 
   assert.ok(m.polys.length === 2);
 });
 
+test('switching hard edges on leaves ink away from the walls where it is', () => {
+  const m = new Marble();
+  const middle = m.drop({ x: -100, y: 0, quantity: 1, dispersion: 3 });
+  m.drop({ x: 480, y: 0, quantity: 4, dispersion: 3 });
+  m.runUntilIdle();
+  const left = reach(middle.poly, -1);
+  const right = reach(middle.poly, 1);
+  const x = middle.x;
+  m.walls({ at: m.time });
+  m.runUntilIdle();
+  assert.equal(reach(middle.poly, -1), left, 'its far edge stays put');
+  assert.equal(reach(middle.poly, 1), right, 'its near edge stays put');
+  assert.equal(middle.x, x);
+  assert.ok(bounds(m)[0] <= 500.01, `the rest is inside: ${bounds(m)[0]}`);
+  assert.ok(bounds(m)[0] > 495, `and reaches the wall: ${bounds(m)[0]}`);
+});
+
 test('stir and vortex direction follows the sign', () => {
   const ang = (o, tool) => {
     const m = new Marble();
