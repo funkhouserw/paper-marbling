@@ -18,10 +18,11 @@ const DEG = Math.PI / 180;
 const GROWTH_DONE = 0.015; // a drop rests when this fraction of its area remains: the rest is too small to watch
 const DETAIL_BUDGET = 60000; // outline points before detail starts to reduce
 const MAX_DETAIL = 4;
-// With open-water spreading on, a drop's final area is its normal area times a factor
-// between these, depending on how much of its edge faces water rather than ink.
-const OPEN_WATER_SPREAD = 2.5;
-const AGAINST_INK_SPREAD = 1;
+// With spreading on, ink covers the surface: a drop keeps growing while any of its edge
+// faces water, up to its quantity times its spreading. Fully surrounded by ink, it only
+// gets this share of that, which is all it has to push the ink around it outward.
+const AGAINST_INK_SHARE = 0.25;
+const NO_WATER_LEFT = 0.03; // the share of a drop's edge facing water below which it rests
 // How far past its edge an open-water drop still pushes: a base in mm plus a share of its radius.
 const FADE_BASE = 15;
 const FADE_SHARE = 0.25;
@@ -245,24 +246,25 @@ export class Marble {
 
   // ---- Inks ------------------------------------------------------------
 
-  // quantity: mL. dispersion: spreading rate (1/s), larger is faster.
+  // quantity: mL. dispersion: spreading rate (1/s), larger is faster. spreading: how many
+  // times its plain size the ink can stretch over water, like adding surfactant to a paint.
   // shimmer (0..1) makes the ink metallic.
-  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, color = '#1f4e79', shimmer = 0, at } = {}) {
+  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, color = '#1f4e79', shimmer = 0, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
-    const args = { x, y, quantity, dispersion, color, shimmer };
+    const args = { x, y, quantity, dispersion, spreading, color, shimmer };
     if (at !== undefined) args.at = at;
     const maxArea = maxRadius(quantity, this.film) ** 2;
     const growTime = dispersion === Infinity ? 0 : -Math.log(GROWTH_DONE) / dispersion;
     const op = {
       kind: 'drop', x, y, color, shimmer, quantity, dispersion, maxArea, growTime, grown: 0, elapsed: 0, poly: null,
-      exposure: 1, owed: 0,
+      exposure: 1, owed: 0, spreading,
     };
     return this._schedule('drop', args, op);
   }
 
   // n drops scattered in a w x h box, each with a random start within `stagger` seconds.
   drops({ n = 20, x = 0, y = 0, w = this.width, h = this.height, quantity = 0.5, spread = 0.3,
-          dispersion = 0.8, colors = ['#1f4e79'], stagger = 0, at } = {}) {
+          dispersion = 0.8, spreading = 4, colors = ['#1f4e79'], stagger = 0, at } = {}) {
     const start = at ?? this._now;
     for (let i = 0; i < n; i++) {
       this.drop({
@@ -270,6 +272,7 @@ export class Marble {
         y: y + (this.random() - 0.5) * h,
         quantity: quantity * (1 + (this.random() * 2 - 1) * spread),
         dispersion,
+        spreading,
         color: colors[i % colors.length],
         at: this.orderGap !== null && at === undefined ? undefined : start + this.random() * stagger,
       });
@@ -664,11 +667,15 @@ export class Marble {
       }
       this._updateExposure(op, this._grid);
     }
-    const goal = op.maxArea * (AGAINST_INK_SPREAD + (OPEN_WATER_SPREAD - AGAINST_INK_SPREAD) * op.exposure);
-    const da = Math.max(0, goal - op.grown) * (1 - Math.exp(-op.dispersion * dt));
+    const limit = op.maxArea * op.spreading;
+    const floor = limit * AGAINST_INK_SHARE;
+    const rate = 1 - Math.exp(-op.dispersion * dt);
+    // A drop always reaches its floor; past that, only the edge facing water draws it on.
+    const da = Math.max(floor - op.grown, (limit - op.grown) * op.exposure, 0) * rate;
     op.grown += da;
     op.owed += da;
-    const done = goal - op.grown < GROWTH_DONE * op.maxArea;
+    const resting = op.exposure < NO_WATER_LEFT || limit - op.grown < GROWTH_DONE * op.maxArea;
+    const done = resting && floor - op.grown < GROWTH_DONE * op.maxArea;
     if (op.poly && !done && op.owed < Math.sqrt(op.grown)) return false;
     if (op.owed > 0) {
       this.growth.push([op.x, op.y, op.owed, Math.max(Math.sqrt(op.grown), op.inkReach ?? 0)]);

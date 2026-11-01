@@ -427,6 +427,57 @@ test('open water: a lone drop spreads further, and crowded ink holds back', () =
   near(area(off.polys[0]) / normal, 1, 0.01, 'off keeps the plain size');
 });
 
+const covered = (m) => {
+  const { inked } = m._inkGrid();
+  return inked.reduce((a, b) => a + b, 0) / inked.length;
+};
+
+test('spreading: enough ink covers the surface, and the water never holds it back', () => {
+  const m = new Marble();
+  m.openWater();
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) {
+    m.drop({ x: -400 + c * 160, y: -255 + r * 170, quantity: 1, dispersion: 1.5 });
+  }
+  m.settle();
+  m.runUntilIdle();
+  assert.ok(covered(m) > 0.85, `covered ${covered(m)}`);
+});
+
+test('spreading: a drop with water on one side keeps spreading that way', () => {
+  const m = new Marble();
+  m.openWater();
+  const left = m.drop({ x: -60, quantity: 1, dispersion: 2 });
+  const right = m.drop({ x: 60, quantity: 1, dispersion: 2 });
+  m.runUntilIdle();
+  const lone = new Marble();
+  lone.openWater();
+  const free = lone.drop({ quantity: 1, dispersion: 2 });
+  lone.runUntilIdle();
+  assert.ok(reach(left.poly, -1) + left.x > reach(left.poly, 1) - left.x, 'grows further away from its neighbour');
+  assert.ok(area(left.poly) + area(right.poly) > area(free.poly) * 1.2, 'two drops cover more than one');
+});
+
+test('spreading: a stronger ink covers more and squeezes its neighbour', () => {
+  const run = (spreading) => {
+    const m = new Marble();
+    m.openWater();
+    const a = m.drop({ x: -70, quantity: 1, dispersion: 2, spreading });
+    const b = m.drop({ x: 70, quantity: 1, dispersion: 2 });
+    m.runUntilIdle();
+    return area(a.poly) / area(b.poly);
+  };
+  assert.ok(run(12) > run(4) * 1.3, `${run(12)} vs ${run(4)}`);
+});
+
+test('spreading: packed drops come to rest in reasonable time', () => {
+  const m = new Marble();
+  m.openWater();
+  for (let i = 0; i < 25; i++) m.drop({ x: -300 + (i % 5) * 150, y: -240 + Math.floor(i / 5) * 120, quantity: 1 });
+  m.settle();
+  m.runUntilIdle();
+  assert.ok(m.time < 60, `settled at ${m.time}s`);
+});
+
 test('open water: drops added to the middle push the ink around them outward', () => {
   const m = new Marble();
   m.openWater();

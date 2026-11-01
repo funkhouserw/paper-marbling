@@ -32,10 +32,8 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
   further. `at` sets an explicit start time.
 - **`settle()`:** everything after it waits until every drop has stopped growing and
   every earlier tool has finished, however long that takes. Later times count from then.
-- **Drop size:** `quantity` is the share of the tank a lone drop finally covers.
-- **Open water:** with `openWater` on, a drop aims for 1× (fully surrounded by ink) to
-  2.5× (all open water) of the size above, and its push carries through solid ink and fades once it reaches water. Ink
-  squeezed by a neighbour can end up smaller than that. It is off by default.
+- **Drop size:** `quantity` is the amount of ink, as the share of the tank it covers at plain size.
+- **Spreading:** on by default. Ink covers the surface: a drop keeps growing while any of its edge faces bare water, up to `quantity` x `spreading` (4 by default), and its push carries through solid ink and fades once it reaches water. A fully surrounded drop gets a quarter of that limit, which is what pushes the ink around it outward. A higher `spreading` works like adding surfactant to a paint. `openWater({ on: false })` gives plain fixed-size drops that push everything.
 - **Base colour:** the UI has none by default. An empty tank shows a soft grid, which is
   never exported, so PNG and SVG exports have transparent backgrounds.
 - **Growth:** `area(t) = final area × (1 − e^(−dispersion × t))`.

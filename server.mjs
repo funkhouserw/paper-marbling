@@ -51,8 +51,8 @@ Sidebar sliders vs script numbers: the user also has sidebar sliders with plain 
 ${renderSliders()}
 
 Techniques:
-- Concentric rings or a target, including any request to stack or overlay drops on the same spot: drops that start together at one spot just cover each other, so only the last colour shows. Place one drop per spot for the outermost colour, call settle(), then repeat for each colour moving inward. With a grid of targets, loop over the colours on the outside and the positions on the inside, with settle() after each colour. Each drop pushes all nearby ink outward, so targets near each other get pulled off-centre; more spacing or smaller quantities reduce this.
-- Only use openWater() if the user asks for it.
+- Bare water is the background, not an obstacle: ink spreads over it until it meets other ink. To cover the surface, use enough drops; to keep bare water showing, use fewer or smaller ones, or a lower spreading.
+- Concentric rings or a target, including any request to stack or overlay drops on the same spot: drops that start together at one spot just cover each other, so only the last colour shows. Place one drop per spot for the outermost colour, call settle(), then repeat for each colour moving inward. With a grid of targets, loop over the colours on the outside and the positions on the inside, with settle() after each colour. Later drops push the earlier rings outward.
 
 Colours are CSS strings; #rrggbbaa gives translucent ink. Normal JavaScript loops and arithmetic are fine. For equal spacing both ways, a y step is the x step divided by ASPECT. Keep to about 150 drops and 60 rake teeth so that it runs smoothly. Use nothing outside this list: no other functions, no DOM and no network.`;
 

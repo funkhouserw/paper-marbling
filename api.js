@@ -16,17 +16,19 @@ export const COMMANDS = [
   // Ink
   { name: 'drop', group: 'Ink', summary: 'One drop of ink. Does not advance the timeline.', params: [
     X, Y,
-    ['quantity', 'number', 1.5, '% of the tank area the drop covers', 'q'],
+    ['quantity', 'number', 1.5, 'amount of ink, as % of the tank area at plain size', 'q'],
     ['dispersion', 'number', 0.8, 'growth speed, 1/s'],
+    ['spreading', 'number', 4, 'how many times its plain size the ink can stretch over water; higher also pushes other ink harder, like adding surfactant'],
     COLOR('#1f4e79'), SHIMMER, AT,
   ] },
   { name: 'drops', group: 'Ink', summary: 'Random scatter of drops in a box centred on x, y.', params: [
     ['n', 'number', 20, 'how many'], X, Y,
     ['w', 'number', 100, 'box width, % of width', 'w'],
     ['h', 'number', 100, 'box height, % of height', 'h'],
-    ['quantity', 'number', 0.7, '% of the tank area per drop', 'q'],
+    ['quantity', 'number', 0.7, 'amount of ink per drop, as for drop', 'q'],
     ['spread', 'number', 0.3, 'random size variation, 0 to 1'],
     ['dispersion', 'number', 0.8, '1/s'],
+    ['spreading', 'number', 4, 'as for drop'],
     ['colors', 'color[]', ['#1f4e79'], 'cycled through; CSS colours or palette inks'],
     ['stagger', 'number', 0, 'spreads start times over this many seconds'],
     AT,
@@ -118,7 +120,7 @@ export const COMMANDS = [
   { name: 'walls', group: 'Tank', summary: 'Hard edges: ink stays inside the tank and flattens against the walls.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },
-  { name: 'openWater', group: 'Tank', summary: 'While on, drops spread further into open water and hold back once they meet ink, so they expand until they touch. Call it first.', params: [
+  { name: 'openWater', group: 'Tank', summary: 'On by default: ink spreads over bare water until it meets other ink or reaches its spreading limit. Bare water is just the surface and offers no resistance. Off gives plain fixed-size drops that push everything, water included.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },
   // Timeline
