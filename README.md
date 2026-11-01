@@ -44,6 +44,10 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
   as `color`. `drop`, `print` and `text` take `shimmer` from 0 to 1 for metallic ink.
 - **Printed ink:** `text` and `print` ink never expands, but every later action moves it.
 
+## Print
+
+The **Print** button in Export makes a 3000 pixel picture of the tank on paper and downloads it as a PNG, showing its progress. It doesn't change the tank, and works with every simulator except for gap closing, which only Film does. **Thin ink looks paler** tints the paper less where a drop spread further. Nothing confirms real ink behaves this way, so it's subtle and can be turned off. **Rims and texture** are artistic touches, not simulated.
+
 ## Paper pull
 
 **Pull paper** lays a sheet across the tank, shows the print and downloads it as a PNG.
