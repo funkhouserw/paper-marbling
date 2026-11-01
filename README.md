@@ -46,7 +46,7 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 
 ## Wake
 
-The **Wake** simulator is Film in a bath that keeps moving. Rakes push momentum into a flow on a 7 mm grid, and the flow lasts longer the thinner the bath is: at viscosity 1000 it stops almost at once, so the picture stays close to Film, and at viscosity 5 to 60 ink coasts on for seconds and curls where the rake stopped. Past a Reynolds number of about 40 (speed x tine thickness / viscosity), tines also leave a wobble. Thin baths also narrow a tine's direct drag. Only rakes make flow so far: stir, vortex and the other tools don't. The flow's edge is the tank's edge, with or without walls.
+The **Wake** simulator is Film in a bath that keeps moving. Tools push momentum into a flow on a 7 mm grid, and the flow lasts longer the thinner the bath is: at viscosity 1000 it stops almost at once, so the picture stays close to Film, and at viscosity 5 to 60 ink coasts on for seconds and curls where the rake stopped. Past a Reynolds number of about 40 (speed x tine thickness / viscosity), tines also leave a wobble. Thin baths also narrow a tine's direct drag. Stir, vortex, jiggle and wriggle set the bath moving too, without the wobble. Drops, shift and turn don't. The flow's edge is the tank's edge, with or without walls.
 
 ## Print
 

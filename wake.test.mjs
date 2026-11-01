@@ -80,3 +80,28 @@ test('ink stays inside the walls', () => {
     }
   }
 });
+
+for (const [name, use] of [
+  ['stir', (m) => m.stir({ x: 0, y: 0, radii: [100, 200], degrees: 90, rate: 90 })],
+  ['vortex', (m) => m.vortex({ x: 0, y: 0, duration: 1 })],
+  ['jiggle', (m) => m.jiggle({ angle: 45, duration: 1 })],
+  ['wriggle', (m) => m.wriggle({ x: 0, y: 0, duration: 1 })],
+  ['stylus', (m) => m.stylus({ path: [[-300, 0], [300, 0]], speed: 400 })],
+]) {
+  test(`${name} keeps the bath moving in a thin bath, and hardly at all in a thick one`, () => {
+    const coast = (viscosity) => {
+      const m = start(viscosity);
+      use(m);
+      m.step();
+      while (m.active.length || m.pending.length) m.step();
+      const stopped = m.time;
+      m.runUntilIdle(60);
+      assert.equal(m.busy, false);
+      return m.time - stopped;
+    };
+    const thick = coast(1000);
+    const thin = coast(10);
+    assert.ok(thick < 1.5, `thick coasted ${thick}s`);
+    assert.ok(thin > 2, `thin coasted ${thin}s`);
+  });
+}

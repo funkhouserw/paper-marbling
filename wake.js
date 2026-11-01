@@ -15,6 +15,8 @@ const SHED_AT = 40; // Reynolds number where a wake starts to wobble
 const SHED_FULL = 240; // and where the wobble reaches full strength
 const STROUHAL = 0.2;
 const MOST_SIDEWAYS = 0.6;
+const TOOL_GRIP = 0.6; // per second: how fast stir, vortex, jiggle and wriggle set the bath moving
+const FEEDS_FLOW = new Set(['stir', 'vortex', 'jiggle', 'wriggle']);
 const WIDEST_DRAG = 40; // mm. The closed-form tine drag is for thick baths, where it stays local.
 
 const sineTable = (n) => {
@@ -112,13 +114,58 @@ export class Wake extends Film {
     return done;
   }
 
+  // A tool's own motion, read at every point of the flow grid, sets the bath turning with it.
+  _map(f, options) {
+    if (this._feeding) {
+      const g = this._flowGrid;
+      const { nx, ny, hx, hy } = g;
+      const moveX = g.moveX ??= new Float64Array(nx * ny);
+      const moveY = g.moveY ??= new Float64Array(nx * ny);
+      const out = [0, 0];
+      for (let y = 0; y < ny; y++) {
+        const py = -this.height / 2 + (y + 0.5) * hy;
+        for (let x = 0; x < nx; x++) {
+          const px = -this.width / 2 + (x + 0.5) * hx;
+          f(px, py, out);
+          moveX[y * nx + x] += out[0] - px;
+          moveY[y * nx + x] += out[1] - py;
+        }
+      }
+      this._fed = true;
+    }
+    return super._map(f, options);
+  }
+
+  _advanceTimed(op, dt) {
+    this._feeding = FEEDS_FLOW.has(op.kind);
+    const done = super._advanceTimed(op, dt);
+    this._feeding = false;
+    return done;
+  }
+
+  _feedFlow(w, g, dt) {
+    const { nx, ny, hx, hy, moveX, moveY } = g;
+    for (let y = 0; y < ny; y++) {
+      for (let x = 0; x < nx; x++) {
+        const i = y * nx + x;
+        const dVy = ((x < nx - 1 ? moveY[i + 1] : moveY[i]) - (x > 0 ? moveY[i - 1] : moveY[i])) / (2 * hx);
+        const dVx = ((y < ny - 1 ? moveX[i + nx] : moveX[i]) - (y > 0 ? moveX[i - nx] : moveX[i])) / (2 * hy);
+        // Displacement over the tick is velocity x dt, so the grip's dt cancels it.
+        w[i] += TOOL_GRIP * (dVy - dVx);
+      }
+    }
+    moveX.fill(0);
+    moveY.fill(0);
+    this._fed = false;
+  }
+
   get busy() { return super.busy || this.flowing === true; }
 
   _releaseGates() { if (!this.flowing) super._releaseGates(); }
 
   step() {
     super.step();
-    if (this._push?.length || this.flowing) this._stepFlow(this.dt);
+    if (this._push?.length || this._fed || this.flowing) this._stepFlow(this.dt);
   }
 
   _stepFlow(dt) {
@@ -142,6 +189,7 @@ export class Wake extends Film {
       }
     }
     this._push = [];
+    if (this._fed) this._feedFlow(w, g, dt);
     // Viscosity, friction, and the flow they leave.
     const friction = Math.max(LEAST_FRICTION, (2.5 * this.viscosity) / DEPTH ** 2);
     this._forward(g, w, b);

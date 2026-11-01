@@ -925,3 +925,25 @@ test('sidebar dials run 0 to 100 and every position gives its own value', () => 
     }
   }
 });
+
+test('a wide tine leaves a clean outline, with few sharp turns', () => {
+  const m = new Marble({ width: 1000, height: 700 });
+  const band = [...Array(400).keys()].flatMap((i) => (i < 200 ? [-50, -340 + i * 3.4] : [-10, 340 - (i - 200) * 3.4]));
+  m.polys.push({ xy: Float64Array.from(band), n: 400, color: '#112233' });
+  m.rake({ from: [-300, 0], to: [300, 0], teeth: 1, speed: 100, D: 1, width: 40, at: 0 });
+  m.runUntilIdle();
+  const { xy, n } = m.polys[0];
+  let sharp = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const k = (i + 2) % n;
+    const ax = xy[j * 2] - xy[i * 2];
+    const ay = xy[j * 2 + 1] - xy[i * 2 + 1];
+    const bx = xy[k * 2] - xy[j * 2];
+    const by = xy[k * 2 + 1] - xy[j * 2 + 1];
+    const turn = Math.abs(Math.atan2(ax * by - ay * bx, ax * bx + ay * by));
+    // Away from the band's own corners.
+    if (Math.abs(xy[j * 2 + 1]) < 300 && turn > Math.PI / 2) sharp++;
+  }
+  assert.ok(sharp <= 4, `${sharp} sharp turns`);
+});

@@ -38,6 +38,9 @@ const PUSH_FADE = 1.5;
 // Directions around a drop in which its push knows exactly where the ink ends.
 const PUSH_DIRECTIONS = 48;
 
+// How fast ink at a wide tine's centre moves, compared with the tine.
+const TINE_SLIP = 0.8;
+
 // Straight pieces per weave of a rake, for both its path and its preview.
 export const WEAVE_POINTS = 32;
 
@@ -949,33 +952,30 @@ export class Marble {
     const ds = len / steps;
     const nx = (ex - bx) / len;
     const ny = (ey - by) / len;
+    const a2 = a * a;
     const near = a * 6;
     const far = a * 12;
+    // A smooth flow with no sides to fall on, so ink can't tear apart at the tine's centre line.
+    // It stays slower than the tine, so ink slips past instead of riding along on its front.
     for (let k = 0; k < steps; k++) {
       const cx = bx + nx * ds * (k + 0.5);
       const cy = by + ny * ds * (k + 0.5);
       this._map((px, py, out) => {
+        out[0] = px;
+        out[1] = py;
         const rx = px - cx;
         const ry = py - cy;
         const r2 = rx * rx + ry * ry;
-        out[0] = px;
-        out[1] = py;
         if (r2 >= far * far) return;
-        // The tine is smooth, so ink it reaches parts around it instead of riding on its front.
-        if (r2 <= a * a) {
-          const ahead = Math.min(nx * rx + ny * ry, a * 0.7);
-          const across = rx * -ny + ry * nx;
-          const side = (across >= 0 ? 1 : -1) * Math.sqrt(a * a - ahead * ahead);
-          out[0] = cx + nx * ahead - ny * side;
-          out[1] = cy + ny * ahead + nx * side;
-          return;
-        }
-        const r = Math.sqrt(r2);
-        const along = (nx * rx + ny * ry) / r;
-        const fade = r <= near ? 1 : (far - r) / (far - near);
-        const k2 = ((a * a) / r2) * ds * fade;
-        out[0] += k2 * ((2 * along * rx) / r - nx);
-        out[1] += k2 * ((2 * along * ry) / r - ny);
+        const along = nx * rx + ny * ry;
+        const across = ny * rx - nx * ry;
+        const s = r2 + a2;
+        const fade = r2 <= near * near ? 1 : (far - Math.sqrt(r2)) / (far - near);
+        const c = (TINE_SLIP * a2 * ds * fade) / (s * s);
+        const moveAlong = c * (s - 2 * across * across);
+        const moveAcross = c * 2 * along * across;
+        out[0] += moveAlong * nx + moveAcross * ny;
+        out[1] += moveAlong * ny - moveAcross * nx;
       });
     }
   }
@@ -1009,7 +1009,9 @@ export class Marble {
       for (const off of op.offs) {
         const [bx, by] = this._rakePoint(op, from, off);
         const [ex, ey] = this._rakePoint(op, to, off);
-        this._tine(bx, by, ex, ey, op.L);
+        // A tine wider than its drag has only its body: the drag's core would catch ink at the
+        // centre line and carry it the whole way.
+        if (op.width / 2 <= op.L) this._tine(bx, by, ex, ey, op.L);
         if (op.width) this._tineBody(bx, by, ex, ey, op.width / 2);
       }
     }
