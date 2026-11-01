@@ -469,6 +469,43 @@ test('spreading: a stronger ink covers more and squeezes its neighbour', () => {
   assert.ok(run(12) > run(4) * 1.3, `${run(12)} vs ${run(4)}`);
 });
 
+test('spreading: a full walled tank still settles, layer after layer', () => {
+  const m = new Marble();
+  m.walls();
+  m.openWater();
+  const placed = [];
+  for (let layer = 0; layer < 4; layer++) {
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+      placed.push(m.drop({ x: (c - 2) * 143 + (r % 2) * 71, y: (2 - r) * 117, quantity: 1.5 }));
+    }
+    m.settle();
+  }
+  const t = m.step && Date.now();
+  while (m.busy && m.time < 120) m.step();
+  assert.equal(m.busy, false, `still busy at ${m.time}s, ${m.polys.length} landed, ${Date.now() - t} ms`);
+  assert.equal(m.polys.length, placed.length, 'every layer landed');
+});
+
+test('spreading: water does not hold ink back from the walls', () => {
+  const m = new Marble();
+  m.walls();
+  m.openWater();
+  const d = m.drop({ x: 400, quantity: 2, dispersion: 2 });
+  m.runUntilIdle();
+  assert.ok(500 - reach(d.poly, 1) < 3, `gap to the wall is ${500 - reach(d.poly, 1)} mm`);
+  assert.ok(Math.abs(d.x - 400) < 15, `drop was pushed to ${d.x}`);
+});
+
+test('spreading: no film of water is left between drops that meet', () => {
+  const m = new Marble();
+  m.openWater();
+  const a = m.drop({ x: -90, quantity: 1, dispersion: 2 });
+  const b = m.drop({ x: 90, quantity: 1, dispersion: 2 });
+  m.runUntilIdle();
+  const gap = -reach(b.poly, -1) - reach(a.poly, 1);
+  assert.ok(gap < 2, `gap between the drops is ${gap} mm`);
+});
+
 test('spreading: packed drops come to rest in reasonable time', () => {
   const m = new Marble();
   m.openWater();

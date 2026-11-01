@@ -23,9 +23,17 @@ const MAX_DETAIL = 4;
 // gets this share of that, which is all it has to push the ink around it outward.
 const AGAINST_INK_SHARE = 0.25;
 const NO_WATER_LEFT = 0.03; // the share of a drop's edge facing water below which it rests
-// How far past its edge an open-water drop still pushes: a base in mm plus a share of its radius.
-const FADE_BASE = 15;
-const FADE_SHARE = 0.25;
+// A full tank never quite runs out of water, so spreading also ends after this many times
+// a drop's growth time. Without it, drops keep pushing each other and settle() never ends.
+const SPREAD_TIME_LIMIT = 3;
+// How far past its own edge a drop's push carries through ink, in mm. Without a limit, once
+// the tank is full of ink every drop moves all of it, which is slow and never calms down.
+const PUSH_THROUGH_INK = 60;
+// How far past the edge of the ink a drop's push still carries, in mm. Bare water carries no
+// pressure, so this is only long enough to keep the outlines from folding. A longer push
+// makes drops shove each other away before they touch, leaving a film of water between them.
+const FADE_BASE = 1.5;
+const FADE_SHARE = 0;
 
 // Straight pieces per weave of a rake, for both its path and its preview.
 export const WEAVE_POINTS = 16;
@@ -388,14 +396,14 @@ export class Marble {
 
   // Applies f(x, y, out) to every outline vertex and every landed drop's centre.
   // Drops that haven't landed yet are unaffected. With hard edges nothing crosses the walls.
-  _map(f) {
+  _map(f, { slowNearWalls = true } = {}) {
     const out = [0, 0];
     const walls = this.wallsOn;
     const hw = this.width / 2;
     const hh = this.height / 2;
     // Hard edges resist: ink slows as it nears a wall and compresses against it, rather
     // than being cut off there.
-    const resist = walls;
+    const resist = walls && slowNearWalls;
     const band = Math.min(this.width, this.height) * 0.1;
     const apply = (x, y) => {
       f(x, y, out);
@@ -434,7 +442,11 @@ export class Marble {
   // uniform contraction removes the added area from the bare bath.
   _pushApart(sources) {
     const { width: W, height: H } = this;
-    const walled = this.wallsOn;
+    // Mirror images stop a push flowing through the walls, which only matters for a push that
+    // doesn't fade. A spreading drop's images would hold its ink back from the wall like water
+    // pressure, so it just meets the wall and flattens there.
+    const fading = sources.some((src) => src[3] > 0);
+    const walled = this.wallsOn && !fading;
     const per = walled ? 4 : 1;
     const count = sources.length * per;
     const sx = new Float64Array(count);
@@ -442,9 +454,7 @@ export class Marble {
     const sa = new Float64Array(count);
     const sr = new Float64Array(count); // radius past which the push fades, or 0 for no fade
     let total = 0;
-    let fading = false;
     sources.forEach(([cx, cy, da, radius = 0], k) => {
-      if (radius > 0) fading = true;
       const mx = cx >= 0 ? W - cx : -W - cx;
       const my = cy >= 0 ? H - cy : -H - cy;
       const spots = walled ? [[cx, cy], [mx, cy], [cx, my], [mx, my]] : [[cx, cy]];
@@ -482,7 +492,7 @@ export class Marble {
         }
         out[0] = x * scale;
         out[1] = y * scale;
-      });
+      }, { slowNearWalls: !fading });
     }
   }
 
@@ -636,7 +646,9 @@ export class Marble {
     }
     // Smoothed, because one odd reading could otherwise end a drop's growth for good.
     const reading = open / samples;
-    op.exposure = op.poly ? op.exposure * 0.8 + reading * 0.2 : reading;
+    // It can only fall: a drop that has met ink doesn't start spreading again when a neighbour
+    // gets pushed away, which would have drops shoving each other back and forth for ever.
+    op.exposure = op.poly ? Math.min(op.exposure, op.exposure * 0.8 + reading * 0.2) : reading;
     op.inkReach = this._inkReach(op, grid);
   }
 
@@ -656,7 +668,7 @@ export class Marble {
       }
       total += d;
     }
-    return total / RAYS;
+    return total / RAYS + cell; // rays stop up to a cell short of the true edge
   }
 
   _advanceOpenWaterDrop(op, dt) {
@@ -674,11 +686,13 @@ export class Marble {
     const da = Math.max(floor - op.grown, (limit - op.grown) * op.exposure, 0) * rate;
     op.grown += da;
     op.owed += da;
-    const resting = op.exposure < NO_WATER_LEFT || limit - op.grown < GROWTH_DONE * op.maxArea;
+    op.elapsed += dt;
+    const resting = op.exposure < NO_WATER_LEFT || limit - op.grown < GROWTH_DONE * op.maxArea
+      || op.elapsed > op.growTime * SPREAD_TIME_LIMIT;
     const done = resting && floor - op.grown < GROWTH_DONE * op.maxArea;
     if (op.poly && !done && op.owed < Math.sqrt(op.grown)) return false;
     if (op.owed > 0) {
-      this.growth.push([op.x, op.y, op.owed, Math.max(Math.sqrt(op.grown), op.inkReach ?? 0)]);
+      this.growth.push([op.x, op.y, op.owed, Math.max(Math.sqrt(op.grown), Math.min(op.inkReach ?? 0, Math.sqrt(op.grown) + PUSH_THROUGH_INK))]);
       if (!op.poly) this.landing.push([op, Math.sqrt(op.owed)]);
       op.owed = 0;
     }
