@@ -857,6 +857,53 @@ test('spray lays many dots in range, mostly tiny, thickest in the middle', () =>
   assert.equal(new Set(dots.map((d) => d.color)).size, 2);
 });
 
+test('settling drops points without moving the outline, and tools still work after', () => {
+  const area = ({ xy, n }) => {
+    let t = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      t += xy[i * 2] * xy[j * 2 + 1] - xy[j * 2] * xy[i * 2 + 1];
+    }
+    return Math.abs(t) / 2;
+  };
+  const m = new Marble();
+  const d = m.drop({ quantity: 2 });
+  m.fullRake({ angle: 0, teeth: 6, at: 3 });
+  while (m.pending.length || m.active.length > 0) {
+    const before = d.poly ? d.poly.n : 0;
+    const was = d.poly ? area(d.poly) : 0;
+    const last = m.active.length === 1 && m.active[0].kind === 'rake' && m.active[0].dist + m.active[0].speed * m.dt >= m.active[0].total;
+    m.step();
+    if (last) {
+      assert.ok(d.poly.n < before, `kept ${d.poly.n} of ${before}`);
+      assert.ok(Math.abs(area(d.poly) - was) / was < 0.05);
+    }
+  }
+  m.fullRake({ angle: 90, teeth: 4 });
+  m.runUntilIdle();
+  assert.ok(d.poly.n > 16);
+});
+
+test('a wide tine parts ink instead of carrying it, and closes up behind', () => {
+  const run = (width) => {
+    const m = new Marble();
+    const xy = Float64Array.from([...Array(401).keys()].flatMap((i) => [0, -200 + i]));
+    m.polys.push({ xy, n: 401, color: '#000' });
+    m.rake({ from: [-300, 0], to: [300, 0], teeth: 1, speed: 100, D: 0.1, width, at: 0 });
+    let furthest = 0;
+    while (m.busy) {
+      m.step();
+      const p = m.polys[0];
+      for (let i = 0; i < p.n; i++) furthest = Math.max(furthest, Math.abs(p.xy[i * 2]));
+    }
+    return furthest;
+  };
+  assert.ok(run(0) < 2);
+  const moved = run(30);
+  // A carried point would travel the whole 600 mm; a parted one is dropped along the way.
+  assert.ok(moved > 2 && moved < 300, `ink moved at most ${moved}`);
+});
+
 test('a rake without a weave takes one straight piece per tick', () => {
   const m = new Marble();
   let pieces = 0;

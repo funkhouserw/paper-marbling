@@ -17,6 +17,7 @@ import { planDots, colourDots } from './fill.js';
 
 const DEG = Math.PI / 180;
 const GROWTH_DONE = 0.015; // a drop rests when this fraction of its area remains: the rest is too small to watch
+const COMPACT_TOLERANCE = 0.04; // mm; about a tenth of a pixel in a 3000 pixel print
 const DETAIL_BUDGET = 60000; // outline points before detail starts to reduce
 const MAX_DETAIL = 4;
 // With spreading on, ink covers the surface: a drop keeps growing while any of its edge
@@ -422,10 +423,10 @@ export class Marble {
   // A rake: `teeth` tines `spacing` mm apart (or explicit `offsets`), moving along
   // from -> to (or a `path`). waveAmp/waveLength make it weave as it travels.
   rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
-         waveAmp = 0, waveLength = 100, waveShape = 'sine', at } = {}) {
+         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, at } = {}) {
     const points = path ?? [from, to];
     const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
-    const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength, waveShape };
+    const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength, waveShape, width };
     if (at !== undefined) args.at = at;
 
     const segs = [];
@@ -440,15 +441,15 @@ export class Marble {
     const s0 = segs[0];
     const perp = [-(s0.by - s0.ay) / s0.len, (s0.bx - s0.ax) / s0.len];
     const op = {
-      kind: 'rake', segs, total, offs, perp, speed, waveAmp, waveLength, waveShape, dist: 0,
+      kind: 'rake', segs, total, offs, perp, speed, waveAmp, waveLength, waveShape, width, dist: 0,
       L: Math.max((speed * D * D) / this.viscosity, 0.25),
     };
     return this._schedule('rake', args, op, total / speed, true);
   }
 
   // A single tine dragged along a path.
-  stylus({ path, speed = 100, D = 10, at } = {}) {
-    return this.rake({ path, offsets: [0], speed, D, at });
+  stylus({ path, speed = 100, D = 10, width = 0, at } = {}) {
+    return this.rake({ path, offsets: [0], speed, D, width, at });
   }
 
   // Sinusoidal shear across the whole tank: waves travel along `angle`.
@@ -508,7 +509,7 @@ export class Marble {
 
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
-  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', at } = {}) {
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, at } = {}) {
     const c = Math.cos(angle * DEG);
     const s = Math.sin(angle * DEG);
     const along = (Math.abs(c) * this.width + Math.abs(s) * this.height) / 2 + 20;
@@ -519,7 +520,7 @@ export class Marble {
     const offsets = Array.from({ length: teeth }, (_, i) => wrap((i + 0.5) * spacing + offset) - across / 2);
     return this.rake({
       from: [-c * along, -s * along], to: [c * along, s * along],
-      offsets, speed, D, waveAmp, waveLength, waveShape, at,
+      offsets, speed, D, waveAmp, waveLength, waveShape, width, at,
     });
   }
 
@@ -939,6 +940,46 @@ export class Marble {
     }
   }
 
+  // A tine that takes up space: ink ahead of it bulges aside and closes up behind it, by the
+  // flow around a moving cylinder of radius a.
+  _tineBody(bx, by, ex, ey, a) {
+    const len = Math.hypot(ex - bx, ey - by);
+    if (len < 1e-9) return;
+    const steps = Math.ceil(len / (a * 0.5));
+    const ds = len / steps;
+    const nx = (ex - bx) / len;
+    const ny = (ey - by) / len;
+    const near = a * 6;
+    const far = a * 12;
+    for (let k = 0; k < steps; k++) {
+      const cx = bx + nx * ds * (k + 0.5);
+      const cy = by + ny * ds * (k + 0.5);
+      this._map((px, py, out) => {
+        const rx = px - cx;
+        const ry = py - cy;
+        const r2 = rx * rx + ry * ry;
+        out[0] = px;
+        out[1] = py;
+        if (r2 >= far * far) return;
+        // The tine is smooth, so ink it reaches parts around it instead of riding on its front.
+        if (r2 <= a * a) {
+          const ahead = Math.min(nx * rx + ny * ry, a * 0.7);
+          const across = rx * -ny + ry * nx;
+          const side = (across >= 0 ? 1 : -1) * Math.sqrt(a * a - ahead * ahead);
+          out[0] = cx + nx * ahead - ny * side;
+          out[1] = cy + ny * ahead + nx * side;
+          return;
+        }
+        const r = Math.sqrt(r2);
+        const along = (nx * rx + ny * ry) / r;
+        const fade = r <= near ? 1 : (far - r) / (far - near);
+        const k2 = ((a * a) / r2) * ds * fade;
+        out[0] += k2 * ((2 * along * rx) / r - nx);
+        out[1] += k2 * ((2 * along * ry) / r - ny);
+      });
+    }
+  }
+
   _rakePoint(op, dist, offset) {
     let along = 0;
     let weave = 0;
@@ -969,6 +1010,7 @@ export class Marble {
         const [bx, by] = this._rakePoint(op, from, off);
         const [ex, ey] = this._rakePoint(op, to, off);
         this._tine(bx, by, ex, ey, op.L);
+        if (op.width) this._tineBody(bx, by, ex, ey, op.width / 2);
       }
     }
     op.dist = next;
@@ -1134,6 +1176,44 @@ export class Marble {
 
   // Removes vertices that lie almost on the line between their neighbours, far more
   // readily outside the view, and discards ink pushed well beyond the tank.
+  // Once nothing is moving, keeps only the points needed to draw each outline to within a
+  // tiny fraction of a millimetre. Tools add points back where they need them.
+  _compact() {
+    for (const poly of this.polys) {
+      const { xy, n } = poly;
+      if (n < 32) continue;
+      const keep = new Uint8Array(n);
+      const stack = [[0, n >> 1], [n >> 1, n]];
+      keep[0] = keep[n >> 1] = 1;
+      while (stack.length) {
+        const [from, to] = stack.pop();
+        if (to - from < 2) continue;
+        const ax = xy[from * 2], ay = xy[from * 2 + 1];
+        const bx = xy[(to % n) * 2], by = xy[(to % n) * 2 + 1];
+        const len = Math.hypot(bx - ax, by - ay);
+        let worst = -1;
+        let at = -1;
+        for (let i = from + 1; i < to; i++) {
+          const px = xy[i * 2] - ax, py = xy[i * 2 + 1] - ay;
+          const d = len > 1e-12 ? Math.abs((bx - ax) * py - (by - ay) * px) / len : Math.hypot(px, py);
+          if (d > worst) { worst = d; at = i; }
+        }
+        if (worst > COMPACT_TOLERANCE) {
+          keep[at] = 1;
+          stack.push([from, at], [at, to]);
+        }
+      }
+      let w = 0;
+      for (let i = 0; i < n; i++) {
+        if (keep[i]) {
+          xy[w++] = xy[i * 2];
+          xy[w++] = xy[i * 2 + 1];
+        }
+      }
+      poly.n = w / 2;
+    }
+  }
+
   _simplify() {
     const tol = this.maxEdge * 0.024 * this.detail;
     const reach = this.maxEdge * 0.9 * this.detail;
@@ -1221,6 +1301,7 @@ export class Marble {
   }
 
   step() {
+    const wasMoving = this.busy;
     const dt = this.dt;
     this._releaseGates();
     while (this.pending.length && this.pending[0].at <= this.time + 1e-9) {
@@ -1254,9 +1335,15 @@ export class Marble {
     });
     this._flushGrowth();
     this.tick++;
-    this._refine();
-    if (this.tick % 15 === 0) this._simplify();
+    if (wasMoving) {
+      this._refine();
+      if (this.tick % 15 === 0) this._simplify();
+    }
     this.time += dt;
+    if (wasMoving && !this.busy) {
+      this._cullOutside();
+      this._compact();
+    }
   }
 
   runUntilIdle(maxSeconds = 600) {

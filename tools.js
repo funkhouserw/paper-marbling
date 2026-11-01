@@ -47,6 +47,7 @@ export const TOOLS = {
       spacing: ['Space between teeth', 5, 0.5, 20, 0.1],
       speed: ['Speed', 15, 1, 80, 1],
       D: ['Tooth thickness', 1, 0.3, 3, 0.1],
+      width: ['Tine width', 0, 0, 8, 0.1],
       waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
     },
@@ -62,6 +63,7 @@ export const TOOLS = {
       offset: ['Slide sideways', 0, 0, 20, 0.1],
       speed: ['Speed', 20, 1, 80, 1],
       D: ['Tooth thickness', 0.8, 0.3, 3, 0.1],
+      width: ['Tine width', 0, 0, 8, 0.1],
       waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
     },
@@ -71,6 +73,7 @@ export const TOOLS = {
     params: {
       speed: ['Speed', 15, 1, 80, 1],
       D: ['Tine thickness', 1, 0.3, 3, 0.1],
+      width: ['Tine width', 0, 0, 8, 0.1],
     },
   },
   jiggle: {
@@ -115,7 +118,7 @@ export const TOOLS = {
 
 export const PAGE_UNITS = {
   quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
-  radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
+  width: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
 };
 
 // Size-like sliders run 0 to 100 across their useful range; counts, degrees and seconds

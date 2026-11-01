@@ -79,6 +79,7 @@ export const COMMANDS = [
     size('waveAmp', 0, 'weave height; 0 means a straight rake, so set this for waveShape to do anything'),
     size('waveLength', 10, 'length of one weave'),
     ['waveShape', 'string', 'sine', 'the weave: straight, sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
+    size('width', 0, 'how much space each tine takes up; ink bulges aside and closes behind it; 0 is a point of force'),
     AT,
   ] },
   { name: 'fullRake', group: 'Tools', summary: 'A rake across the whole tank with evenly spaced teeth.', params: [
@@ -90,12 +91,14 @@ export const COMMANDS = [
     size('waveAmp', 0, 'weave height; 0 means a straight rake, so set this for waveShape to do anything'),
     size('waveLength', 10, 'length of one weave'),
     ['waveShape', 'string', 'sine', 'the weave: straight, sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
+    size('width', 0, 'how much space each tine takes up; ink bulges aside and closes behind it; 0 is a point of force'),
     AT,
   ] },
   { name: 'stylus', group: 'Tools', summary: 'One tine along a path.', params: [
     ['path', '[x, y][]', null, 'required', 'points'],
     SPEED(10),
     size('D', 1, 'tine size'),
+    size('width', 0, 'how much space each tine takes up; ink bulges aside and closes behind it; 0 is a point of force'),
     AT,
   ] },
   { name: 'stir', group: 'Tools', summary: 'Circular tines.', params: [
