@@ -7,7 +7,7 @@ This is a modified reimplementation in JavaScript, not the original package.
 ## Run
 
     python3 -m http.server 8000     # then open http://localhost:8000
-    node --test engine.test.mjs     # tests
+    node --test engine.test.mjs thinfilm.test.mjs server.test.mjs     # tests
 
 To chat with the assistant that edits the script, put `OPENAI_API_KEY=...` in `../.env.local` (outside this repo) and run the local server instead:
 

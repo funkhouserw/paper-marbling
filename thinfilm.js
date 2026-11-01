@@ -1,18 +1,18 @@
-// Thin film: ink as a thin layer on the water, tracked by its thickness.
-//   h_t = div(h K grad P),  P = max(h - h_min, 0)
-// Thick ink flows towards thin ink, and a film stops once it has thinned to h_min. Bare water
-// has no thickness and so no pressure: separate films can't feel each other until they touch,
-// and then they share a pressure and push as one. Outlines stay vector: they ride on the same
-// flow that moves the thickness.
+// Thin film: ink as a thin layer on the water.
+//   c_t = div(c K grad P),  P = ln(c) where c > 1, otherwise 0
+// c is how many times over the ink here could cover this bit of surface at its thinnest, so
+// `spreading` is how much surface an ink can claim. Crowded ink flows towards less crowded ink,
+// and a film stops once c falls to 1. Bare water has c = 0 and no pressure: separate films can't
+// feel each other until they touch, and then they share a pressure and push as one. Outlines
+// stay vector: they ride on the same flow that moves c.
 import { Marble } from './engine.js';
 
 const CELL = 5; // mm
 const MARGIN = 300; // mm of surface beyond the tank, for when there are no walls
-const FLOW = 12000; // how readily ink flows, mm^2/s per mm of thickness
+const FLOW = 1500; // how readily ink flows, mm^2/s
 const DROP_THICKNESS = 0.5; // mm; a new drop lands this thick
-const THINNEST = 0.025; // mm; a film stops spreading at this thickness
 const CALM = 0.25; // mm/s; below this the film counts as settled
-const MAX_SUBSTEPS = 40;
+const MAX_SUBSTEPS = 30;
 const LONGEST_SPREAD = 10; // seconds; the last of a film's thinning is too slow to watch
 
 export class ThinFilm extends Marble {
@@ -59,7 +59,8 @@ export class ThinFilm extends Marble {
       }
     }
     if (!weight) return r;
-    const each = volume / (weight * CELL * CELL);
+    // The surface this ink can claim, shared over the cells it lands on.
+    const each = ((volume / this.film) * op.spreading) / (weight * CELL * CELL);
     for (const [q, w] of cells) this.h[q] += each * w;
     return r;
   }
@@ -127,47 +128,72 @@ export class ThinFilm extends Marble {
   }
 
   _flow(dt) {
+    if (!this.active.some((op) => op.kind === 'drop')) { this.flowSpeed = 0; return; }
     const { cols, rows, h, moveX, moveY } = this;
+    // Only the part of the surface with ink on it does any work.
+    let cMin = cols;
+    let cMax = -1;
+    let rMin = rows;
+    let rMax = -1;
+    for (let row = 0, q = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++, q++) {
+        if (h[q] > 0) {
+          if (col < cMin) cMin = col;
+          if (col > cMax) cMax = col;
+          if (row < rMin) rMin = row;
+          if (row > rMax) rMax = row;
+        }
+      }
+    }
     moveX.fill(0);
     moveY.fill(0);
+    if (cMax < 0) { this.flowSpeed = 0; return; }
+    const p = this._p ??= new Float64Array(h.length);
+    const fx = this._fx ??= new Float64Array(h.length);
+    const fy = this._fy ??= new Float64Array(h.length);
+    const open = this._openMask();
     let left = dt;
     let fastest = 0;
-    const p = new Float64Array(h.length);
-    const fx = new Float64Array(h.length);
-    const fy = new Float64Array(h.length);
-    const open = this._openMask();
     for (let sub = 0; sub < MAX_SUBSTEPS && left > 1e-9; sub++) {
-      let tallest = 0;
-      for (let q = 0; q < h.length; q++) {
-        p[q] = h[q] > THINNEST ? h[q] - THINNEST : 0;
-        if (h[q] > tallest) tallest = h[q];
+      // Ink can reach one cell further each substep.
+      cMin = Math.max(0, cMin - 1);
+      cMax = Math.min(cols - 1, cMax + 1);
+      rMin = Math.max(0, rMin - 1);
+      rMax = Math.min(rows - 1, rMax + 1);
+      let highest = 0;
+      for (let row = rMin; row <= rMax; row++) {
+        for (let q = row * cols + cMin, end = row * cols + cMax; q <= end; q++) {
+          p[q] = h[q] > 1 ? Math.log(h[q]) : 0;
+          if (p[q] > highest) highest = p[q];
+        }
       }
-      const step = Math.min(left, (0.2 * CELL * CELL) / (FLOW * Math.max(tallest, 1e-6)));
+      // Beside bare water, the drop in pressure can be several times the local value.
+      const step = Math.min(left, (0.2 * CELL * CELL) / (FLOW * (1 + highest)));
       left -= step;
-      fx.fill(0);
-      fy.fill(0);
-      for (let row = 0, q = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++, q++) {
+      for (let row = rMin; row <= rMax; row++) {
+        for (let col = cMin, q = row * cols + cMin; col <= cMax; col++, q++) {
+          fx[q] = 0;
+          fy[q] = 0;
           if (!open[q]) continue;
-          if (col + 1 < cols && open[q + 1]) {
+          if (col < cMax && open[q + 1]) {
             const dp = p[q] - p[q + 1];
-            if (dp) fx[q] = FLOW * (dp > 0 ? h[q] : h[q + 1]) * dp / CELL; // ink comes from the higher side
+            if (dp) fx[q] = (FLOW * (dp > 0 ? h[q] : h[q + 1]) * dp) / CELL; // ink comes from the higher side
           }
-          if (row + 1 < rows && open[q + cols]) {
+          if (row < rMax && open[q + cols]) {
             const dp = p[q] - p[q + cols];
-            if (dp) fy[q] = FLOW * (dp > 0 ? h[q] : h[q + cols]) * dp / CELL;
+            if (dp) fy[q] = (FLOW * (dp > 0 ? h[q] : h[q + cols]) * dp) / CELL;
           }
         }
       }
-      for (let row = 0, q = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++, q++) {
+      for (let row = rMin; row <= rMax; row++) {
+        for (let col = cMin, q = row * cols + cMin; col <= cMax; col++, q++) {
           let net = -fx[q] - fy[q];
-          if (col > 0) net += fx[q - 1];
-          if (row > 0) net += fy[q - cols];
+          if (col > cMin) net += fx[q - 1];
+          if (row > rMin) net += fy[q - cols];
           h[q] += (net * step) / CELL;
           // How far the surface here moves: the pressure's downhill slope.
-          const gx = (col > 0 ? p[q - 1] : p[q]) - (col + 1 < cols ? p[q + 1] : p[q]);
-          const gy = (row > 0 ? p[q - cols] : p[q]) - (row + 1 < rows ? p[q + cols] : p[q]);
+          const gx = (col > cMin ? p[q - 1] : p[q]) - (col < cMax ? p[q + 1] : p[q]);
+          const gy = (row > rMin ? p[q - cols] : p[q]) - (row < rMax ? p[q + cols] : p[q]);
           const ux = (FLOW * gx) / (2 * CELL);
           const uy = (FLOW * gy) / (2 * CELL);
           moveX[q] += ux * step;
@@ -177,7 +203,6 @@ export class ThinFilm extends Marble {
         }
       }
     }
-    // Ran out of substeps with time left: the film just runs slower for a moment.
     this.flowSpeed = Math.sqrt(fastest);
     if (this.polys.length) this._carryOutlines();
   }
@@ -206,8 +231,13 @@ export class ThinFilm extends Marble {
     this._map((x, y, out) => {
       const fc = this._cellX(x);
       const fr = this._cellY(y);
-      out[0] = x + sample(moveX, fc, fr);
-      out[1] = y + sample(moveY, fc, fr);
+      // Outlines never move more than a cell in a tick, so nothing can run away.
+      const dx = sample(moveX, fc, fr);
+      const dy = sample(moveY, fc, fr);
+      const far = Math.hypot(dx, dy);
+      const scale = far > CELL ? CELL / far : 1;
+      out[0] = x + dx * scale;
+      out[1] = y + dy * scale;
     }, { slowNearWalls: false });
   }
 }
