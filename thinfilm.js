@@ -156,7 +156,10 @@ export class ThinFilm extends Marble {
     const open = this._openMask();
     let left = dt;
     let fastest = 0;
-    for (let sub = 0; sub < MAX_SUBSTEPS && left > 1e-9; sub++) {
+    let furthest = 0;
+    // Ink and outlines must move together, so a fast film stops for the tick once the outlines
+    // have gone as far as is safe. It just takes a few more ticks to spread.
+    for (let sub = 0; sub < MAX_SUBSTEPS && left > 1e-9 && furthest < CELL * CELL * 0.6; sub++) {
       // Ink can reach one cell further each substep.
       cMin = Math.max(0, cMin - 1);
       cMax = Math.min(cols - 1, cMax + 1);
@@ -193,15 +196,19 @@ export class ThinFilm extends Marble {
           if (col > cMin) net += fx[q - 1];
           if (row > rMin) net += fy[q - cols];
           h[q] += (net * step) / CELL;
-          // How far the surface here moves: the pressure's downhill slope.
-          const gx = (col > cMin ? p[q - 1] : p[q]) - (col < cMax ? p[q + 1] : p[q]);
-          const gy = (row > rMin ? p[q - cols] : p[q]) - (row < rMax ? p[q + cols] : p[q]);
-          const ux = (FLOW * gx) / (2 * CELL);
-          const uy = (FLOW * gy) / (2 * CELL);
+          // How fast the surface here moves: the ink flowing through it per unit of ink. At the
+          // front only one side has any flow, and that sets how fast the edge advances.
+          const west = col > cMin ? fx[q - 1] : 0;
+          const south = row > rMin ? fy[q - cols] : 0;
+          const thick = Math.max(h[q], 1);
+          const ux = (west && fx[q] ? (west + fx[q]) / 2 : west + fx[q]) / thick;
+          const uy = (south && fy[q] ? (south + fy[q]) / 2 : south + fy[q]) / thick;
           moveX[q] += ux * step;
           moveY[q] += uy * step;
           const s = ux * ux + uy * uy;
           if (s > fastest) fastest = s;
+          const moved = moveX[q] * moveX[q] + moveY[q] * moveY[q];
+          if (moved > furthest) furthest = moved;
         }
       }
     }
@@ -233,13 +240,8 @@ export class ThinFilm extends Marble {
     this._map((x, y, out) => {
       const fc = this._cellX(x);
       const fr = this._cellY(y);
-      // Outlines never move more than a cell in a tick, so nothing can run away.
-      const dx = sample(moveX, fc, fr);
-      const dy = sample(moveY, fc, fr);
-      const far = Math.hypot(dx, dy);
-      const scale = far > CELL ? CELL / far : 1;
-      out[0] = x + dx * scale;
-      out[1] = y + dy * scale;
+      out[0] = x + sample(moveX, fc, fr);
+      out[1] = y + sample(moveY, fc, fr);
     }, { slowNearWalls: false });
   }
 }
