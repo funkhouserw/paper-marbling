@@ -1,6 +1,7 @@
 // The simulators to choose from. A simulator with its own engine adds an `engine` class here.
 import { Film } from './film.js';
 import { ThinFilm } from './thinfilm.js';
+import { Wake } from './wake.js';
 
 export const MODELS = [
   {
@@ -28,5 +29,12 @@ export const MODELS = [
     title: 'Ink is a film that carries pressure and water is not. Films ignore each other until they touch, then push as one.',
     spreading: false,
     engine: Film,
+  },
+  {
+    id: 'wake',
+    label: 'Wake',
+    title: 'Film, in a bath that keeps moving. Tools leave a flow that lasts longer the thinner the bath is, with curls and wobble behind fast rakes. Try viscosity 5 to 60.',
+    spreading: false,
+    engine: Wake,
   },
 ];
