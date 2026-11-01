@@ -33,6 +33,18 @@ export const COMMANDS = [
     ['stagger', 'number', 0, 'spreads start times over this many seconds'],
     AT,
   ] },
+  { name: 'fillDots', group: 'Ink', summary: 'Fills the surface with dots of varying size and colour, largest holes first, so sizes form a natural hierarchy. Dots start together. For a pleasing fill, use a wide size range and several colours, and leave out any ink that matches the bath or it will disappear.', params: [
+    ['count', 'number', 150, 'most dots to place; it stops sooner if no hole is big enough'],
+    size('min', 0.8, 'smallest dot radius'),
+    size('max', 6, 'largest dot radius'),
+    size('gap', 0.3, 'clear space kept between dots'),
+    size('margin', 0, 'clear space kept from the tank edge'),
+    ['tightness', 'number', 0.6, 'how fully a dot fills its hole, 0 to 1; lower varies sizes more'],
+    ['colors', 'color[]', ['#1f4e79'], 'CSS colours or palette inks; neighbours avoid matching'],
+    ['rings', 'number', 1, 'colours stacked in each dot, for targets; each layer waits for the last to settle'],
+    ['dispersion', 'number', 0.8, '1/s'],
+    SHIMMER, AT,
+  ] },
   { name: 'text', group: 'Ink', summary: 'Prints text as ink, centred on x, y. It never expands, but later tools move it.', params: [
     ['string', 'string', '', 'the text'], X, Y,
     size('size', 8, 'text size'),

@@ -41,6 +41,8 @@ const polygonArea = ({ xy, n }) => {
 };
 
 export class Film extends Marble {
+  get spreadFactor() { return 4; }
+
   // Rebuilt when the walls change, because without walls the grid extends past the tank.
   _getGrid() {
     const pad = this.wallsOn ? 0 : MARGIN;

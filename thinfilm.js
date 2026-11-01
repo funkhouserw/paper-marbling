@@ -16,6 +16,8 @@ const MAX_SUBSTEPS = 30;
 const LONGEST_SPREAD = 10; // seconds; the last of a film's thinning is too slow to watch
 
 export class ThinFilm extends Marble {
+  get spreadFactor() { return 4; }
+
   constructor(options) {
     super(options);
     this.cols = Math.ceil((this.width + 2 * MARGIN) / CELL);

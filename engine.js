@@ -13,6 +13,7 @@
 
 import { PALETTES, palette } from './palettes.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
+import { planDots, colourDots } from './fill.js';
 
 const DEG = Math.PI / 180;
 const GROWTH_DONE = 0.015; // a drop rests when this fraction of its area remains: the rest is too small to watch
@@ -337,6 +338,28 @@ export class Marble {
   }
 
   // ---- Inks ------------------------------------------------------------
+
+  // Fills the surface with dots of varying size, largest holes first. See fill.js. Sizes are
+  // what the dots end up as, so drops are smaller on simulators where ink spreads.
+  fillDots({ count = 150, min = 8, max = 60, gap = 3, margin = 0, tightness = 0.6, colors = ['#1f4e79'], rings = 1, dispersion = 0.8, shimmer = 0, at } = {}) {
+    const dots = colourDots(planDots({
+      width: this.width, height: this.height, minR: min, maxR: max, gap, margin, count, tightness, random: () => this.random(),
+    }), colors, () => this.random());
+    const growth = this.spreadFactor;
+    for (let ring = 0; ring < rings; ring++) {
+      for (const dot of dots) {
+        const c = colors[(dot.colorIndex + ring) % colors.length];
+        const quantity = ((Math.PI * dot.r * dot.r) / growth / rings) * this.film / 1000;
+        this.drop({ x: dot.x, y: dot.y, quantity, dispersion, color: c, shimmer: typeof c === 'object' ? c.shimmer : shimmer, at });
+      }
+      if (ring < rings - 1) this.settle();
+    }
+    return dots.length;
+  }
+
+  // How many times its plain area a lone drop finally covers.
+  get spreadFactor() { return this.openWaterOn ? 4 : 1; }
+
 
   // quantity: mL. dispersion: spreading rate (1/s), larger is faster. spreading: how many
   // times its plain size the ink can stretch over water, like adding surfactant to a paint.

@@ -832,6 +832,19 @@ test('a saved state keeps drops attached to their outlines', () => {
   assert.notEqual(back.polys[0], d.poly);
 });
 
+test('fillDots fills holes largest first, without overlaps, inside the tank', () => {
+  const m = new Marble({ seed: 3 });
+  scriptApi(m).fillDots({ count: 80, min: 1, max: 8, gap: 0.5, colors: ['#111', '#222', '#333'] });
+  const placed = m.log.filter((e) => e.fn === 'drop').map((e) => ({ ...e.args, r: maxRadius(e.args.quantity, m.film) }));
+  assert.ok(placed.length > 20 && placed.length <= 80, `${placed.length} dots`);
+  assert.ok(placed[0].r > placed.at(-1).r * 2, 'sizes should fall as it goes');
+  for (const [i, a] of placed.entries()) {
+    assert.ok(Math.abs(a.x) + a.r <= 500.01 && Math.abs(a.y) + a.r <= 350.01, `dot ${i} leaves the tank`);
+    for (const b of placed.slice(i + 1)) assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= a.r + b.r, 'dots overlap');
+  }
+  assert.ok(new Set(placed.map((d) => d.color)).size === 3, 'uses every colour');
+});
+
 test('a rake without a weave takes one straight piece per tick', () => {
   const m = new Marble();
   let pieces = 0;
