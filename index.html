@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Marbler</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="stage">
+  <div id="transport">
+    <button id="play" title="Space">Pause</button>
+    <label>Speed
+      <select id="speed">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="5">5×</option>
+      </select>
+    </label>
+    <button id="finish">Finish now</button>
+    <button id="undo" title="Cmd/Ctrl+Z">Undo last</button>
+    <button id="redo" title="Shift+Cmd/Ctrl+Z" disabled>Redo</button>
+    <button id="clear">Clear tank</button>
+    <label class="toggle" title="Ink spreads further into open water and holds back once it meets other ink, so drops expand until they touch"><input id="openWater" type="checkbox"> Spreads more in open water</label>
+    <label class="toggle" title="Ink stays inside the rectangle and flattens against the walls"><input id="walls" type="checkbox"> Hard edges</label>
+    <label class="toggle" title="A rake, stir or other tool waits until all ink has stopped growing"><input id="toolsWait" type="checkbox" checked> Tools wait for ink to settle</label>
+    <label class="toggle" title="What happens to actions you queue while paused">While paused
+      <select id="queueMode">
+        <option value="together">all at once</option>
+        <option value="order">in order</option>
+        <option value="settled">each after the last settles</option>
+      </select>
+    </label>
+    <label class="toggle" id="queueGapLabel" title="Seconds between queued actions" hidden>gap <input id="queueGap" type="number" value="0.5" min="0" max="30" step="0.1"> s</label>
+    <button id="pull" title="Lay a sheet across the tank and keep the print">Pull paper</button>
+    <span id="stats"></span>
+  </div>
+  <div id="wrap"><canvas id="tank"></canvas><canvas id="overlay"></canvas><span id="paused" hidden>Paused: press Space to play</span></div>
+  <p id="hint"></p>
+</main>
+
+<aside>
+  <section>
+    <h2>Palette</h2>
+    <select id="palette" aria-label="Palette"></select>
+  </section>
+
+  <section>
+    <h2>Tool</h2>
+    <div id="tools"></div>
+    <div id="params"></div>
+    <button id="apply" hidden>Apply to whole tank</button>
+  </section>
+
+  <section>
+    <h2>Tank</h2>
+    <div class="grid">
+      <label>Width (mm)<input id="tankW" type="number" value="1000" min="100" max="4000"></label>
+      <label>Height (mm)<input id="tankH" type="number" value="700" min="100" max="4000"></label>
+      <label>Viscosity (mm²/s)<input id="visc" type="number" value="1000" min="50" max="20000"></label>
+      <label><input id="useBath" type="checkbox"> Base colour<input id="bath" type="color" value="#f4efe2"></label>
+    </div>
+    <button id="applyTank">Apply (clears tank)</button>
+  </section>
+
+  <section>
+    <h2>Script</h2>
+    <div id="chatLog" aria-live="polite" hidden></div>
+    <div class="row prompt">
+      <input id="prompt" type="text" placeholder="Describe a pattern or a change…" aria-label="Message the assistant">
+      <button id="mic" title="Speak the prompt" aria-label="Speak the prompt" hidden>🎤</button>
+      <button id="generate">Send</button>
+    </div>
+    <button id="clearChat" hidden>Clear chat</button>
+    <select id="examples"></select>
+    <textarea id="script" spellcheck="false" rows="14"></textarea>
+    <div class="row">
+      <button id="run">Run (clears tank)</button>
+      <button id="capture">Copy session to script</button>
+    </div>
+    <pre id="error" hidden></pre>
+  </section>
+
+  <section>
+    <h2>Paper</h2>
+    <div class="swatches" id="tints"></div>
+    <div id="pullOptions">
+      <label>Imperfections <span class="value" id="imperfectionValue">50%</span>
+        <input id="imperfection" type="range" min="0" max="100" step="5" value="50"></label>
+    </div>
+    <label class="check"><input id="clearAfter" type="checkbox"> Clear tank after pull</label>
+    <label class="check" title="A real print is the tank's mirror image, so text reads backwards"><input id="mirror" type="checkbox"> Mirror like a real print</label>
+    <label class="check"><input id="autoSave" type="checkbox" checked> Download PNG on each pull</label>
+    <div id="gallery"></div>
+  </section>
+
+  <section>
+    <h2>Export</h2>
+    <div class="row">
+      <button id="png">PNG</button>
+      <button id="svg">SVG</button>
+    </div>
+  </section>
+</aside>
+<dialog id="viewer">
+  <img id="viewerImg" alt="Pulled print">
+  <div class="row">
+    <button id="viewerSave">Save PNG</button>
+    <button id="viewerDelete">Delete</button>
+    <button id="viewerClose">Close</button>
+  </div>
+</dialog>
+<script type="module" src="ui.js"></script>
+</body>
+</html>

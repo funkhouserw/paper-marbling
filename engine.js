@@ -1,0 +1,1184 @@
+// Marbling engine: no DOM, usable from the browser or Node.
+//
+// Units: mm, seconds, mL, degrees. Origin at the tank centre, +y up.
+//
+// Every drop is an outline polygon. Each simulation tick, every active process
+// (a growing drop, a moving rake, ...) deforms all outlines by a small amount.
+// Because deformations are incremental, processes can overlap in time.
+//
+// The deformation formulas (drop spread, stylus, stir, jiggle, wriggle) follow
+// pst-marble by Aubrey Jaffer (LPPL 1.3c), reworked here to apply incrementally.
+// The vortex uses the Lamb-Oseen velocity field. This is a modified JavaScript
+// reimplementation, not the original package.
+
+import { PALETTES, palette } from './palettes.js';
+import { COMMANDS, toMm, fromMm } from './api.js';
+
+const DEG = Math.PI / 180;
+const GROWTH_DONE = 0.015; // a drop rests when this fraction of its area remains: the rest is too small to watch
+const DETAIL_BUDGET = 60000; // outline points before detail starts to reduce
+const MAX_DETAIL = 4;
+// With open-water spreading on, a drop's final area is its normal area times a factor
+// between these, depending on how much of its edge faces water rather than ink.
+const OPEN_WATER_SPREAD = 2.5;
+const AGAINST_INK_SPREAD = 1;
+// How far past its edge an open-water drop still pushes: a base in mm plus a share of its radius.
+const FADE_BASE = 15;
+const FADE_SHARE = 0.25;
+
+// Straight pieces per weave of a rake, for both its path and its preview.
+export const WEAVE_POINTS = 16;
+
+// Tiling textures for metallic ink: fine flakes, and a broad soft sheen.
+let shimmerTiles = null;
+function makeShimmerTiles() {
+  const tile = (size, paint) => {
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext('2d');
+    const img = ctx.createImageData(size, size);
+    paint(img.data, size);
+    ctx.putImageData(img, 0, 0);
+    return c;
+  };
+  const rnd = mulberry32(7);
+  const flakes = tile(256, (d) => {
+    for (let i = 0; i < d.length; i += 4) {
+      const r = rnd();
+      const v = r > 0.93 ? 255 : r > 0.7 ? 190 : 110;
+      d[i] = v;
+      d[i + 1] = v;
+      d[i + 2] = v * 0.94;
+      d[i + 3] = r > 0.93 ? 255 : r > 0.7 ? 70 : 25;
+    }
+  });
+  const sheen = tile(512, (d, size) => {
+    const k = (2 * Math.PI) / size;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const w = Math.sin(k * (x + 2 * y)) + 0.6 * Math.sin(k * (3 * x - y) + 1) + 0.4 * Math.sin(k * (2 * x + 5 * y) + 2);
+        const i = (y * size + x) * 4;
+        const v = Math.max(0, Math.min(1, 0.5 + w / 4));
+        d[i] = 255;
+        d[i + 1] = 245;
+        d[i + 2] = 220;
+        d[i + 3] = v * v * 170;
+      }
+    }
+  });
+  return { flakes, sheen };
+}
+
+const isTranslucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Final area (mm^2) of a quantity (mL) spread over a film of thickness h (mm).
+export function maxRadius(quantity, film) {
+  return Math.sqrt((quantity * 1000) / (film * Math.PI));
+}
+
+export class Marble {
+  constructor({ width = 1000, height = 700, viscosity = 1000, bath = '#f4efe2',
+                film = 0.1, dt = 1 / 30, seed = 1, maxVertices = 400000 } = {}) {
+    Object.assign(this, { width, height, viscosity, bath, film, dt, seed, maxVertices });
+    this.maxEdge = Math.max(width, height) / 400;
+    this.reset();
+  }
+
+  // Clears the tank and the recorded log.
+  reset() {
+    this.time = 0;
+    this.cursor = 0;
+    this.pending = [];
+    this.active = [];
+    this.polys = [];
+    this.sources = []; // every drop that has landed; centres move with the ink
+    this.gates = []; // settle() points waiting for the tank to rest, each holding later actions
+    this.orderGap = null; // seconds between actions while inOrder() is in force
+    this.openWaterOn = false;
+    this._live = false;
+    this.wallsOn = false;
+    this.growth = [];
+    this.landing = [];
+    this.fieldAbove = 2e6; // point-source pairs per push before switching to the coarse field
+    this.detail = 1;
+    this.nextGroup = 1;
+    this.sheenPhase = 0;
+    this.log = [];
+    this.tick = 0;
+    this.capped = false;
+    this.rng = mulberry32(this.seed);
+  }
+
+  random() { return this.rng(); }
+
+  // ---- Scheduling ------------------------------------------------------
+
+  // Where the timeline currently is. After a settle() it counts from that settle point.
+  get _now() { return this.gates.length ? this.cursor : Math.max(this.cursor, this.time); }
+
+  _schedule(fn, args, op, duration = 0, blocking = false) {
+    const entry = { fn, args: { ...args } };
+    const held = this.gates.length && !this._live;
+    const at = args.at ?? this._now;
+    if (held) {
+      op.delay = at;
+      this.gates.at(-1).ops.push(op);
+    } else {
+      op.at = at;
+      this.pending.push(op);
+      this.pending.sort((a, b) => a.at - b.at);
+      entry.args.at = at;
+      if (this._live) entry.live = true;
+    }
+    this.log.push(entry);
+    if (args.at === undefined) {
+      if (this.orderGap !== null) this.cursor = at + duration + this.orderGap;
+      else if (blocking) this.cursor = at + duration;
+    }
+    return op;
+  }
+
+  // Runs fn so that its actions start at the times given, even with a settle() waiting.
+  // The UI uses this for actions the person performs directly.
+  live(fn) {
+    this._live = true;
+    try { return fn(); } finally { this._live = false; }
+  }
+
+  // Replays log entries, reproducing the session they came from.
+  replay(entries) {
+    for (const { fn, args, live } of entries) {
+      if (live) this.live(() => this[fn](args));
+      else this[fn](args);
+    }
+    return this;
+  }
+
+  // Moves the timeline on. Takes seconds, or { seconds } when replayed from a log.
+  wait(s) {
+    const seconds = typeof s === 'object' ? s.seconds : s;
+    this.cursor = this._now + seconds;
+    if (this.gates.length) this.log.push({ fn: 'wait', args: { seconds } });
+    return this;
+  }
+
+  // Everything after this waits until the tank is at rest: every drop has finished
+  // growing and every earlier tool has finished moving. Later times count from then.
+  settle() {
+    this.gates.push({ ops: [] });
+    this.cursor = 0;
+    this.log.push({ fn: 'settle', args: {} });
+    return this;
+  }
+
+  // From here on, each action starts gap seconds after the previous one finishes.
+  inOrder({ gap = 0.5 } = {}) {
+    this.orderGap = gap;
+    this.log.push({ fn: 'inOrder', args: { gap } });
+    return this;
+  }
+
+  // From here on, drops start together again (the default).
+  allAtOnce() {
+    this.orderGap = null;
+    this.log.push({ fn: 'allAtOnce', args: {} });
+    return this;
+  }
+
+  // Releases the next settle() once the tank is at rest.
+  _releaseGates() {
+    while (this.gates.length && !this.pending.length && !this.active.length) {
+      const gate = this.gates.shift();
+      for (const op of gate.ops) {
+        op.at = this.time + op.delay;
+        this.pending.push(op);
+      }
+      this.pending.sort((a, b) => a.at - b.at);
+      if (!this.gates.length) this.cursor += this.time;
+    }
+  }
+
+  // Everything scheduled but not yet started, including actions held by a settle().
+  get queued() { return [...this.pending, ...this.gates.flatMap((g) => g.ops)]; }
+
+  get busy() { return this.pending.length > 0 || this.active.length > 0 || this.gates.length > 0; }
+
+  // Turns open-water spreading on or off. While on, a drop spreads further the more of
+  // its edge faces open water and holds back once it meets other ink. Water gives way
+  // instead of passing the push across the tank, so drops expand until they touch.
+  openWater({ on = true, at } = {}) {
+    const args = { on };
+    if (at !== undefined) args.at = at;
+    return this._schedule('openWater', args, { kind: 'openWater', on });
+  }
+
+  // Turns hard edges on or off. While on, ink stays inside the rectangle: drops
+  // flatten against the walls and push back, however far they grow.
+  walls({ on = true, at } = {}) {
+    const args = { on };
+    if (at !== undefined) args.at = at;
+    return this._schedule('walls', args, { kind: 'walls', on });
+  }
+
+  // Prints a shape as ink that never grows but moves with everything else.
+  // contours: closed loops, each a flat [x0, y0, x1, y1, ...] array in mm.
+  // Together they form one even-odd shape, so inner loops become holes.
+  print({ contours, color = '#1a1a1a', shimmer = 0, at } = {}) {
+    if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
+    const loops = contours.map((c) => Array.from(c));
+    const args = { contours: loops, color, shimmer };
+    if (at !== undefined) args.at = at;
+    return this._schedule('print', args, { kind: 'print', contours: loops, color, shimmer });
+  }
+
+  // ---- Inks ------------------------------------------------------------
+
+  // quantity: mL. dispersion: spreading rate (1/s), larger is faster.
+  // shimmer (0..1) makes the ink metallic.
+  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, color = '#1f4e79', shimmer = 0, at } = {}) {
+    if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
+    const args = { x, y, quantity, dispersion, color, shimmer };
+    if (at !== undefined) args.at = at;
+    const maxArea = maxRadius(quantity, this.film) ** 2;
+    const growTime = dispersion === Infinity ? 0 : -Math.log(GROWTH_DONE) / dispersion;
+    const op = {
+      kind: 'drop', x, y, color, shimmer, quantity, dispersion, maxArea, growTime, grown: 0, elapsed: 0, poly: null,
+      exposure: 1, owed: 0,
+    };
+    return this._schedule('drop', args, op);
+  }
+
+  // n drops scattered in a w x h box, each with a random start within `stagger` seconds.
+  drops({ n = 20, x = 0, y = 0, w = this.width, h = this.height, quantity = 0.5, spread = 0.3,
+          dispersion = 0.8, colors = ['#1f4e79'], stagger = 0, at } = {}) {
+    const start = at ?? this._now;
+    for (let i = 0; i < n; i++) {
+      this.drop({
+        x: x + (this.random() - 0.5) * w,
+        y: y + (this.random() - 0.5) * h,
+        quantity: quantity * (1 + (this.random() * 2 - 1) * spread),
+        dispersion,
+        color: colors[i % colors.length],
+        at: this.orderGap !== null && at === undefined ? undefined : start + this.random() * stagger,
+      });
+    }
+    return this;
+  }
+
+  // ---- Tools -----------------------------------------------------------
+
+  // A rake: `teeth` tines `spacing` mm apart (or explicit `offsets`), moving along
+  // from -> to (or a `path`). waveAmp/waveLength make it weave as it travels.
+  rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
+         waveAmp = 0, waveLength = 100, at } = {}) {
+    const points = path ?? [from, to];
+    const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
+    const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength };
+    if (at !== undefined) args.at = at;
+
+    const segs = [];
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+      const [ax, ay] = points[i - 1];
+      const [bx, by] = points[i];
+      const len = Math.hypot(bx - ax, by - ay);
+      if (len > 0) { segs.push({ ax, ay, bx, by, len, start: total }); total += len; }
+    }
+    if (!segs.length) return null;
+    const s0 = segs[0];
+    const perp = [-(s0.by - s0.ay) / s0.len, (s0.bx - s0.ax) / s0.len];
+    const op = {
+      kind: 'rake', segs, total, offs, perp, speed, waveAmp, waveLength, dist: 0,
+      L: Math.max((speed * D * D) / this.viscosity, 0.25),
+    };
+    return this._schedule('rake', args, op, total / speed, true);
+  }
+
+  // A single tine dragged along a path.
+  stylus({ path, speed = 100, D = 10, at } = {}) {
+    return this.rake({ path, offsets: [0], speed, D, at });
+  }
+
+  // Sinusoidal shear across the whole tank: waves travel along `angle`.
+  jiggle({ angle = 0, period = 200, amplitude = 30, compression = 0, offset = 0,
+           duration = 2, at } = {}) {
+    const args = { angle, period, amplitude, compression, offset, duration };
+    if (at !== undefined) args.at = at;
+    const op = {
+      kind: 'jiggle', nx: Math.cos(angle * DEG), ny: Math.sin(angle * DEG),
+      period, amplitude, compression, offset, duration, elapsed: 0,
+    };
+    return this._schedule('jiggle', args, op, duration, true);
+  }
+
+  // Concentric oscillation: rings rotate back and forth by up to `degrees`.
+  wriggle({ x = 0, y = 0, period = 150, degrees = 20, radial = 0, duration = 2, at } = {}) {
+    const args = { x, y, period, degrees, radial, duration };
+    if (at !== undefined) args.at = at;
+    const op = { kind: 'wriggle', x, y, period, degrees, radial, duration, elapsed: 0 };
+    return this._schedule('wriggle', args, op, duration, true);
+  }
+
+  // Circular tines at the given radii turning by `degrees` at `rate` deg/s.
+  // A negative radius turns the opposite way.
+  stir({ x = 0, y = 0, radii = [100, 200, 300], degrees = 180, rate = 60, D = 30, at } = {}) {
+    const args = { x, y, radii, degrees, rate, D };
+    if (at !== undefined) args.at = at;
+    const omega = Math.abs(rate) * DEG;
+    const op = {
+      kind: 'stir', x, y, radii, degrees, duration: Math.abs(degrees / rate), elapsed: 0,
+      Linv: this.viscosity / (omega * D * D),
+    };
+    return this._schedule('stir', args, op, op.duration, true);
+  }
+
+  // An irrotational vortex; circulation in mm^2/s, positive is counter-clockwise.
+  vortex({ x = 0, y = 0, circulation = 300000, duration = 3, at } = {}) {
+    const args = { x, y, circulation, duration };
+    if (at !== undefined) args.at = at;
+    const op = { kind: 'vortex', x, y, circulation, duration, elapsed: 0 };
+    return this._schedule('vortex', args, op, duration, true);
+  }
+
+  shift({ dx = 0, dy = 0, duration = 1, at } = {}) {
+    const args = { dx, dy, duration };
+    if (at !== undefined) args.at = at;
+    return this._schedule('shift', args, { kind: 'shift', dx, dy, duration, elapsed: 0 }, duration, true);
+  }
+
+  turn({ x = 0, y = 0, degrees = 90, duration = 1, at } = {}) {
+    const args = { x, y, degrees, duration };
+    if (at !== undefined) args.at = at;
+    return this._schedule('turn', args, { kind: 'turn', x, y, degrees, duration, elapsed: 0 }, duration, true);
+  }
+
+  // ---- Simulation ------------------------------------------------------
+
+  // A rake across the whole tank: teeth spread evenly, travelling along angle
+  // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, at } = {}) {
+    const c = Math.cos(angle * DEG);
+    const s = Math.sin(angle * DEG);
+    const along = (Math.abs(c) * this.width + Math.abs(s) * this.height) / 2 + 20;
+    const across = Math.abs(s) * this.width + Math.abs(c) * this.height;
+    const spacing = across / teeth;
+    // Teeth that slide off one edge come back in on the other, so the page stays covered.
+    const wrap = (v) => ((v % across) + across) % across;
+    const offsets = Array.from({ length: teeth }, (_, i) => wrap((i + 0.5) * spacing + offset) - across / 2);
+    return this.rake({
+      from: [-c * along, -s * along], to: [c * along, s * along],
+      offsets, speed, D, waveAmp, waveLength, at,
+    });
+  }
+
+  // Applies f(x, y, out) to every outline vertex and every landed drop's centre.
+  // Drops that haven't landed yet are unaffected. With hard edges nothing crosses the walls.
+  _map(f) {
+    const out = [0, 0];
+    const walls = this.wallsOn;
+    const hw = this.width / 2;
+    const hh = this.height / 2;
+    // Hard edges resist: ink slows as it nears a wall and compresses against it, rather
+    // than being cut off there.
+    const resist = walls;
+    const band = Math.min(this.width, this.height) * 0.1;
+    const apply = (x, y) => {
+      f(x, y, out);
+      if (resist) {
+        const dx = out[0] - x;
+        const dy = out[1] - y;
+        const roomX = dx > 0 ? hw - x : x + hw;
+        const roomY = dy > 0 ? hh - y : y + hh;
+        if (roomX < band) out[0] = x + dx * Math.max(roomX, 0) / band;
+        if (roomY < band) out[1] = y + dy * Math.max(roomY, 0) / band;
+      }
+      if (walls) {
+        out[0] = Math.max(-hw, Math.min(hw, out[0]));
+        out[1] = Math.max(-hh, Math.min(hh, out[1]));
+      }
+    };
+    for (const poly of this.polys) {
+      const { xy, n } = poly;
+      for (let i = 0; i < n * 2; i += 2) {
+        apply(xy[i], xy[i + 1]);
+        xy[i] = out[0];
+        xy[i + 1] = out[1];
+      }
+    }
+    for (const op of this.sources) {
+      apply(op.x, op.y);
+      op.x = out[0];
+      op.y = out[1];
+    }
+  }
+
+  // Pushes everything away from [x, y, area] sources, all together in one pass.
+  // Displacements are summed at the original point: applying them one after another
+  // would knock a drop's centre off its own source and fling its ink outward.
+  // With walls, mirror images in the nearest walls stop most flow through them, and a
+  // uniform contraction removes the added area from the bare bath.
+  _pushApart(sources) {
+    const { width: W, height: H } = this;
+    const walled = this.wallsOn;
+    const per = walled ? 4 : 1;
+    const count = sources.length * per;
+    const sx = new Float64Array(count);
+    const sy = new Float64Array(count);
+    const sa = new Float64Array(count);
+    const sr = new Float64Array(count); // radius past which the push fades, or 0 for no fade
+    let total = 0;
+    let fading = false;
+    sources.forEach(([cx, cy, da, radius = 0], k) => {
+      if (radius > 0) fading = true;
+      const mx = cx >= 0 ? W - cx : -W - cx;
+      const my = cy >= 0 ? H - cy : -H - cy;
+      const spots = walled ? [[cx, cy], [mx, cy], [cx, my], [mx, my]] : [[cx, cy]];
+      spots.forEach(([ix, iy], m) => {
+        sx[k * per + m] = ix;
+        sy[k * per + m] = iy;
+        sa[k * per + m] = da;
+        sr[k * per + m] = radius;
+      });
+      total += da;
+    });
+    // Open water gives way by itself, so a fading push needs no contraction.
+    const scale = walled && !fading ? Math.sqrt((W * H) / (W * H + total)) : 1;
+    if (!fading && count * this.vertexCount > this.fieldAbove) this._pushField(sx, sy, sa, count, scale);
+    else {
+      this._map((x0, y0, out) => {
+        let x = x0;
+        let y = y0;
+        for (let i = 0; i < count; i++) {
+          const dx = x0 - sx[i];
+          const dy = y0 - sy[i];
+          const d2 = dx * dx + dy * dy;
+          if (d2 < 1e-12) continue;
+          let a = Math.sqrt(1 + sa[i] / d2) - 1;
+          const R = sr[i];
+          if (R > 0 && d2 > R * R) {
+            // Past the drop's edge the water compresses instead of passing the push on.
+            const fade = FADE_BASE + FADE_SHARE * R;
+            const beyond = Math.sqrt(d2) - R;
+            if (beyond > fade * 5) continue;
+            a *= Math.exp(-beyond / fade);
+          }
+          x += dx * a;
+          y += dy * a;
+        }
+        out[0] = x * scale;
+        out[1] = y * scale;
+      });
+    }
+  }
+
+  // The same push for heavy scenes. A source's effect varies slowly far away, so far
+  // effects are computed on a coarse grid and interpolated; only sources close to a
+  // point are computed exactly. A smooth blend hides the join between the two.
+  _pushField(sx, sy, sa, count, scale) {
+    const cell = Math.max(this.width, this.height) / 40;
+    const near = cell * 3;
+    const inner = near / 2;
+    const x0 = -this.width * 0.75;
+    const y0 = -this.height * 0.75;
+    const cols = Math.ceil((this.width * 1.5) / cell) + 1;
+    const rows = Math.ceil((this.height * 1.5) / cell) + 1;
+    const blend = (d) => {
+      if (d <= inner) return 1;
+      if (d >= near) return 0;
+      const u = (near - d) / (near - inner);
+      return u * u * (3 - 2 * u);
+    };
+    const gx = new Float64Array(cols * rows);
+    const gy = new Float64Array(cols * rows);
+    for (let r = 0; r < rows; r++) {
+      const py = y0 + r * cell;
+      for (let c = 0; c < cols; c++) {
+        const px = x0 + c * cell;
+        let ux = 0;
+        let uy = 0;
+        for (let i = 0; i < count; i++) {
+          const dx = px - sx[i];
+          const dy = py - sy[i];
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= inner * inner) continue;
+          const w = 1 - blend(Math.sqrt(d2));
+          const a = (Math.sqrt(1 + sa[i] / d2) - 1) * w;
+          ux += dx * a;
+          uy += dy * a;
+        }
+        gx[r * cols + c] = ux;
+        gy[r * cols + c] = uy;
+      }
+    }
+    // Buckets of nearby sources, each listed in every bucket its reach touches.
+    const bw = Math.ceil((this.width * 1.5) / near) + 1;
+    const bh = Math.ceil((this.height * 1.5) / near) + 1;
+    const buckets = new Array(bw * bh);
+    for (let i = 0; i < count; i++) {
+      const bc = Math.floor((sx[i] - x0) / near);
+      const br = Math.floor((sy[i] - y0) / near);
+      for (let r = Math.max(0, br - 1); r <= Math.min(bh - 1, br + 1); r++) {
+        for (let c = Math.max(0, bc - 1); c <= Math.min(bw - 1, bc + 1); c++) {
+          (buckets[r * bw + c] ??= []).push(i);
+        }
+      }
+    }
+    const near2 = near * near;
+    this._map((x, y, out) => {
+      const fc = Math.max(0, Math.min(cols - 1.001, (x - x0) / cell));
+      const fr = Math.max(0, Math.min(rows - 1.001, (y - y0) / cell));
+      const c = Math.floor(fc);
+      const r = Math.floor(fr);
+      const tc = fc - c;
+      const tr = fr - r;
+      const i00 = r * cols + c;
+      const i10 = i00 + 1;
+      const i01 = i00 + cols;
+      const i11 = i01 + 1;
+      let nx = x + (gx[i00] * (1 - tc) + gx[i10] * tc) * (1 - tr) + (gx[i01] * (1 - tc) + gx[i11] * tc) * tr;
+      let ny = y + (gy[i00] * (1 - tc) + gy[i10] * tc) * (1 - tr) + (gy[i01] * (1 - tc) + gy[i11] * tc) * tr;
+      const bc = Math.floor((x - x0) / near);
+      const br = Math.floor((y - y0) / near);
+      const list = bc >= 0 && bc < bw && br >= 0 && br < bh ? buckets[br * bw + bc] : undefined;
+      if (list) {
+        for (let k = 0; k < list.length; k++) {
+          const i = list[k];
+          const dx = x - sx[i];
+          const dy = y - sy[i];
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= near2 || d2 < 1e-12) continue;
+          const a = (Math.sqrt(1 + sa[i] / d2) - 1) * blend(Math.sqrt(d2));
+          nx += dx * a;
+          ny += dy * a;
+        }
+      }
+      out[0] = nx * scale;
+      out[1] = ny * scale;
+    });
+  }
+
+  // A coarse map of which parts of the tank hold ink.
+  _inkGrid() {
+    const { width: W, height: H } = this;
+    const cell = Math.max(W, H) / 200;
+    const cols = Math.ceil(W / cell);
+    const rows = Math.ceil(H / cell);
+    const inked = new Uint8Array(cols * rows);
+    const crossings = Array.from({ length: rows }, () => []);
+    for (const { xy, n } of this.polys) {
+      let lo = rows;
+      let hi = -1;
+      for (let i = 0, j = n - 1; i < n; j = i++) {
+        const y0 = (xy[j * 2 + 1] + H / 2) / cell - 0.5;
+        const y1 = (xy[i * 2 + 1] + H / 2) / cell - 0.5;
+        const from = Math.max(0, Math.ceil(Math.min(y0, y1)));
+        const to = Math.min(rows - 1, Math.ceil(Math.max(y0, y1)) - 1);
+        for (let r = from; r <= to; r++) {
+          const t = (r - y0) / (y1 - y0);
+          crossings[r].push((xy[j * 2] + (xy[i * 2] - xy[j * 2]) * t + W / 2) / cell - 0.5);
+        }
+        if (from <= to) {
+          lo = Math.min(lo, from);
+          hi = Math.max(hi, to);
+        }
+      }
+      for (let r = lo; r <= hi; r++) {
+        const c = crossings[r].sort((a, b) => a - b);
+        for (let k = 0; k + 1 < c.length; k += 2) {
+          const end = Math.min(cols - 1, Math.floor(c[k + 1]));
+          for (let col = Math.max(0, Math.ceil(c[k])); col <= end; col++) inked[r * cols + col] = 1;
+        }
+        c.length = 0;
+      }
+    }
+    return { inked, cell, cols, rows };
+  }
+
+  // Looks just outside a drop's edge to see how much of it faces open water.
+  _updateExposure(op, grid) {
+    const { inked, cell, cols, rows } = grid;
+    // A drop about to land has no outline yet, so look around its landing spot instead.
+    const ring = () => Float64Array.from({ length: 32 }, (_, i) => {
+      const a = (Math.floor(i / 2) / 16) * 2 * Math.PI;
+      return i % 2 ? op.y + 2 * cell * Math.sin(a) : op.x + 2 * cell * Math.cos(a);
+    });
+    const { xy, n } = op.poly ?? { xy: ring(), n: 16 };
+    const step = Math.max(1, Math.floor(n / 32));
+    let open = 0;
+    let samples = 0;
+    for (let i = 0; i < n; i += step) {
+      const dx = xy[i * 2] - op.x;
+      const dy = xy[i * 2 + 1] - op.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const ux = dx / d;
+      const uy = dy / d;
+      const col = Math.round((xy[i * 2] + ux * cell + this.width / 2) / cell - 0.5);
+      const row = Math.round((xy[i * 2 + 1] + uy * cell + this.height / 2) / cell - 0.5);
+      const inside = col >= 0 && col < cols && row >= 0 && row < rows;
+      const isOpen = inside ? !inked[row * cols + col] : !this.wallsOn;
+      samples++;
+      if (isOpen) open++;
+    }
+    // Smoothed, because one odd reading could otherwise end a drop's growth for good.
+    const reading = open / samples;
+    op.exposure = op.poly ? op.exposure * 0.8 + reading * 0.2 : reading;
+    op.inkReach = this._inkReach(op, grid);
+  }
+
+  // How far solid ink extends around a spot, on average. Ink can't compress, so a drop's
+  // push has to carry through all of it and only fade once it reaches water.
+  _inkReach(op, { inked, cell, cols, rows }) {
+    const RAYS = 16;
+    let total = 0;
+    for (let i = 0; i < RAYS; i++) {
+      const a = (i / RAYS) * 2 * Math.PI;
+      let d = 0;
+      for (;;) {
+        const col = Math.round((op.x + Math.cos(a) * (d + cell) + this.width / 2) / cell - 0.5);
+        const row = Math.round((op.y + Math.sin(a) * (d + cell) + this.height / 2) / cell - 0.5);
+        if (col < 0 || col >= cols || row < 0 || row >= rows || !inked[row * cols + col]) break;
+        d += cell;
+      }
+      total += d;
+    }
+    return total / RAYS;
+  }
+
+  _advanceOpenWaterDrop(op, dt) {
+    if (!op.poly || this.tick % 3 === 0) {
+      if (this._exposureTick !== this.tick) {
+        this._grid = this._inkGrid();
+        this._exposureTick = this.tick;
+      }
+      this._updateExposure(op, this._grid);
+    }
+    const goal = op.maxArea * (AGAINST_INK_SPREAD + (OPEN_WATER_SPREAD - AGAINST_INK_SPREAD) * op.exposure);
+    const da = Math.max(0, goal - op.grown) * (1 - Math.exp(-op.dispersion * dt));
+    op.grown += da;
+    op.owed += da;
+    const done = goal - op.grown < GROWTH_DONE * op.maxArea;
+    if (op.poly && !done && op.owed < Math.sqrt(op.grown)) return false;
+    if (op.owed > 0) {
+      this.growth.push([op.x, op.y, op.owed, Math.max(Math.sqrt(op.grown), op.inkReach ?? 0)]);
+      if (!op.poly) this.landing.push([op, Math.sqrt(op.owed)]);
+      op.owed = 0;
+    }
+    return done;
+  }
+
+  _advanceDrop(op, dt) {
+    if (this.openWaterOn && op.dispersion !== Infinity) return this._advanceOpenWaterDrop(op, dt);
+    op.elapsed += dt;
+    const frac = op.dispersion === Infinity || op.elapsed >= op.growTime
+      ? 1 : 1 - Math.exp(-op.dispersion * op.elapsed);
+    const target = op.maxArea * frac;
+    const da = target - op.grown;
+    // Late growth is tiny, and every update moves every point in the tank, so save it
+    // up until the edge would visibly move (about half a millimetre).
+    if (op.poly && frac < 1 && da < Math.sqrt(op.grown) * 1) return false;
+    op.grown = target;
+    if (da <= 0) return frac >= 1;
+    this.growth.push([op.x, op.y, da]);
+    if (!op.poly) this.landing.push([op, Math.sqrt(da)]);
+    return frac >= 1;
+  }
+
+  // Applies this tick's drop growth in one pass, then creates any newly landed ink.
+  _flushGrowth() {
+    if (this.growth.length) this._pushApart(this.growth);
+    this.growth = [];
+    for (const [op, r] of this.landing) {
+      const n = 48;
+      const xy = new Float64Array(n * 4);
+      for (let i = 0; i < n; i++) {
+        xy[i * 2] = op.x + r * Math.cos((i / n) * 2 * Math.PI);
+        xy[i * 2 + 1] = op.y + r * Math.sin((i / n) * 2 * Math.PI);
+      }
+      op.poly = { xy, n, color: op.color, shimmer: op.shimmer };
+      this.polys.push(op.poly);
+    }
+    this.landing = [];
+  }
+
+  // Moves one tine from (bx,by) to (ex,ey).
+  _tine(bx0, by0, ex0, ey0, L) {
+    const len = Math.hypot(ex0 - bx0, ey0 - by0);
+    if (len < 1e-9) return;
+    const rpts = Math.ceil(len / L);
+    const tU = len / rpts;
+    const nx = (ex0 - bx0) / len;
+    const ny = (ey0 - by0) / len;
+    const reach2 = (6 * L + tU) ** 2;
+    for (let k = 0; k < rpts; k++) {
+      const bx = bx0 + nx * tU * k;
+      const by = by0 + ny * tU * k;
+      const ex = bx + nx * tU;
+      const ey = by + ny * tU;
+      this._map((px, py, out) => {
+        out[0] = px;
+        out[1] = py;
+        const dxB = bx - px;
+        const dyB = by - py;
+        const r2 = dxB * dxB + dyB * dyB;
+        if (r2 > reach2 || r2 < 1e-18) return;
+        const r = Math.sqrt(r2);
+        const dxE = ex - px;
+        const dyE = ey - py;
+        const s = Math.max(Math.hypot(dxE, dyE), 1e-9);
+        const txB = dxB * nx + dyB * ny;
+        const txE = dxE * nx + dyE * ny;
+        const ty = dxB * ny - dyB * nx;
+        const denR = Math.exp(r / L) * r * L * 2;
+        const denS = Math.exp(s / L) * s * L * 2;
+        const inx = ((r * L - ty * ty) * tU) / denR + ((s * L - ty * ty) * tU) / denS;
+        const iny = (txB * ty * tU) / denR + (txE * ty * tU) / denS;
+        out[0] = px + inx * nx + iny * ny;
+        out[1] = py + inx * ny - iny * nx;
+      });
+    }
+  }
+
+  _rakePoint(op, dist, offset) {
+    let seg = op.segs[op.segs.length - 1];
+    for (const s of op.segs) { if (dist <= s.start + s.len) { seg = s; break; } }
+    const t = (dist - seg.start) / seg.len;
+    const weave = op.waveAmp * Math.sin((2 * Math.PI * dist) / op.waveLength);
+    return [
+      seg.ax + (seg.bx - seg.ax) * t + op.perp[0] * (offset + weave),
+      seg.ay + (seg.by - seg.ay) * t + op.perp[1] * (offset + weave),
+    ];
+  }
+
+  _advanceRake(op, dt) {
+    const next = Math.min(op.dist + op.speed * dt, op.total);
+    // A weave is a curve, so it needs short straight pieces however fast the rake goes.
+    const pieces = op.waveAmp ? Math.max(1, Math.ceil(((next - op.dist) * WEAVE_POINTS) / op.waveLength)) : 1;
+    for (let k = 0; k < pieces; k++) {
+      const from = op.dist + ((next - op.dist) * k) / pieces;
+      const to = op.dist + ((next - op.dist) * (k + 1)) / pieces;
+      for (const off of op.offs) {
+        const [bx, by] = this._rakePoint(op, from, off);
+        const [ex, ey] = this._rakePoint(op, to, off);
+        this._tine(bx, by, ex, ey, op.L);
+      }
+    }
+    op.dist = next;
+    return next >= op.total;
+  }
+
+  // Smooth 0..1 progress of a timed process over this tick: returns [before, after].
+  _ramp(op, dt) {
+    const ease = (u) => u * u * (3 - 2 * u);
+    const before = ease(Math.min(op.elapsed / op.duration, 1));
+    op.elapsed += dt;
+    return [before, ease(Math.min(op.elapsed / op.duration, 1))];
+  }
+
+  _rotateAbout(cx, cy, x, y, angle, out) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const dx = x - cx;
+    const dy = y - cy;
+    out[0] = cx + dx * c - dy * s;
+    out[1] = cy + dx * s + dy * c;
+  }
+
+  _advanceTimed(op, dt) {
+    const [p0, p1] = op.kind === 'vortex' ? [0, 0] : this._ramp(op, dt);
+    const dp = p1 - p0;
+    switch (op.kind) {
+      case 'jiggle': {
+        const { nx, ny, offset, period } = op;
+        const k = (2 * Math.PI) / period;
+        const across = op.amplitude * dp;
+        const along = op.compression * dp;
+        this._map((x, y, out) => {
+          const w = Math.sin(k * (x * nx + y * ny + offset));
+          out[0] = x + w * (-ny * across + nx * along);
+          out[1] = y + w * (nx * across + ny * along);
+        });
+        break;
+      }
+      case 'wriggle': {
+        const k = (2 * Math.PI) / op.period;
+        const da = op.degrees * DEG * dp;
+        const dr = op.radial * dp;
+        this._map((x, y, out) => {
+          const dx = x - op.x;
+          const dy = y - op.y;
+          const rho = Math.hypot(dx, dy);
+          const w = Math.sin(k * rho);
+          this._rotateAbout(op.x, op.y, x, y, da * w, out);
+          if (dr !== 0 && rho > 1e-6) {
+            const grow = (rho + dr * Math.cos(k * rho)) / rho;
+            out[0] = op.x + (out[0] - op.x) * grow;
+            out[1] = op.y + (out[1] - op.y) * grow;
+          }
+        });
+        break;
+      }
+      case 'stir': {
+        const dth = op.degrees * DEG * dp;
+        this._map((x, y, out) => {
+          const rho = Math.hypot(x - op.x, y - op.y);
+          let a = 0;
+          for (const r of op.radii) {
+            const R = Math.abs(r);
+            a += Math.sign(r) * Math.exp((-Math.abs(rho - R) * op.Linv) / R);
+          }
+          this._rotateAbout(op.x, op.y, x, y, a * dth, out);
+        });
+        break;
+      }
+      case 'vortex': {
+        op.elapsed += dt;
+        const nu4t = 4 * this.viscosity * op.elapsed;
+        const gamma = op.circulation / (2 * Math.PI);
+        this._map((x, y, out) => {
+          const dx = x - op.x;
+          const dy = y - op.y;
+          const r2 = dx * dx + dy * dy;
+          if (r2 < 1e-9) { out[0] = x; out[1] = y; return; }
+          const omega = (gamma / r2) * (1 - Math.exp(-r2 / nu4t));
+          this._rotateAbout(op.x, op.y, x, y, omega * dt, out);
+        });
+        break;
+      }
+      case 'fit': {
+        const fx = (1 + (op.sx - 1) * p1) / (1 + (op.sx - 1) * p0);
+        const fy = (1 + (op.sy - 1) * p1) / (1 + (op.sy - 1) * p0);
+        this._map((x, y, out) => { out[0] = x * fx; out[1] = y * fy; });
+        break;
+      }
+      case 'shift': {
+        const dx = op.dx * dp;
+        const dy = op.dy * dp;
+        this._map((x, y, out) => { out[0] = x + dx; out[1] = y + dy; });
+        break;
+      }
+      case 'turn': {
+        const a = op.degrees * DEG * dp;
+        this._map((x, y, out) => this._rotateAbout(op.x, op.y, x, y, a, out));
+        break;
+      }
+    }
+    return op.elapsed >= op.duration;
+  }
+
+  _inView(x, y) {
+    const mx = this.width / 2 + this.width * 0.1;
+    const my = this.height / 2 + this.height * 0.1;
+    return x > -mx && x < mx && y > -my && y < my;
+  }
+
+  // Adds vertices where stretching has made edges too long to look smooth.
+  _refine() {
+    let total = 0;
+    for (const p of this.polys) total += p.n;
+    if (total >= this.maxVertices) { this.capped = true; return; }
+    this.capped = false;
+    // Past the budget, trade fine detail for speed instead of slowing without limit.
+    this.detail = Math.min(MAX_DETAIL, Math.max(1, total / DETAIL_BUDGET));
+    const lim = this.maxEdge * this.detail;
+    for (const poly of this.polys) {
+      const { xy, n } = poly;
+      let extra = 0;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const ax = xy[i * 2], ay = xy[i * 2 + 1], bx = xy[j * 2], by = xy[j * 2 + 1];
+        if (!this._inView(ax, ay) && !this._inView(bx, by)) continue;
+        const len = Math.hypot(bx - ax, by - ay);
+        if (len > lim) extra += Math.ceil(len / lim) - 1;
+      }
+      if (!extra) continue;
+      const out = xy.length >= (n + extra) * 2 ? new Float64Array(xy.length)
+                                                : new Float64Array((n + extra) * 4);
+      let w = 0;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const ax = xy[i * 2], ay = xy[i * 2 + 1], bx = xy[j * 2], by = xy[j * 2 + 1];
+        out[w++] = ax;
+        out[w++] = ay;
+        if (!this._inView(ax, ay) && !this._inView(bx, by)) continue;
+        const len = Math.hypot(bx - ax, by - ay);
+        if (len > lim) {
+          const parts = Math.ceil(len / lim);
+          for (let k = 1; k < parts; k++) {
+            out[w++] = ax + ((bx - ax) * k) / parts;
+            out[w++] = ay + ((by - ay) * k) / parts;
+          }
+        }
+      }
+      poly.xy = out;
+      poly.n = w / 2;
+    }
+  }
+
+  // Removes vertices that lie almost on the line between their neighbours, far more
+  // readily outside the view, and discards ink pushed well beyond the tank.
+  _simplify() {
+    const tol = this.maxEdge * 0.024 * this.detail;
+    const reach = this.maxEdge * 0.9 * this.detail;
+    this._cullOutside();
+    for (const poly of this.polys) {
+      const { xy, n } = poly;
+      if (n <= 24) continue;
+      let w = 0;
+      let px = xy[(n - 1) * 2], py = xy[(n - 1) * 2 + 1];
+      for (let i = 0; i < n; i++) {
+        const x = xy[i * 2], y = xy[i * 2 + 1];
+        const nx = xy[((i + 1) % n) * 2], ny = xy[((i + 1) % n) * 2 + 1];
+        const chord = Math.hypot(nx - px, ny - py);
+        const off = chord > 0 ? Math.abs((nx - px) * (y - py) - (ny - py) * (x - px)) / chord : 0;
+        const hidden = !this._inView(x, y) && !this._inView(px, py) && !this._inView(nx, ny);
+        const scale = hidden ? 20 : 1;
+        if (chord < reach * scale && off < tol * scale) continue;
+        xy[w++] = x;
+        xy[w++] = y;
+        px = x;
+        py = y;
+      }
+      if (w / 2 >= 16) poly.n = w / 2;
+    }
+  }
+
+  // When hard edges switch on, eases ink already past the walls back inside: everything
+  // shrinks together, so nothing overlaps or gets cut. Ink fully outside was never visible.
+  _fitInside() {
+    const hw = this.width / 2;
+    const hh = this.height / 2;
+    const gone = new Set();
+    let maxX = hw;
+    let maxY = hh;
+    for (const poly of this.polys) {
+      const { xy, n } = poly;
+      let bx = 0;
+      let by = 0;
+      let seen = false;
+      for (let i = 0; i < n; i++) {
+        const ax = Math.abs(xy[i * 2]);
+        const ay = Math.abs(xy[i * 2 + 1]);
+        bx = Math.max(bx, ax);
+        by = Math.max(by, ay);
+        if (ax < hw && ay < hh) seen = true;
+      }
+      if (seen) {
+        maxX = Math.max(maxX, bx);
+        maxY = Math.max(maxY, by);
+      } else if (!poly.group) gone.add(poly);
+    }
+    if (gone.size) {
+      this.polys = this.polys.filter((p) => !gone.has(p));
+      this.sources = this.sources.filter((op) => !gone.has(op.poly));
+      this.active = this.active.filter((op) => !gone.has(op.poly));
+    }
+    if (maxX > hw || maxY > hh) {
+      this.active.push({ kind: 'fit', sx: hw / maxX, sy: hh / maxY, duration: 0.8, elapsed: 0 });
+    }
+  }
+
+  // Without walls, ink can drift far outside the tank. Past half a tank away it can't
+  // realistically return, so it stops costing anything. Printed shapes are kept whole.
+  _cullOutside() {
+    if (this.wallsOn) return;
+    const mx = this.width;
+    const my = this.height;
+    const gone = new Set();
+    for (const poly of this.polys) {
+      if (poly.group) continue;
+      const { xy, n } = poly;
+      let out = true;
+      for (let i = 0; i < n && out; i++) {
+        out = Math.abs(xy[i * 2]) > mx || Math.abs(xy[i * 2 + 1]) > my;
+      }
+      if (out) gone.add(poly);
+    }
+    if (!gone.size) return;
+    this.polys = this.polys.filter((p) => !gone.has(p));
+    this.sources = this.sources.filter((op) => !gone.has(op.poly));
+    this.active = this.active.filter((op) => !gone.has(op.poly));
+  }
+
+  step() {
+    const dt = this.dt;
+    this._releaseGates();
+    while (this.pending.length && this.pending[0].at <= this.time + 1e-9) {
+      const op = this.pending.shift();
+      if (op.kind === 'openWater') {
+        this.openWaterOn = op.on;
+        continue;
+      }
+      if (op.kind === 'walls') {
+        this.wallsOn = op.on;
+        if (op.on) this._fitInside();
+        continue;
+      }
+      if (op.kind === 'print') {
+        const group = this.nextGroup++;
+        for (const c of op.contours) {
+          this.polys.push({ xy: Float64Array.from(c), n: c.length / 2, color: op.color, shimmer: op.shimmer, group });
+        }
+        continue;
+      }
+      if (op.kind === 'drop') {
+        op.at = this.time;
+        this.sources.push(op);
+      }
+      this.active.push(op);
+    }
+    this.active = this.active.filter((op) => {
+      if (op.kind === 'drop') return !this._advanceDrop(op, dt);
+      if (op.kind === 'rake') return !this._advanceRake(op, dt);
+      return !this._advanceTimed(op, dt);
+    });
+    this._flushGrowth();
+    this.tick++;
+    this._refine();
+    if (this.tick % 15 === 0) this._simplify();
+    this.time += dt;
+  }
+
+  runUntilIdle(maxSeconds = 600) {
+    const end = this.time + maxSeconds;
+    while (this.busy && this.time < end) this.step();
+    return this;
+  }
+
+  // ---- Output ----------------------------------------------------------
+
+  get vertexCount() { return this.polys.reduce((sum, p) => sum + p.n, 0); }
+
+  // Current tine positions, for drawing the tool over the tank.
+  tinePositions() {
+    const out = [];
+    for (const op of this.active) {
+      if (op.kind === 'rake') for (const off of op.offs) out.push(this._rakePoint(op, op.dist, off));
+    }
+    return out;
+  }
+
+  draw(ctx, pxPerMm) {
+    ctx.save();
+    ctx.clearRect(0, 0, this.width * pxPerMm, this.height * pxPerMm); // the bath may be transparent
+    ctx.fillStyle = this.bath;
+    ctx.fillRect(0, 0, this.width * pxPerMm, this.height * pxPerMm);
+    ctx.setTransform(pxPerMm, 0, 0, -pxPerMm, (this.width / 2) * pxPerMm, (this.height / 2) * pxPerMm);
+    for (let p = 0; p < this.polys.length; p++) {
+      const { group, color, shimmer } = this.polys[p];
+      ctx.beginPath();
+      // Loops of one printed shape share a path, so inner loops become holes.
+      do {
+        const { xy, n } = this.polys[p];
+        ctx.moveTo(xy[0], xy[1]);
+        // Points closer than a third of a pixel can't change the picture.
+        const skip = (0.33 / pxPerMm) ** 2;
+        let lx = xy[0], ly = xy[1];
+        for (let i = 1; i < n; i++) {
+          const x = xy[i * 2], y = xy[i * 2 + 1];
+          const dx = x - lx, dy = y - ly;
+          if (dx * dx + dy * dy < skip) continue;
+          ctx.lineTo(x, y);
+          lx = x;
+          ly = y;
+        }
+        ctx.closePath();
+      } while (group && this.polys[p + 1]?.group === group && ++p);
+      ctx.fillStyle = color;
+      ctx.fill(group ? 'evenodd' : 'nonzero');
+      // A hairline closes the sliver of water between near-touching drops, so drops of
+      // one colour join. See-through ink would show it as a darker edge, so it's skipped.
+      if (!group && !isTranslucent(color)) {
+        ctx.lineWidth = 1.2 / pxPerMm;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = color;
+        ctx.stroke();
+      }
+      if (shimmer > 0) this._drawShimmer(ctx, group ? 'evenodd' : 'nonzero', shimmer);
+    }
+    ctx.restore();
+  }
+
+  // Paints metallic texture over the current path. Raising sheenPhase slides the
+  // highlights across the ink, which reads as light moving over metal.
+  _drawShimmer(ctx, rule, amount) {
+    shimmerTiles ??= makeShimmerTiles();
+    ctx.save();
+    const sheen = ctx.createPattern(shimmerTiles.sheen, 'repeat');
+    sheen.setTransform(new DOMMatrix().translate(this.sheenPhase * 40, this.sheenPhase * 25).scale(1.6));
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = amount;
+    ctx.fillStyle = sheen;
+    ctx.fill(rule);
+    const flakes = ctx.createPattern(shimmerTiles.flakes, 'repeat');
+    flakes.setTransform(new DOMMatrix().scale(0.7));
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.fillStyle = flakes;
+    ctx.fill(rule);
+    ctx.restore();
+  }
+
+  toSVG() {
+    const { width: w, height: h } = this;
+    const paths = [];
+    for (let p = 0; p < this.polys.length; p++) {
+      const { group, color } = this.polys[p];
+      let d = '';
+      do {
+        const { xy, n } = this.polys[p];
+        const pts = [];
+        for (let i = 0; i < n; i++) pts.push(`${xy[i * 2].toFixed(2)} ${(-xy[i * 2 + 1]).toFixed(2)}`);
+        d += `M${pts.join('L')}Z`;
+      } while (group && this.polys[p + 1]?.group === group && ++p);
+      const extra = group ? ' fill-rule="evenodd"'
+        : isTranslucent(color) ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
+      paths.push(`<path fill="${color}"${extra} d="${d}"/>`);
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-w / 2} ${-h / 2} ${w} ${h}" width="${w}mm" height="${h}mm">`
+      + `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="${this.bath}"/>${paths.join('')}</svg>`;
+  }
+
+  // The session as a script that reproduces it exactly.
+  toScript() {
+    return this.log.map(({ fn, args }) => (fn === 'wait'
+      ? `wait(${args.seconds});`
+      : `${fn}(${JSON.stringify(fromMm(fn, args, this))});`)).join('\n');
+  }
+}
+
+// The commands a script has in scope, taking page units as described in api.js.
+export function scriptApi(marble, extras = {}) {
+  const api = {
+    wait: (s) => marble.wait(s),
+    settle: () => marble.settle(),
+    allAtOnce: () => marble.allAtOnce(),
+    random: () => marble.random(),
+    palette,
+    PALETTES,
+    W: 100,
+    H: 100,
+    ASPECT: marble.height / marble.width,
+  };
+  for (const { name, params } of COMMANDS) {
+    if (params && name !== 'text') api[name] = (o = {}) => marble[name](toMm(name, o, marble));
+  }
+  return { ...api, ...extras };
+}
+
+// Runs a user script with the tank's commands in scope.
+export function runScript(marble, source, extras = {}) {
+  const api = scriptApi(marble, extras);
+  const names = Object.keys(api);
+  new Function(...names, source)(...names.map((k) => api[k]));
+}
