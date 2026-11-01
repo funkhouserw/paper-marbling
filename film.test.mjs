@@ -115,3 +115,21 @@ test('a drop landing on ink gets its plain size, with or without water further o
   const share = areaOf(m.polys[1]) / 7000;
   assert.ok(share < 1.2, `covers ${share}%`);
 });
+
+test('rakes beside the walls leave ink against them', () => {
+  const m = new Film(TANK);
+  m.walls();
+  [[-250, 175], [250, 175], [-250, -175], [250, -175]].forEach(([x, y]) => m.drop({ x, y, quantity: 8 * PERCENT, color: '#112233' }));
+  finish(m);
+  const extent = () => {
+    let far = 0;
+    for (const { xy, n } of m.polys) for (let i = 0; i < n; i++) far = Math.max(far, Math.abs(xy[i * 2 + 1]));
+    return far;
+  };
+  const before = extent();
+  m.fullRake({ angle: 0, teeth: 6 });
+  finish(m);
+  m.fullRake({ angle: 90, teeth: 5, offset: 30 });
+  finish(m);
+  assert.ok(extent() > before - 3, `ink reached ${before}, then ${extent()}`);
+});

@@ -478,6 +478,10 @@ export class Marble {
     });
   }
 
+  // With this false, ink only slows when moving towards a wall. Back-and-forth flow beside a wall
+  // then walks the ink away from it, because the moves away are bigger than the moves towards.
+  get evenWalls() { return false; }
+
   // Applies f(x, y, out) to every outline vertex and every landed drop's centre.
   // Drops that haven't landed yet are unaffected. With hard edges nothing crosses the walls.
   _map(f, { slowNearWalls = true, clamp = true } = {}) {
@@ -494,8 +498,8 @@ export class Marble {
       if (resist) {
         const dx = out[0] - x;
         const dy = out[1] - y;
-        const roomX = dx > 0 ? hw - x : x + hw;
-        const roomY = dy > 0 ? hh - y : y + hh;
+        const roomX = this.evenWalls ? hw - Math.abs(x) : dx > 0 ? hw - x : x + hw;
+        const roomY = this.evenWalls ? hh - Math.abs(y) : dy > 0 ? hh - y : y + hh;
         if (roomX < band) out[0] = x + dx * Math.max(roomX, 0) / band;
         if (roomY < band) out[1] = y + dy * Math.max(roomY, 0) / band;
       }

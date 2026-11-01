@@ -27,6 +27,7 @@ const GROWTH_DONE = 0.015; // a drop rests when this share of its plain area rem
 const SPREAD_TIME_LIMIT = 3; // spreading ends after this many times a drop's growth time
 const FEED_TIME_LIMIT = 6; // and every drop ends after this many, whatever else is happening
 const SOLVER_CYCLES = 3;
+const VELOCITY_BLUR = 1; // passes
 const ROUND_WITHIN = 2; // cells; how far a film's edge can vary and still count as round
 const SUB_ROWS = 4; // scanlines per grid row when measuring coverage
 const NEARLY_ZERO = 1e-9; // keeps the solver well behaved where k would be exactly zero
@@ -41,6 +42,8 @@ const polygonArea = ({ xy, n }) => {
 };
 
 export class Film extends Marble {
+  get evenWalls() { return true; }
+
   // Rebuilt when the walls change, because without walls the grid extends past the tank.
   _getGrid() {
     const pad = this.wallsOn ? 0 : MARGIN;
@@ -434,6 +437,25 @@ export class Film extends Marble {
         if (y > 0 && ink[i - nx]) { sx += ux[i - nx]; sy += uy[i - nx]; c++; }
         if (y < ny - 1 && ink[i + nx]) { sx += ux[i + nx]; sy += uy[i + nx]; c++; }
         if (c) { ex[i] = sx / c; ey[i] = sy / c; }
+      }
+    }
+
+    // A light blur: the ink map is in whole cells, and without this its steps print on film edges.
+    for (let pass = 0; pass < VELOCITY_BLUR; pass++) {
+      for (const f of [ex, ey]) {
+        const t = g.blur ??= new Float64Array(nx * ny);
+        for (let y = 0; y < ny; y++) {
+          for (let x = 0; x < nx; x++) {
+            const i = y * nx + x;
+            t[i] = (2 * f[i] + (x > 0 ? f[i - 1] : f[i]) + (x < nx - 1 ? f[i + 1] : f[i])) / 4;
+          }
+        }
+        for (let y = 0; y < ny; y++) {
+          for (let x = 0; x < nx; x++) {
+            const i = y * nx + x;
+            f[i] = (2 * t[i] + (y > 0 ? t[i - nx] : t[i]) + (y < ny - 1 ? t[i + nx] : t[i])) / 4;
+          }
+        }
       }
     }
 
