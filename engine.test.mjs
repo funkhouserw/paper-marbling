@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { Marble, maxRadius, scriptApi, runScript } from './engine.js';
+import { Marble, maxRadius, scriptApi, runScript, WEAVE_SHAPES } from './engine.js';
 import { COMMANDS, VALUES, toMm, fromMm, dialToValue, valueToDial } from './api.js';
 import { PALETTES, palette } from './palettes.js';
 
@@ -781,6 +781,28 @@ test('a weaving rake is cut in short pieces however fast it goes', () => {
     // A piece is a sixteenth of a weave along the rake, plus its sideways movement.
     assert.ok(Math.max(...longest) < 40 / 16 + (20 * 2 * Math.PI) / 16, `speed ${speed}: ${Math.max(...longest)}`);
   }
+});
+
+test('weave shapes join up from one weave to the next and stay in height', () => {
+  for (const [name, shape] of Object.entries(WEAVE_SHAPES)) {
+    const start = shape(0);
+    const end = shape(0.99999);
+    assert.ok(Math.abs(start[0] - end[0]) < 0.01 && Math.abs(start[1] - end[1]) < 0.01, `${name} jumps between weaves`);
+    for (let t = 0; t < 1; t += 0.01) assert.ok(Math.abs(shape(t)[1]) <= 1.0001, `${name} is too tall at ${t}`);
+  }
+});
+
+test('a curl really does travel backwards along the rake', () => {
+  const m = new Marble();
+  const r = m.rake({ from: [-200, 0], to: [200, 0], teeth: 1, waveAmp: 20, waveLength: 40, waveShape: 'curl', at: 0 });
+  let back = false;
+  let last = -Infinity;
+  for (let d = 0; d < 80; d += 1) {
+    const [x] = m._rakePoint(r, d, 0);
+    if (x < last) back = true;
+    last = x;
+  }
+  assert.ok(back);
 });
 
 test('a rake without a weave takes one straight piece per tick', () => {

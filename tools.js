@@ -4,6 +4,10 @@ import { COMMANDS, dialToValue } from './api.js';
 
 export const TURNS = { ccw: 'Counter-clockwise', cw: 'Clockwise' };
 
+const WEAVE_CHOICE = {
+  sine: 'Sine', scallop: 'Scallop', points: 'Points', zigzag: 'Zigzag', fin: 'Fin', breaker: 'Breaker', curl: 'Curl',
+};
+
 export const TOOLS = {
   drop: {
     hint: 'Click to place drops. Each click can be a different quantity and colour.',
@@ -25,6 +29,7 @@ export const TOOLS = {
   },
   rake: {
     hint: 'Drag across the tank: the rake travels along your line, teeth perpendicular to it.',
+    choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'sine'] },
     params: {
       teeth: ['Teeth', 10, 1, 80, 1],
       spacing: ['Space between teeth', 5, 0.5, 20, 0.1],
@@ -36,6 +41,7 @@ export const TOOLS = {
   },
   fullRake: {
     label: 'Full rake',
+    choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'sine'] },
     hint: 'Teeth spread evenly across the whole page; offset slides them and wraps at the edges. Pick a direction, then use the button below.',
     whole: true,
     directions: true,

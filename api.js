@@ -55,6 +55,7 @@ export const COMMANDS = [
     size('D', 1, 'tooth size; the effect is steep: under about 0.4 barely moves ink at normal speed, about 1 to 2 drags a broad path, and faster tools drag more'),
     size('waveAmp', 0, 'weave height'),
     size('waveLength', 10, 'length of one weave'),
+    ['waveShape', 'string', 'sine', 'the weave: sine, scallop, points, zigzag, fin, breaker (crest hangs over) or curl (loops over itself)'],
     AT,
   ] },
   { name: 'fullRake', group: 'Tools', summary: 'A rake across the whole tank with evenly spaced teeth.', params: [
@@ -65,6 +66,7 @@ export const COMMANDS = [
     size('D', 1, 'tooth size'),
     size('waveAmp', 0, 'weave height'),
     size('waveLength', 10, 'length of one weave'),
+    ['waveShape', 'string', 'sine', 'the weave: sine, scallop, points, zigzag, fin, breaker (crest hangs over) or curl (loops over itself)'],
     AT,
   ] },
   { name: 'stylus', group: 'Tools', summary: 'One tine along a path.', params: [

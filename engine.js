@@ -37,7 +37,29 @@ const PUSH_FADE = 1.5;
 const PUSH_DIRECTIONS = 48;
 
 // Straight pieces per weave of a rake, for both its path and its preview.
-export const WEAVE_POINTS = 16;
+export const WEAVE_POINTS = 32;
+
+// Weave shapes: for t from 0 to 1 along one weave, [along, across], where along is in weave
+// lengths and across runs from -1 to 1 in weave heights. Overhangs and loops come from along.
+const TAU = 2 * Math.PI;
+export const WEAVE_SHAPES = {
+  sine: (t) => [0, Math.sin(TAU * t)],
+  scallop: (t) => [0, 2 * Math.abs(Math.sin(Math.PI * t)) - 1],
+  points: (t) => [0, 1 - 2 * Math.abs(Math.sin(Math.PI * t))],
+  zigzag: (t) => [0, 1 - 4 * Math.abs(((t + 0.25) % 1) - 0.5)],
+  // A long rise and a quick drop.
+  fin: (t) => [0, t < 0.8 ? -1 + 2 * Math.sin((Math.PI / 2) * (t / 0.8)) : 1 - 2 * ((t - 0.8) / 0.2)],
+  // The crest leans forward and hangs over the trough.
+  breaker: (t) => {
+    const a = TAU * t;
+    return [0.16 * Math.sin(a) + 0.09 * Math.sin(2 * a), -Math.cos(a)];
+  },
+  // Each weave loops right back over itself.
+  curl: (t) => {
+    const a = TAU * t;
+    return [-0.42 * Math.sin(a), -Math.cos(a)];
+  },
+};
 
 // Tiling textures for metallic ink: fine flakes, and a broad soft sheen.
 let shimmerTiles = null;
@@ -302,10 +324,10 @@ export class Marble {
   // A rake: `teeth` tines `spacing` mm apart (or explicit `offsets`), moving along
   // from -> to (or a `path`). waveAmp/waveLength make it weave as it travels.
   rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
-         waveAmp = 0, waveLength = 100, at } = {}) {
+         waveAmp = 0, waveLength = 100, waveShape = 'sine', at } = {}) {
     const points = path ?? [from, to];
     const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
-    const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength };
+    const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength, waveShape };
     if (at !== undefined) args.at = at;
 
     const segs = [];
@@ -320,7 +342,7 @@ export class Marble {
     const s0 = segs[0];
     const perp = [-(s0.by - s0.ay) / s0.len, (s0.bx - s0.ax) / s0.len];
     const op = {
-      kind: 'rake', segs, total, offs, perp, speed, waveAmp, waveLength, dist: 0,
+      kind: 'rake', segs, total, offs, perp, speed, waveAmp, waveLength, waveShape, dist: 0,
       L: Math.max((speed * D * D) / this.viscosity, 0.25),
     };
     return this._schedule('rake', args, op, total / speed, true);
@@ -388,7 +410,7 @@ export class Marble {
 
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
-  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, at } = {}) {
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', at } = {}) {
     const c = Math.cos(angle * DEG);
     const s = Math.sin(angle * DEG);
     const along = (Math.abs(c) * this.width + Math.abs(s) * this.height) / 2 + 20;
@@ -399,7 +421,7 @@ export class Marble {
     const offsets = Array.from({ length: teeth }, (_, i) => wrap((i + 0.5) * spacing + offset) - across / 2);
     return this.rake({
       from: [-c * along, -s * along], to: [c * along, s * along],
-      offsets, speed, D, waveAmp, waveLength, at,
+      offsets, speed, D, waveAmp, waveLength, waveShape, at,
     });
   }
 
@@ -816,10 +838,18 @@ export class Marble {
   }
 
   _rakePoint(op, dist, offset) {
+    let along = 0;
+    let weave = 0;
+    if (op.waveAmp) {
+      const turns = dist / op.waveLength;
+      const [a, across] = (WEAVE_SHAPES[op.waveShape] ?? WEAVE_SHAPES.sine)(turns - Math.floor(turns));
+      along = a * op.waveLength;
+      weave = op.waveAmp * across;
+    }
+    const at = dist + along;
     let seg = op.segs[op.segs.length - 1];
-    for (const s of op.segs) { if (dist <= s.start + s.len) { seg = s; break; } }
-    const t = (dist - seg.start) / seg.len;
-    const weave = op.waveAmp * Math.sin((2 * Math.PI * dist) / op.waveLength);
+    for (const s of op.segs) { if (at <= s.start + s.len) { seg = s; break; } }
+    const t = (at - seg.start) / seg.len;
     return [
       seg.ax + (seg.bx - seg.ax) * t + op.perp[0] * (offset + weave),
       seg.ay + (seg.by - seg.ay) * t + op.perp[1] * (offset + weave),
