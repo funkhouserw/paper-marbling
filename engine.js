@@ -133,7 +133,7 @@ function makeShimmerTiles() {
   return { flakes, sheen };
 }
 
-const isTranslucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
+export const isTranslucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -1229,12 +1229,17 @@ export class Marble {
     return out;
   }
 
+  // A simulator can paint under all the ink, on canvas and in SVG.
+  _beforeInk() {}
+  _svgBeforeInk() { return ''; }
+
   draw(ctx, pxPerMm) {
     ctx.save();
     ctx.clearRect(0, 0, this.width * pxPerMm, this.height * pxPerMm); // the bath may be transparent
     ctx.fillStyle = this.bath;
     ctx.fillRect(0, 0, this.width * pxPerMm, this.height * pxPerMm);
     ctx.setTransform(pxPerMm, 0, 0, -pxPerMm, (this.width / 2) * pxPerMm, (this.height / 2) * pxPerMm);
+    this._beforeInk(ctx);
     for (let p = 0; p < this.polys.length; p++) {
       const { group, color, shimmer } = this.polys[p];
       ctx.beginPath();
@@ -1306,7 +1311,7 @@ export class Marble {
       paths.push(`<path fill="${color}"${extra} d="${d}"/>`);
     }
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-w / 2} ${-h / 2} ${w} ${h}" width="${w}mm" height="${h}mm">`
-      + `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="${this.bath}"/>${paths.join('')}</svg>`;
+      + `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="${this.bath}"/>${this._svgBeforeInk()}${paths.join('')}</svg>`;
   }
 
   // The session as a script that reproduces it exactly.
