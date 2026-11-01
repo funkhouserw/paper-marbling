@@ -40,31 +40,20 @@
 </main>
 
 <aside>
-  <section>
-    <h2>Palette</h2>
-    <select id="palette" aria-label="Palette"></select>
-  </section>
-
-  <section>
-    <h2>Tool</h2>
+  <details class="panel" data-panel="Tool" open>
+    <summary>Tool</summary>
     <div id="tools"></div>
     <div id="params"></div>
     <button id="apply" hidden>Apply to whole tank</button>
-  </section>
+  </details>
 
-  <section>
-    <h2>Tank</h2>
-    <div class="grid">
-      <label>Width (mm)<input id="tankW" type="number" value="1000" min="100" max="4000"></label>
-      <label>Height (mm)<input id="tankH" type="number" value="700" min="100" max="4000"></label>
-      <label>Viscosity (mm²/s)<input id="visc" type="number" value="1000" min="50" max="20000"></label>
-      <label><input id="useBath" type="checkbox"> Base colour<input id="bath" type="color" value="#f4efe2"></label>
-    </div>
-    <button id="applyTank">Apply (clears tank)</button>
-  </section>
+  <details class="panel" data-panel="Palette" open>
+    <summary>Palette</summary>
+    <select id="palette" aria-label="Palette"></select>
+  </details>
 
-  <section>
-    <h2>Script</h2>
+  <details class="panel" data-panel="Assistant" open>
+    <summary>Assistant</summary>
     <div id="chatLog" aria-live="polite" hidden></div>
     <div class="row prompt">
       <input id="prompt" type="text" placeholder="Describe a pattern or a change…" aria-label="Message the assistant">
@@ -72,6 +61,10 @@
       <button id="generate">Send</button>
     </div>
     <button id="clearChat" hidden>Clear chat</button>
+  </details>
+
+  <details class="panel" data-panel="Script" open>
+    <summary>Script</summary>
     <select id="examples"></select>
     <textarea id="script" spellcheck="false" rows="14"></textarea>
     <div class="row">
@@ -79,10 +72,21 @@
       <button id="capture">Copy session to script</button>
     </div>
     <pre id="error" hidden></pre>
-  </section>
+  </details>
 
-  <section>
-    <h2>Paper</h2>
+  <details class="panel" data-panel="Tank">
+    <summary>Tank</summary>
+    <div class="grid">
+      <label>Width (mm)<input id="tankW" type="number" value="1000" min="100" max="4000"></label>
+      <label>Height (mm)<input id="tankH" type="number" value="700" min="100" max="4000"></label>
+      <label>Viscosity (mm²/s)<input id="visc" type="number" value="1000" min="50" max="20000"></label>
+      <label><input id="useBath" type="checkbox"> Base colour<input id="bath" type="color" value="#f4efe2"></label>
+    </div>
+    <button id="applyTank">Apply (clears tank)</button>
+  </details>
+
+  <details class="panel" data-panel="Paper">
+    <summary>Paper</summary>
     <div class="swatches" id="tints"></div>
     <div id="pullOptions">
       <label>Imperfections <span class="value" id="imperfectionValue">50%</span>
@@ -92,15 +96,15 @@
     <label class="check" title="A real print is the tank's mirror image, so text reads backwards"><input id="mirror" type="checkbox"> Mirror like a real print</label>
     <label class="check"><input id="autoSave" type="checkbox" checked> Download PNG on each pull</label>
     <div id="gallery"></div>
-  </section>
+  </details>
 
-  <section>
-    <h2>Export</h2>
+  <details class="panel" data-panel="Export">
+    <summary>Export</summary>
     <div class="row">
       <button id="png">PNG</button>
       <button id="svg">SVG</button>
     </div>
-  </section>
+  </details>
 </aside>
 <dialog id="viewer">
   <img id="viewerImg" alt="Pulled print">

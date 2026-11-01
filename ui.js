@@ -158,6 +158,16 @@ let pullSeed = Date.now() % 1e9;
 values.text.string = 'Marbled';
 values.text.font = 'serif';
 
+// ---- Sidebar panels -----------------------------------------------------
+
+// Remembers which panels are open between visits.
+for (const panel of document.querySelectorAll('.panel')) {
+  const key = `marbler.panel.${panel.dataset.panel}`;
+  const saved = localStorage.getItem(key);
+  if (saved !== null) panel.open = saved === 'open';
+  panel.addEventListener('toggle', () => localStorage.setItem(key, panel.open ? 'open' : 'closed'));
+}
+
 // ---- Layout -------------------------------------------------------------
 
 function resize() {
