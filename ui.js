@@ -1286,7 +1286,7 @@ function frame(now) {
 function showStats() {
   const warn = marble.capped ? ' <span class="warn">detail limit reached: edges may look coarse</span>' : '';
   $('stats').innerHTML = `t ${marble.time.toFixed(1)} s · ${marble.polys.length} drops · `
-    + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${warn}`;
+    + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${marble.busy && !marble.active.length && !marble.queued.length ? ' · bath still moving' : ''}${warn}`;
 }
 
 // ---- Start --------------------------------------------------------------
