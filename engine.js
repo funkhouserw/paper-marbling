@@ -63,6 +63,7 @@ function drawn(points) {
 }
 
 export const WEAVE_SHAPES = {
+  straight: () => [0, 0],
   sine: (t) => [0, Math.sin(TAU * t)],
   scallop: (t) => [0, 2 * Math.abs(Math.sin(Math.PI * t)) - 1],
   points: (t) => [0, 1 - 2 * Math.abs(Math.sin(Math.PI * t))],
@@ -355,6 +356,27 @@ export class Marble {
       if (ring < rings - 1) this.settle();
     }
     return dots.length;
+  }
+
+  // A spray of many fine dots, most of them tiny, thickest in the middle like a real spray.
+  // min and max are the radii the dots end up at.
+  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, at } = {}) {
+    const start = at ?? this._now;
+    const growth = this.spreadFactor;
+    for (let i = 0; i < n; i++) {
+      const angle = this.random() * 2 * Math.PI;
+      const reach = radius * Math.sqrt(-Math.log(1 - this.random() * 0.98)) / 2;
+      const r = min * (max / min) ** (this.random() ** 3);
+      this.drop({
+        x: x + reach * Math.cos(angle),
+        y: y + reach * Math.sin(angle),
+        quantity: ((Math.PI * r * r) / growth) * this.film / 1000,
+        dispersion,
+        color: colors[Math.floor(this.random() * colors.length)],
+        at: this.orderGap !== null && at === undefined ? undefined : start + this.random() * stagger,
+      });
+    }
+    return this;
   }
 
   // How many times its plain area a lone drop finally covers.

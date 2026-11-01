@@ -403,6 +403,11 @@ function showTool(name) {
       values[name][key] = dial ? dialToValue(Number(input.value), min, max) : Number(input.value);
       typed.refresh();
       describe();
+      // Adding height to a straight rake means wanting a weave.
+      if (key === 'waveAmp' && values[name][key] > 0 && values[name].waveShape === 'straight') {
+        values[name].waveShape = 'sine';
+        for (const b of document.querySelectorAll('.weaves button')) b.classList.toggle('on', b.title === 'Sine');
+      }
     };
     describe();
     wrap.append(label, typed, input);
@@ -444,9 +449,14 @@ function weavePicker(name, label, options) {
     b.classList.toggle('on', values[name].waveShape === shape);
     b.onclick = () => {
       values[name].waveShape = shape;
+      const height = document.querySelector('#params input[data-key=waveAmp]');
+      if (shape === 'straight') {
+        height.value = 0;
+        height.oninput();
+        return;
+      }
       // With no height a shape does nothing, which looks like it's broken.
       if (!values[name].waveAmp) {
-        const height = document.querySelector('#params input[data-key=waveAmp]');
         height.value = DEFAULT_WEAVE_HEIGHT;
         height.oninput();
       }
@@ -611,6 +621,12 @@ function place(isTool, fn) {
   return op;
 }
 
+function sprayAt(x, y, share = 1) {
+  const v = inMm('spray');
+  const colors = v.sprayColors === 'one' ? [{ color, shimmer }] : inks;
+  place(false, (at) => marble.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min: Math.min(v.min, v.max), max: v.max, colors, at }));
+}
+
 function clickAction([x, y]) {
   const v = inMm(tool);
   if (tool === 'text') {
@@ -627,6 +643,8 @@ function clickAction([x, y]) {
         at: at === undefined || $('queueMode').value !== 'together' ? at : at + jitter,
       }));
     }
+  } else if (tool === 'spray') {
+    sprayAt(x, y);
   } else if (tool === 'wriggle') {
     const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
     place(true, (at) => marble.wriggle({ x, y, period: v.period, degrees, duration: v.duration, at }));
@@ -641,17 +659,25 @@ function clickAction([x, y]) {
   }
 }
 
+let lastSpray = null;
 overlay.addEventListener('pointerdown', (ev) => {
   if (pull) return;
   overlay.setPointerCapture(ev.pointerId);
   const p = toTank(ev);
   if (tool === 'rake' || tool === 'stylus') stroke = [p];
   else if (!TOOLS[tool].whole) act(() => clickAction(p));
+  if (tool === 'spray') lastSpray = p;
 });
+overlay.addEventListener('pointerup', () => { lastSpray = null; });
 overlay.addEventListener('pointerleave', () => { hover = null; });
 overlay.addEventListener('pointermove', (ev) => {
   const p = toTank(ev);
   hover = p;
+  // Dragging keeps spraying along the way, a little at a time.
+  if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > inMm('spray').radius * 0.75) {
+    lastSpray = p;
+    act(() => sprayAt(p[0], p[1], 0.25));
+  }
   if (!stroke) return;
   if (tool === 'rake') stroke[1] = p;
   else stroke.push(p);

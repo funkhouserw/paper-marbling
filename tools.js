@@ -5,7 +5,7 @@ import { COMMANDS, dialToValue } from './api.js';
 export const TURNS = { ccw: 'Counter-clockwise', cw: 'Clockwise' };
 
 const WEAVE_CHOICE = {
-  sine: 'Sine', scallop: 'Scallop', points: 'Points', zigzag: 'Zigzag', fin: 'Fin', breaker: 'Breaker', curl: 'Curl',
+  straight: 'Straight', sine: 'Sine', scallop: 'Scallop', points: 'Points', zigzag: 'Zigzag', fin: 'Fin', breaker: 'Breaker', curl: 'Curl',
   spiral: 'Spiral', wave: 'Wave', shell: 'Shell', flick: 'Flick', hook: 'Hook',
 };
 
@@ -20,6 +20,17 @@ export const TOOLS = {
       scatter: ['Scatter', 0, 0, 40, 0.5],
     },
   },
+  spray: {
+    hint: 'Click, or drag, to spray fine dots. They use the colours chosen below.',
+    color: true,
+    choices: { sprayColors: ['Spray colours', { palette: 'All inks in the palette', one: 'Just the chosen ink' }, 'palette'] },
+    params: {
+      n: ['Dots per spray', 150, 10, 600, 10],
+      radius: ['Spray width', 15, 1, 60, 0.5],
+      min: ['Smallest dot', 0.05, 0.02, 1, 0.01],
+      max: ['Largest dot', 0.6, 0.05, 5, 0.01],
+    },
+  },
   text: {
     hint: 'Click to print the text as ink. It never grows, but rakes and drops move it.',
     color: true,
@@ -30,7 +41,7 @@ export const TOOLS = {
   },
   rake: {
     hint: 'Drag across the tank: the rake travels along your line, teeth perpendicular to it.',
-    choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'sine'] },
+    choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'straight'] },
     params: {
       teeth: ['Teeth', 10, 1, 80, 1],
       spacing: ['Space between teeth', 5, 0.5, 20, 0.1],
@@ -42,7 +53,7 @@ export const TOOLS = {
   },
   fullRake: {
     label: 'Full rake',
-    choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'sine'] },
+    choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'straight'] },
     hint: 'Teeth spread evenly across the whole page; offset slides them and wraps at the edges. Pick a direction, then use the button below.',
     whole: true,
     directions: true,
@@ -104,7 +115,7 @@ export const TOOLS = {
 
 export const PAGE_UNITS = {
   quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
-  offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
+  radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
 };
 
 // Size-like sliders run 0 to 100 across their useful range; counts, degrees and seconds

@@ -845,6 +845,18 @@ test('fillDots fills holes largest first, without overlaps, inside the tank', ()
   assert.ok(new Set(placed.map((d) => d.color)).size === 3, 'uses every colour');
 });
 
+test('spray lays many dots in range, mostly tiny, thickest in the middle', () => {
+  const m = new Marble({ seed: 5 });
+  scriptApi(m).spray({ x: 50, y: 50, radius: 20, n: 400, min: 0.1, max: 1, colors: ['#111', '#222'] });
+  const dots = m.log.filter((e) => e.fn === 'drop').map((e) => ({ ...e.args, r: maxRadius(e.args.quantity, m.film) }));
+  assert.equal(dots.length, 400);
+  assert.ok(dots.every((d) => d.r >= 0.99 && d.r <= 10.01), 'sizes stay in range');
+  assert.ok(dots.filter((d) => d.r < 3).length > 240, 'most are tiny');
+  const near = dots.filter((d) => Math.hypot(d.x, d.y) < 100).length;
+  assert.ok(near > 200 && Math.max(...dots.map((d) => Math.hypot(d.x, d.y))) <= 200, 'thickest in the middle');
+  assert.equal(new Set(dots.map((d) => d.color)).size, 2);
+});
+
 test('a rake without a weave takes one straight piece per tick', () => {
   const m = new Marble();
   let pieces = 0;

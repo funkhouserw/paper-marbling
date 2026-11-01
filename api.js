@@ -45,6 +45,17 @@ export const COMMANDS = [
     ['dispersion', 'number', 0.8, '1/s'],
     SHIMMER, AT,
   ] },
+  { name: 'spray', group: 'Ink', summary: 'A spray bottle: many fine dots of varying size around a point, most of them tiny and thickest in the middle. Good for the very fine spatter of traditional marbling. Call it several times for layers or several places. It does not advance the timeline.', params: [
+    X, Y,
+    size('radius', 15, 'how far the spray reaches'),
+    ['n', 'number', 150, 'how many dots; keep the whole script to about 600'],
+    size('min', 0.05, 'smallest dot radius'),
+    size('max', 0.6, 'largest dot radius'),
+    ['colors', 'color[]', ['#1f4e79'], 'picked at random; CSS colours or palette inks'],
+    ['dispersion', 'number', 4, '1/s'],
+    ['stagger', 'number', 0.4, 'spreads start times over this many seconds'],
+    AT,
+  ] },
   { name: 'text', group: 'Ink', summary: 'Prints text as ink, centred on x, y. It never expands, but later tools move it.', params: [
     ['string', 'string', '', 'the text'], X, Y,
     size('size', 8, 'text size'),
@@ -67,7 +78,7 @@ export const COMMANDS = [
     size('D', 1, 'tooth size; the effect is steep: under about 0.4 barely moves ink at normal speed, about 1 to 2 drags a broad path, and faster tools drag more'),
     size('waveAmp', 0, 'weave height; 0 means a straight rake, so set this for waveShape to do anything'),
     size('waveLength', 10, 'length of one weave'),
-    ['waveShape', 'string', 'sine', 'the weave: sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
+    ['waveShape', 'string', 'sine', 'the weave: straight, sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
     AT,
   ] },
   { name: 'fullRake', group: 'Tools', summary: 'A rake across the whole tank with evenly spaced teeth.', params: [
@@ -78,7 +89,7 @@ export const COMMANDS = [
     size('D', 1, 'tooth size'),
     size('waveAmp', 0, 'weave height; 0 means a straight rake, so set this for waveShape to do anything'),
     size('waveLength', 10, 'length of one weave'),
-    ['waveShape', 'string', 'sine', 'the weave: sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
+    ['waveShape', 'string', 'sine', 'the weave: straight, sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
     AT,
   ] },
   { name: 'stylus', group: 'Tools', summary: 'One tine along a path.', params: [
