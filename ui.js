@@ -439,6 +439,12 @@ function act(fn) {
 function syncToggles(entries) {
   $('openWater').checked = entries.filter((e) => e.fn === 'openWater').at(-1)?.args.on ?? false;
   $('walls').checked = entries.filter((e) => e.fn === 'walls').at(-1)?.args.on ?? false;
+  // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
+  const bath = entries.filter((e) => e.fn === 'setBath').at(-1);
+  if (bath) {
+    $('useBath').checked = bath.args.color !== null;
+    if (parseHex(bath.args.color ?? '')?.rgb) $('bath').value = parseHex(bath.args.color).rgb;
+  }
 }
 
 function resetHistory() {

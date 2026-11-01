@@ -123,6 +123,9 @@ export const COMMANDS = [
   { name: 'openWater', group: 'Tank', summary: 'On by default: ink spreads over bare water until it meets other ink or reaches its spreading limit. Bare water is just the surface and offers no resistance. Off gives plain fixed-size drops that push everything, water included.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },
+  { name: 'bath', engine: 'setBath', group: 'Tank', summary: 'Sets the colour of the water, which is the background. It applies straight away and is not ink, so tools do not move it.', params: [
+    ['color', 'color', null, 'CSS colour or palette ink; null removes it, leaving the tank see-through in exports'],
+  ] },
   // Timeline
   { name: 'inOrder', group: 'Timeline', summary: 'Each following action starts gap seconds after the previous one finishes.', params: [
     ['gap', 'number', 0.5, 'seconds'],

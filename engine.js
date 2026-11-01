@@ -253,6 +253,14 @@ export class Marble {
     return this._schedule('print', args, { kind: 'print', contours: loops, color, shimmer });
   }
 
+  // Named apart from the `bath` colour it sets. null means no colour at all.
+  setBath({ color = null } = {}) {
+    const hex = color && typeof color === 'object' ? color.color : color;
+    this.bath = hex ?? 'rgba(0,0,0,0)';
+    this.log.push({ fn: 'setBath', args: { color: hex } });
+    return this;
+  }
+
   // ---- Inks ------------------------------------------------------------
 
   // quantity: mL. dispersion: spreading rate (1/s), larger is faster. spreading: how many
@@ -1220,9 +1228,11 @@ export class Marble {
 
   // The session as a script that reproduces it exactly.
   toScript() {
-    return this.log.map(({ fn, args }) => (fn === 'wait'
-      ? `wait(${args.seconds});`
-      : `${fn}(${JSON.stringify(fromMm(fn, args, this))});`)).join('\n');
+    return this.log.map(({ fn, args }) => {
+      if (fn === 'wait') return `wait(${args.seconds});`;
+      if (fn === 'setBath') return `bath(${JSON.stringify(args)});`;
+      return `${fn}(${JSON.stringify(fromMm(fn, args, this))});`;
+    }).join('\n');
   }
 }
 
@@ -1239,8 +1249,8 @@ export function scriptApi(marble, extras = {}) {
     H: 100,
     ASPECT: marble.height / marble.width,
   };
-  for (const { name, params } of COMMANDS) {
-    if (params && name !== 'text') api[name] = (o = {}) => marble[name](toMm(name, o, marble));
+  for (const { name, engine, params } of COMMANDS) {
+    if (params && name !== 'text') api[name] = (o = {}) => marble[engine ?? name](toMm(name, o, marble));
   }
   return { ...api, ...extras };
 }

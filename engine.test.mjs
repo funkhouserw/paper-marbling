@@ -674,7 +674,7 @@ test('api.js lists exactly what scripts have in scope', () => {
 
 test('api.js options match the engine', () => {
   for (const c of COMMANDS.filter((x) => x.params && x.name !== 'text')) {
-    const src = Marble.prototype[c.name].toString();
+    const src = Marble.prototype[c.engine ?? c.name].toString();
     const options = src.slice(src.indexOf('{') + 1, src.indexOf('} = {})'));
     const actual = splitParams(options).map((p) => p.split('=')[0].trim());
     assert.deepEqual(actual, c.params.map(([name]) => name), c.name);
@@ -743,6 +743,20 @@ test('a session written out as a script reproduces itself', () => {
   first.runUntilIdle();
   second.runUntilIdle();
   near(first.polys[0].xy[0], second.polys[0].xy[0], 0.05, 'same ink');
+});
+
+test('bath sets and removes the background, and survives being written out', () => {
+  const m = new Marble();
+  runScript(m, "bath({ color: '#102030' });");
+  assert.equal(m.bath, '#102030');
+  assert.equal(m.toScript(), 'bath({"color":"#102030"});');
+  const again = new Marble();
+  runScript(again, m.toScript());
+  assert.equal(again.bath, '#102030');
+  runScript(again, 'bath({ color: null });');
+  assert.equal(again.bath, 'rgba(0,0,0,0)');
+  runScript(again, "bath({ color: palette('Old Dutch').inks[0] });");
+  assert.equal(again.bath, palette('Old Dutch').inks[0].color);
 });
 
 test('every option in the catalogue converts there and back', () => {
