@@ -123,7 +123,7 @@ const DIRECTIONS = [[0, '→', 'Right'], [180, '←', 'Left'], [90, '↑', 'Up']
 // Sidebar controls are in page units, like scripts. This gives a tool's values in mm.
 function inMm(name, tank = marble) {
   const k = tank.width / 100;
-  const scale = { w: k, w2: k * k, q: toMm('drop', { quantity: 1 }, tank).quantity };
+  const scale = { w: k, tenth: k / 10, w2: k * k, q: toMm('drop', { quantity: 1 }, tank).quantity };
   const out = { ...values[name] };
   for (const [key, unit] of Object.entries(PAGE_UNITS)) if (key in out) out[key] *= scale[unit];
   return out;
@@ -594,7 +594,8 @@ $('apply').onclick = () => act(() => place(true, (at) => (tool === 'fullRake'
 
 function newTank() {
   const prev = marble;
-  marble = new Marble({
+  const Engine = currentModel().engine ?? Marble;
+  marble = new Engine({
     width: Number($('tankW').value) || prev.width,
     height: Number($('tankH').value) || prev.height,
     viscosity: Number($('visc').value) || prev.viscosity,

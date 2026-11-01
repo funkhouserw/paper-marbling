@@ -1,5 +1,6 @@
-// The simulators to choose from. Each is a set of engine settings for now; a simulator with
-// its own engine can add a `create` function here.
+// The simulators to choose from. A simulator with its own engine adds an `engine` class here.
+import { ThinFilm } from './thinfilm.js';
+
 export const MODELS = [
   {
     id: 'classic',
@@ -12,5 +13,12 @@ export const MODELS = [
     label: 'Spreading',
     title: 'Ink spreads over bare water until it meets other ink.',
     spreading: true,
+  },
+  {
+    id: 'thinfilm',
+    label: 'Thin film (new)',
+    title: 'Tracks how thick the ink is. Bare water has no pressure, so films only feel each other once they touch.',
+    spreading: false,
+    engine: ThinFilm,
   },
 ];

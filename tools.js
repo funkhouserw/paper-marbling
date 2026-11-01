@@ -29,8 +29,8 @@ export const TOOLS = {
       teeth: ['Teeth', 10, 1, 80, 1],
       spacing: ['Space between teeth', 5, 0.5, 20, 0.1],
       speed: ['Speed', 15, 1, 80, 1],
-      D: ['Tooth thickness', 1, 0.1, 4, 0.1],
-      waveAmp: ['Weave height', 0, 0, 10, 0.1],
+      D: ['Tooth thickness', 1, 0.3, 3, 0.1],
+      waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
     },
   },
@@ -43,8 +43,8 @@ export const TOOLS = {
       teeth: ['Teeth', 12, 1, 80, 1],
       offset: ['Slide sideways', 0, 0, 20, 0.1],
       speed: ['Speed', 20, 1, 80, 1],
-      D: ['Tooth thickness', 0.8, 0.1, 4, 0.1],
-      waveAmp: ['Weave height', 0, 0, 10, 0.1],
+      D: ['Tooth thickness', 0.8, 0.3, 3, 0.1],
+      waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
     },
   },
@@ -52,7 +52,7 @@ export const TOOLS = {
     hint: 'Draw freely: a single tine follows your stroke.',
     params: {
       speed: ['Speed', 15, 1, 80, 1],
-      D: ['Tine thickness', 1, 0.1, 4, 0.1],
+      D: ['Tine thickness', 1, 0.3, 3, 0.1],
     },
   },
   jiggle: {
@@ -96,13 +96,13 @@ export const TOOLS = {
 };
 
 export const PAGE_UNITS = {
-  quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'w', waveLength: 'w',
+  quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
   offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
 };
 
 // Size-like sliders run 0 to 100 across their useful range; counts, degrees and seconds
 // show their real values.
-export const isDial = (key) => key === 'dispersion' || key in PAGE_UNITS;
+export const isDial = (key) => key === 'dispersion' || (key in PAGE_UNITS && PAGE_UNITS[key] !== 'tenth');
 
 // What each 0-100 slider means as a script option, for the assistant's instructions.
 export function renderSliders() {
@@ -110,7 +110,12 @@ export function renderSliders() {
   for (const [name, def] of Object.entries(TOOLS)) {
     const options = COMMANDS.find((c) => c.name === name)?.params ?? [];
     for (const [key, [label, , min, max]] of Object.entries(def.params)) {
-      if (!isDial(key) || !options.some((p) => p[0] === key)) continue;
+      if (!options.some((p) => p[0] === key)) continue;
+      if (PAGE_UNITS[key] === 'tenth') {
+        lines.push(`  ${def.label ?? name[0].toUpperCase() + name.slice(1)}, "${label}": ${name} option ${key}: slider 0 to ${max}, script value is the slider divided by 10`);
+        continue;
+      }
+      if (!isDial(key)) continue;
       const stops = [0, 25, 50, 75, 100].map((d) => `${d}=${dialToValue(d, min, max)}`).join(', ');
       lines.push(`  ${def.label ?? name[0].toUpperCase() + name.slice(1)}, "${label}": ${name} option ${key}: ${stops}`);
     }

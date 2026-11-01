@@ -52,7 +52,7 @@ export const COMMANDS = [
     size('spacing', 5, 'distance between teeth'),
     ['offsets', 'number[]', null, 'sideways tooth positions, % of width, instead of teeth and spacing', 'sizes'],
     SPEED(10),
-    size('D', 1, 'tooth size, about 0.5 to 2'),
+    size('D', 1, 'tooth size; the effect is steep: under about 0.4 barely moves ink at normal speed, about 1 to 2 drags a broad path, and faster tools drag more'),
     size('waveAmp', 0, 'weave height'),
     size('waveLength', 10, 'length of one weave'),
     AT,
