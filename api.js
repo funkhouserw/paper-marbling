@@ -120,7 +120,7 @@ export const COMMANDS = [
   { name: 'walls', group: 'Tank', summary: 'Hard edges: ink stays inside the tank and flattens against the walls.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },
-  { name: 'openWater', group: 'Tank', summary: 'On by default: ink spreads over bare water until it meets other ink or reaches its spreading limit. Bare water is just the surface and offers no resistance. Off gives plain fixed-size drops that push everything, water included.', params: [
+  { name: 'openWater', group: 'Tank', summary: 'Picks the physics for this script, overriding the sidebar Simulator: on is Spreading, where ink spreads over bare water until it meets other ink or reaches its spreading limit; off is Classic, with fixed-size drops that push everything, water included. Leave it out to use whatever the user has chosen.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },
   { name: 'bath', engine: 'setBath', group: 'Tank', summary: 'Sets the colour of the water, which is the background. It applies straight away and is not ink, so tools do not move it.', params: [

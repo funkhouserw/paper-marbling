@@ -1,6 +1,7 @@
 import { Marble, runScript, maxRadius, WEAVE_POINTS } from './engine.js';
 import { toMm, dialToValue, valueToDial } from './api.js';
 import { TOOLS, TURNS, PAGE_UNITS, isDial } from './tools.js';
+import { MODELS } from './models.js';
 import { PALETTES, palette } from './palettes.js';
 import { FONTS, textContours, moveContours } from './text.js';
 import { TINTS, PULL_SECONDS, LAY_SECONDS, pullPrint, drawSweep, savePull, listPulls, deletePull } from './paper.js';
@@ -157,6 +158,21 @@ let tint = Object.values(TINTS)[0];
 let pullSeed = Date.now() % 1e9;
 values.text.string = 'Marbled';
 values.text.font = 'serif';
+
+// ---- Simulator ----------------------------------------------------------
+
+for (const m of MODELS) {
+  const option = new Option(m.label, m.id);
+  option.title = m.title;
+  $('simulator').add(option);
+}
+$('simulator').value = MODELS.some((m) => m.id === localStorage.getItem('marbler.simulator'))
+  ? localStorage.getItem('marbler.simulator') : MODELS[0].id;
+const currentModel = () => MODELS.find((m) => m.id === $('simulator').value);
+// A script's openWater() shows here too, so the control always says what's really running.
+function showSpreading(on) {
+  $('simulator').value = MODELS.find((m) => m.spreading === on).id;
+}
 
 // ---- Sidebar panels -----------------------------------------------------
 
@@ -437,7 +453,8 @@ function act(fn) {
 
 // Sets the transport toggles to whatever a log leaves in place.
 function syncToggles(entries) {
-  $('openWater').checked = entries.filter((e) => e.fn === 'openWater').at(-1)?.args.on ?? false;
+  const water = entries.filter((e) => e.fn === 'openWater').at(-1);
+  if (water) showSpreading(water.args.on);
   $('walls').checked = entries.filter((e) => e.fn === 'walls').at(-1)?.args.on ?? false;
   // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
   const bath = entries.filter((e) => e.fn === 'setBath').at(-1);
@@ -460,7 +477,6 @@ function updateHistoryButtons() {
 
 // Rebuilds the tank from log entries, so seeded randomness replays identically.
 function rebuild(entries) {
-  $('openWater').checked = false; // the replayed log restores the real settings
   $('walls').checked = false;
   const m = newTank();
   m.replay(entries);
@@ -586,7 +602,7 @@ function newTank() {
     seed: prev.seed,
   });
   queueEnd = 0;
-  if ($('openWater').checked) marble.openWater({ on: true, at: 0 });
+  if (currentModel().spreading) marble.openWater({ on: true, at: 0 });
   if ($('walls').checked) marble.walls({ on: true, at: 0 });
   resize();
   return marble;
@@ -609,7 +625,10 @@ document.addEventListener('keydown', (ev) => {
   ev.preventDefault();
   setPlaying(!playing);
 });
-$('openWater').onchange = () => act(() => marble.live(() => marble.openWater({ on: $('openWater').checked, at: marble.time })));
+$('simulator').onchange = () => {
+  localStorage.setItem('marbler.simulator', $('simulator').value);
+  act(() => marble.live(() => marble.openWater({ on: currentModel().spreading, at: marble.time })));
+};
 $('walls').onchange = () => act(() => marble.live(() => marble.walls({ on: $('walls').checked, at: marble.time })));
 $('queueMode').onchange = () => { $('queueGapLabel').hidden = $('queueMode').value !== 'order'; };
 $('useBath').onchange = $('bath').oninput = () => { marble.bath = bathColor(); dirty = true; };
