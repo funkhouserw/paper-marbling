@@ -100,3 +100,84 @@ export function pushApartTiled(marble, sources) {
     out[1] = y;
   }, { slowNearWalls: false, clamp: false });
 }
+
+// Swirls on the torus. Stir, vortex and wriggle each turn the sheet about a centre by an angle
+// that depends on the distance, theta(rho), which in the plane is applied as an exact rotation.
+// A torus has no room for a rotation that reaches its seams, so instead the swirl's vorticity,
+// 2 theta + rho theta', is laid on a grid from the nearest image of the centre, its mean removed
+// (a torus can hold no net vorticity), and a periodic stream function solved by FFT. The ink then
+// moves along that flow, which repeats across the seams and preserves area.
+const SWIRL_CELLS = 192;
+
+function swirlGrid(marble) {
+  const { width: W, height: H } = marble;
+  if (marble._swirlGrid?.W === W && marble._swirlGrid.H === H) return marble._swirlGrid;
+  const nx = W >= H ? SWIRL_CELLS : Math.round((SWIRL_CELLS * W) / H);
+  const ny = W >= H ? Math.round((SWIRL_CELLS * H) / W) : SWIRL_CELLS;
+  const size = nx * ny;
+  const kx = new Float64Array(nx), ky = new Float64Array(ny);
+  for (let k = 0; k < nx; k++) kx[k] = (2 * Math.PI * (k < nx / 2 ? k : k - nx)) / W;
+  for (let l = 0; l < ny; l++) ky[l] = (2 * Math.PI * (l < ny / 2 ? l : l - ny)) / H;
+  marble._swirlGrid = { W, H, nx, ny, hx: W / nx, hy: H / ny, kx, ky,
+    re: new Float64Array(size), im: new Float64Array(size), ux: new Float64Array(size), uy: new Float64Array(size) };
+  return marble._swirlGrid;
+}
+
+// theta(rho) returns [angle over this tick, its slope d angle / d rho] for a distance rho in mm.
+export function swirlTiled(marble, cx, cy, theta) {
+  const g = swirlGrid(marble);
+  const { W, H, nx, ny, hx, hy, kx, ky, re, im, ux, uy } = g;
+  const out = [0, 0];
+  // Vorticity of the swirl about the nearest image of its centre, as a displacement over the tick.
+  let mean = 0;
+  for (let l = 0; l < ny; l++) {
+    const dy = wrap(-H / 2 + (l + 0.5) * hy - cy, H);
+    for (let k = 0; k < nx; k++) {
+      const dx = wrap(-W / 2 + (k + 0.5) * hx - cx, W);
+      const rho = Math.hypot(dx, dy);
+      const [t, slope] = theta(rho, out);
+      const w = 2 * t + rho * slope;
+      re[l * nx + k] = w;
+      mean += w;
+    }
+  }
+  mean /= nx * ny;
+  for (let i = 0; i < nx * ny; i++) { re[i] -= mean; im[i] = 0; }
+  fft2(re, im, nx, ny);
+  // psi = -w / k^2, and u = (d psi / dy, -d psi / dx), with the 1 / (nx ny) of the round trip.
+  const norm = 1 / (nx * ny);
+  const uRe = ux, uIm = uy; // scratch for the x velocity's spectrum
+  const vRe = new Float64Array(nx * ny), vIm = new Float64Array(nx * ny);
+  for (let l = 0; l < ny; l++) {
+    for (let k = 0; k < nx; k++) {
+      const i = l * nx + k;
+      const k2 = kx[k] * kx[k] + ky[l] * ky[l];
+      if (k2 === 0) { uRe[i] = uIm[i] = vRe[i] = vIm[i] = 0; continue; }
+      const pr = (-re[i] / k2) * norm;
+      const pi = (-im[i] / k2) * norm;
+      // u = i ky psi, v = -i kx psi
+      uRe[i] = -ky[l] * pi; uIm[i] = ky[l] * pr;
+      vRe[i] = kx[k] * pi; vIm[i] = -kx[k] * pr;
+    }
+  }
+  fft2(uRe, uIm, nx, ny, true);
+  fft2(vRe, vIm, nx, ny, true);
+  // uRe now holds the x displacement grid and vRe the y, both periodic.
+  ux.set(uRe);
+  uy.set(vRe);
+  const sample = (arr, x, y) => {
+    const fx = (x + W / 2) / hx - 0.5;
+    const fy = (y + H / 2) / hy - 0.5;
+    const i0 = Math.floor(fx), j0 = Math.floor(fy);
+    const a = fx - i0, b = fy - j0;
+    const i = ((i0 % nx) + nx) % nx, j = ((j0 % ny) + ny) % ny;
+    const i1 = (i + 1) % nx, j1 = (j + 1) % ny;
+    return (arr[j * nx + i] * (1 - a) + arr[j * nx + i1] * a) * (1 - b) + (arr[j1 * nx + i] * (1 - a) + arr[j1 * nx + i1] * a) * b;
+  };
+  marble._map((x, y, o) => {
+    const mx = x + sample(ux, x, y) / 2;
+    const my = y + sample(uy, x, y) / 2;
+    o[0] = x + sample(ux, mx, my);
+    o[1] = y + sample(uy, mx, my);
+  }, { slowNearWalls: false, clamp: false });
+}

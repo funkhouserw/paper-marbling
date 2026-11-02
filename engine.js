@@ -13,7 +13,7 @@
 
 import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
-import { wrap, pushApartTiled } from './tile.js';
+import { wrap, pushApartTiled, swirlTiled } from './tile.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
@@ -1190,6 +1190,11 @@ export class Marble {
         const k = (2 * Math.PI) / op.period;
         const da = op.degrees * DEG * dp;
         const dr = op.radial * dp;
+        if (this.tileOn) {
+          // On a tile the twist repeats through a periodic flow; the in-and-out part doesn't repeat and is left out.
+          swirlTiled(this, op.x, op.y, (rho, out) => { out[0] = da * Math.sin(k * rho); out[1] = da * k * Math.cos(k * rho); return out; });
+          break;
+        }
         this._map((x, y, out) => {
           const dx = x - op.x;
           const dy = y - op.y;
@@ -1206,6 +1211,21 @@ export class Marble {
       }
       case 'stir': {
         const dth = op.degrees * DEG * dp;
+        if (this.tileOn) {
+          swirlTiled(this, op.x, op.y, (rho, out) => {
+            let a = 0, slope = 0;
+            for (const r of op.radii) {
+              const R = Math.abs(r);
+              const e = Math.sign(r) * Math.exp((-Math.abs(rho - R) * op.Linv) / R);
+              a += e;
+              slope += e * (-Math.sign(rho - R) * op.Linv) / R;
+            }
+            out[0] = a * dth;
+            out[1] = slope * dth;
+            return out;
+          });
+          break;
+        }
         this._map((x, y, out) => {
           const rho = Math.hypot(x - op.x, y - op.y);
           let a = 0;
@@ -1221,6 +1241,19 @@ export class Marble {
         op.elapsed += dt;
         const nu4t = 4 * this.viscosity * op.elapsed;
         const gamma = op.circulation / (2 * Math.PI);
+        if (this.tileOn) {
+          swirlTiled(this, op.x, op.y, (rho, out) => {
+            const r2 = rho * rho;
+            if (r2 < 1e-9) { out[0] = (gamma / nu4t) * dt; out[1] = 0; return out; }
+            const e = Math.exp(-r2 / nu4t);
+            const omega = (gamma / r2) * (1 - e);
+            out[0] = omega * dt;
+            // d omega / d rho
+            out[1] = ((-2 * gamma / (r2 * rho)) * (1 - e) + (gamma / r2) * e * (2 * rho / nu4t)) * dt;
+            return out;
+          });
+          break;
+        }
         this._map((x, y, out) => {
           const dx = x - op.x;
           const dy = y - op.y;

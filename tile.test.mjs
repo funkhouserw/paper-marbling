@@ -191,3 +191,35 @@ test('air on a tile repeats exactly across the seams', () => {
   for (const [x, y] of a) moved = Math.max(moved, Math.abs(Math.hypot(x, y) - r0));
   assert.ok(moved > 2, `air barely moved the probe: ${moved}`);
 });
+
+for (const [name, use] of [
+  ['stir', (m) => m.stir({ x: 120, y: -40, radii: [100, -200], degrees: 90, rate: 90 })],
+  ['vortex', (m) => m.vortex({ x: 120, y: -40, circulation: 200000, duration: 1 })],
+  ['wriggle', (m) => m.wriggle({ x: 120, y: -40, period: 150, degrees: 20, duration: 1 })],
+]) {
+  test(`${name} on a tile repeats across the seams, keeps area, and leaves no kink at the seam`, () => {
+    const scene = (x, y) => {
+      const m = tiled();
+      const p = probe(m, x, y, 0.3);
+      const before = area(p);
+      use(m);
+      m.runUntilIdle();
+      return { pts: shapeAbout(p, x, y), before, after: area(p) };
+    };
+    // A probe straddling the seam, and the same probe a tile away.
+    const a = scene(W / 2, 100), b = scene(-W / 2, 100 - H);
+    const gap = curveGap(a.pts, b.pts);
+    assert.ok(gap < 5e-3, `the copies differ by ${gap} mm`);
+    assert.ok(Math.abs(a.after - a.before) < a.before * 0.01, `area ${a.before} became ${a.after}`);
+    // A strong swirl stretches any probe, so the seam probe is judged against one the same
+    // distance from the centre on the other side, where there is no seam.
+    const off = scene(120 - (W / 2 - 120), 100);
+    const bend = sharpestBend(a.pts), bendOff = sharpestBend(off.pts);
+    assert.ok(bend < 1.5 * bendOff + 2, `sharpest bend ${bend} degrees at the seam, ${bendOff} away from it`);
+    // And the swirl moved the ink near its centre.
+    const near = scene(180, -40);
+    let moved = 0;
+    for (const [x, y] of near.pts) moved = Math.max(moved, Math.abs(Math.hypot(x, y) - Math.hypot(near.pts[0][0], near.pts[0][1])));
+    assert.ok(moved > 0.5, `${name} barely moved ink near it: ${moved} mm`);
+  });
+}
