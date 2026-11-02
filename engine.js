@@ -13,6 +13,7 @@
 
 import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
+import { wrap, pushApartTiled } from './tile.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
@@ -338,7 +339,8 @@ export class Marble {
     return this._schedule('tile', args, { kind: 'tile', on });
   }
 
-  get tileSupported() { return false; }
+  // Classic repeats: every push and drag here has a periodic form in tile.js.
+  get tileSupported() { return !this.openWaterOn; }
 
   // Where to draw an outline, as shifts from where it is, so that it covers the tank.
   tileShifts(polys) {
@@ -525,6 +527,8 @@ export class Marble {
       kind: 'rake', segs, total, offs, perp, speed, waveAmp, waveLength, waveShape, width, dist: 0,
       L: Math.max((speed * D * D) / this.viscosity, 0.25),
     };
+    // A tine's pull reaches about seven times L, which must fit in a repeating tank's tile.
+    if (this.tileWanted ?? this.tileOn) op.L = Math.min(op.L, Math.min(this.width, this.height) / 14);
     return this._schedule('rake', args, op, total / speed, true);
   }
 
@@ -542,6 +546,17 @@ export class Marble {
       kind: 'jiggle', nx: Math.cos(angle * DEG), ny: Math.sin(angle * DEG),
       period, amplitude, compression, offset, duration, elapsed: 0,
     };
+    if (this.tileWanted ?? this.tileOn) {
+      const kx = (2 * Math.PI * op.nx) / period;
+      const ky = (2 * Math.PI * op.ny) / period;
+      let mx = Math.round((kx * this.width) / (2 * Math.PI));
+      let my = Math.round((ky * this.height) / (2 * Math.PI));
+      if (!mx && !my) { if (Math.abs(kx) * this.width >= Math.abs(ky) * this.height) mx = Math.sign(kx) || 1; else my = Math.sign(ky) || 1; }
+      const fx = (2 * Math.PI * mx) / this.width;
+      const fy = (2 * Math.PI * my) / this.height;
+      const k = Math.hypot(fx, fy);
+      Object.assign(op, { period: (2 * Math.PI) / k, nx: fx / k, ny: fy / k });
+    }
     return this._schedule('jiggle', args, op, duration, true);
   }
 
@@ -586,11 +601,15 @@ export class Marble {
 
   // The breath's velocity field. Ops are copied into saved states, so the field lives apart from them.
   _airField(op) {
-    const key = `${op.seed}/${op.scale}/${op.speed}/${op.octaves}`;
+    const tiled = this.tileOn;
+    const key = `${op.seed}/${op.scale}/${op.speed}/${op.octaves}/${tiled ? 'tiled' : 'plain'}`;
     this._airs ??= new Map();
     let field = this._airs.get(key);
     if (!field) {
-      field = makeAir({ seed: op.seed, scale: op.scale, speed: op.speed, octaves: op.octaves });
+      // On a repeating tank the eddies tile the sheet: a whole number of them each way.
+      const period = tiled ? [Math.max(1, Math.round(this.width / op.scale)), Math.max(1, Math.round(this.height / op.scale))] : null;
+      const scale = tiled ? [this.width / period[0], this.height / period[1]] : op.scale;
+      field = makeAir({ seed: op.seed, scale, speed: op.speed, octaves: op.octaves, period });
       this._airs.set(key, field);
     }
     return field;
@@ -682,7 +701,26 @@ export class Marble {
   // would knock a drop's centre off its own source and fling its ink outward.
   // With walls, mirror images in the nearest walls stop most flow through them, and a
   // uniform contraction removes the added area from the bare bath.
+  // A push of `a` (as a share of the offset) stops at the ink's edge when the drop has a limit.
+  _limitedPush(a, dx, dy, d2, limit) {
+    if (!limit) return a;
+    const d = Math.sqrt(d2);
+    if (d > limit.farthest + PUSH_FADE * 5) return 0;
+    const u = (Math.atan2(dy, dx) / (2 * Math.PI) + 1) * PUSH_DIRECTIONS;
+    const k = Math.floor(u);
+    const t = u - k;
+    const R = limit[k % PUSH_DIRECTIONS] * (1 - t) + limit[(k + 1) % PUSH_DIRECTIONS] * t;
+    // Past the ink's edge is water, which carries no pressure.
+    if (d > R) {
+      const beyond = d - R;
+      if (beyond > PUSH_FADE * 5) return 0;
+      a *= Math.exp(-beyond / PUSH_FADE);
+    }
+    return a;
+  }
+
   _pushApart(sources) {
+    if (this.tileOn) return pushApartTiled(this, sources);
     const { width: W, height: H } = this;
     // Mirror images stop a push flowing through the walls, which only matters for a push that
     // doesn't fade. A spreading drop's images would hold its ink back from the wall like water
@@ -720,22 +758,8 @@ export class Marble {
           const dy = y0 - sy[i];
           const d2 = dx * dx + dy * dy;
           if (d2 < 1e-12) continue;
-          let a = Math.sqrt(1 + sa[i] / d2) - 1;
-          const limit = limits[i];
-          if (limit) {
-            const d = Math.sqrt(d2);
-            if (d > limit.farthest + PUSH_FADE * 5) continue;
-            const u = (Math.atan2(dy, dx) / (2 * Math.PI) + 1) * PUSH_DIRECTIONS;
-            const k = Math.floor(u);
-            const t = u - k;
-            const R = limit[k % PUSH_DIRECTIONS] * (1 - t) + limit[(k + 1) % PUSH_DIRECTIONS] * t;
-            // Past the ink's edge is water, which carries no pressure.
-            if (d > R) {
-              const beyond = d - R;
-              if (beyond > PUSH_FADE * 5) continue;
-              a *= Math.exp(-beyond / PUSH_FADE);
-            }
-          }
+          const a = this._limitedPush(Math.sqrt(1 + sa[i] / d2) - 1, dx, dy, d2, limits[i]);
+          if (!a) continue;
           x += dx * a;
           y += dy * a;
         }
@@ -1019,6 +1043,8 @@ export class Marble {
     const nx = (ex0 - bx0) / len;
     const ny = (ey0 - by0) / len;
     const reach2 = (6 * L + tU) ** 2;
+    const tiled = this.tileOn;
+    const { width: W, height: H } = this;
     for (let k = 0; k < rpts; k++) {
       const bx = bx0 + nx * tU * k;
       const by = by0 + ny * tU * k;
@@ -1027,13 +1053,14 @@ export class Marble {
       this._map((px, py, out) => {
         out[0] = px;
         out[1] = py;
-        const dxB = bx - px;
-        const dyB = by - py;
+        // On a repeating tank the tine pulls from its nearest image.
+        const dxB = tiled ? wrap(bx - px, W) : bx - px;
+        const dyB = tiled ? wrap(by - py, H) : by - py;
         const r2 = dxB * dxB + dyB * dyB;
         if (r2 > reach2 || r2 < 1e-18) return;
         const r = Math.sqrt(r2);
-        const dxE = ex - px;
-        const dyE = ey - py;
+        const dxE = dxB + (ex - bx);
+        const dyE = dyB + (ey - by);
         const s = Math.max(Math.hypot(dxE, dyE), 1e-9);
         const txB = dxB * nx + dyB * ny;
         const txE = dxE * nx + dyE * ny;
@@ -1060,6 +1087,8 @@ export class Marble {
     const a2 = a * a;
     const near = a * 6;
     const far = a * 12;
+    const tiled = this.tileOn;
+    const { width: W, height: H } = this;
     // A smooth flow with no sides to fall on, so ink can't tear apart at the tine's centre line.
     // It stays slower than the tine, so ink slips past instead of riding along on its front.
     for (let k = 0; k < steps; k++) {
@@ -1068,8 +1097,8 @@ export class Marble {
       this._map((px, py, out) => {
         out[0] = px;
         out[1] = py;
-        const rx = px - cx;
-        const ry = py - cy;
+        const rx = tiled ? wrap(px - cx, W) : px - cx;
+        const ry = tiled ? wrap(py - cy, H) : py - cy;
         const r2 = rx * rx + ry * ry;
         if (r2 >= far * far) return;
         const along = nx * rx + ny * ry;

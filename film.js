@@ -42,6 +42,9 @@ const polygonArea = ({ xy, n }) => {
 };
 
 export class Film extends Marble {
+  // The pressure grid doesn't wrap yet, so this simulator can't repeat.
+  get tileSupported() { return false; }
+
   get spreadFactor() { return 4; }
   get evenWalls() { return true; }
 

@@ -16,6 +16,9 @@ const MAX_SUBSTEPS = 30;
 const LONGEST_SPREAD = 10; // seconds; the last of a film's thinning is too slow to watch
 
 export class ThinFilm extends Marble {
+  // The pressure grid doesn't wrap yet, so this simulator can't repeat.
+  get tileSupported() { return false; }
+
   get spreadFactor() { return 4; }
 
   constructor(options) {
