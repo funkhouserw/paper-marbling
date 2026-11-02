@@ -147,3 +147,45 @@ test('a script can set the viscosity, and it comes back in the script it writes'
   runScript(m, 'viscosity({ value: 1 });');
   assert.equal(m.viscosity, 5);
 });
+
+test('a script can tune the flow, the flow survives a change of grid, and it comes back in the script', () => {
+  const m = start(10);
+  runScript(m, 'flow({ cell: 3.5 });');
+  assert.equal(m._flowGrid.nx, Math.round(1000 / 3.5));
+  assert.ok(m.toScript().includes('flow({"cell":3.5,"friction":0.25,"coast":25,"push":1});'));
+  rakeUntilStopped(m, 400);
+  assert.equal(m.flowing, true);
+  const speedBefore = m.lastFlowSpeed;
+  m.setFlow({ cell: 7 });
+  assert.equal(m._flowGrid.nx, 143);
+  m.step();
+  assert.equal(m.flowing, true);
+  assert.ok(Math.abs(m.lastFlowSpeed - speedBefore) < speedBefore * 0.3, `${m.lastFlowSpeed} vs ${speedBefore}`);
+  const again = new Wake({ width: 1000, height: 700, viscosity: 10 });
+  again.replay(m.log);
+  assert.equal(again.flowCell, 7);
+  const copy = new Wake({ width: 1000, height: 700 }).loadState(m.saveState());
+  assert.equal(copy._flowGrid.nx, 143);
+  copy.runUntilIdle(60);
+  assert.equal(copy.busy, false);
+  runScript(m, 'flow({ cell: 0.1 });');
+  assert.equal(m.flowCell, 1.5);
+});
+
+test('less floor friction coasts longer, and more push moves the bath faster, while the defaults change nothing', () => {
+  const coast = (options) => {
+    const m = start(10);
+    if (options) m.setFlow(options);
+    const { stopped } = rakeUntilStopped(m, 400);
+    let peak = 0;
+    while (m.busy && m.time < 400) { m.step(); peak = Math.max(peak, m.lastFlowSpeed ?? 0); }
+    return { coasted: m.time - stopped, peak, points: m.polys[0].n };
+  };
+  const plain = coast(null);
+  const defaults = coast({});
+  assert.deepEqual(defaults, plain);
+  const slippery = coast({ friction: 0.05, coast: 120 });
+  assert.ok(slippery.coasted > plain.coasted * 1.5, `${slippery.coasted} vs ${plain.coasted}`);
+  const pushy = coast({ push: 3 });
+  assert.ok(pushy.peak > plain.peak * 2, `${pushy.peak} vs ${plain.peak}`);
+});

@@ -406,6 +406,18 @@ export class Marble {
     return this;
   }
 
+  // Tunes the bath's flow. Only Wake has one, but every simulator keeps the setting.
+  setFlow({ cell = 7, friction = 0.25, coast = 25, push = 1 } = {}) {
+    this.flowTuning = {
+      cell: Math.max(1.5, Math.min(20, cell)),
+      friction: Math.max(0, Math.min(10, friction)),
+      coast: Math.max(1, Math.min(600, coast)),
+      push: Math.max(0, Math.min(20, push)),
+    };
+    this.log.push({ fn: 'setFlow', args: { ...this.flowTuning } });
+    return this;
+  }
+
   // ---- Inks ------------------------------------------------------------
 
   // Fills the surface with dots of varying size, largest holes first. See fill.js. Sizes are
@@ -1561,6 +1573,7 @@ export class Marble {
       if (fn === 'wait') return `wait(${args.seconds});`;
       if (fn === 'setBath') return `bath(${JSON.stringify(args)});`;
       if (fn === 'setViscosity') return `viscosity(${JSON.stringify(args)});`;
+      if (fn === 'setFlow') return `flow(${JSON.stringify(args)});`;
       return `${fn}(${JSON.stringify(fromMm(fn, args, this))});`;
     }).join('\n');
   }

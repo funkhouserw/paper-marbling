@@ -180,6 +180,12 @@ export const COMMANDS = [
   { name: 'viscosity', engine: 'setViscosity', group: 'Tank', summary: 'Sets how thick the bath is, for everything from here on. It applies straight away. Under the Wake simulator, thin baths keep moving after a tool stops: curls and long feathers need about 5 to 60, and 1000 stays crisp and still.', params: [
     ['value', 'number', 1000, 'viscosity in mm²/s, from 5 (thin as water) to 20000'],
   ] },
+  { name: 'flow', engine: 'setFlow', group: 'Tank', summary: 'Tunes the Wake simulator\'s moving bath, for everything from here on. It applies straight away and other simulators ignore it. The defaults are Wake\'s usual behaviour. For whorls, like paint stirred into water, try friction 0.05, coast 120 and push 3 with viscosity 5 to 10, then settle() and wait.', params: [
+    ['cell', 'number', 7, 'flow grid cell size in mm, from 1.5 to 20; smaller keeps smaller curls but each halving costs about four times as much per tick'],
+    ['friction', 'number', 0.25, 'the least drag from the tank floor, per second, from 0 to 10; thick baths add their own. Lower lets the bath coast longer'],
+    ['coast', 'number', 25, 'the longest the bath keeps moving after a tool stops, in seconds, from 1 to 600'],
+    ['push', 'number', 1, 'how hard a tine pushes the bath, as a multiple of normal, from 0 to 20; about 3 makes wakes curl into whorls, and 10 is chaos'],
+  ] },
   // Timeline
   { name: 'inOrder', group: 'Timeline', summary: 'Each following action starts gap seconds after the previous one finishes.', params: [
     ['gap', 'number', 0.5, 'seconds'],

@@ -28,10 +28,48 @@ export class Wake extends Film {
   // Long, stretched outlines are the normal state here, so detail starts to reduce sooner.
   get detailBudget() { return this.pointBudget ?? 25000; }
 
+  get flowCell() { return this.flowTuning?.cell ?? CELL; }
+
+  // Changing the grid keeps the flow by resampling it. The other settings apply from the next tick.
+  setFlow(options) {
+    const was = this.flowCell;
+    const old = this.vorticity ? this._flowGrid : null;
+    super.setFlow(options);
+    if (old && this.flowCell !== was) this.vorticity = this._resampled(this.vorticity, old);
+    this._fg = null;
+    return this;
+  }
+
+  // The vorticity of one grid read at the cell centres of another, so a change of grid keeps the flow.
+  _resampled(w, old) {
+    const g = this._gridFor(this.flowCell);
+    const out = new Float64Array(g.nx * g.ny);
+    const x0 = -this.width / 2;
+    const y0 = -this.height / 2;
+    for (let y = 0; y < g.ny; y++) {
+      const fy = Math.max(0, Math.min(old.ny - 1.000001, (y + 0.5) * g.hy / old.hy - 0.5));
+      const j = Math.floor(fy);
+      const c = fy - j;
+      for (let x = 0; x < g.nx; x++) {
+        const fx = Math.max(0, Math.min(old.nx - 1.000001, (x + 0.5) * g.hx / old.hx - 0.5));
+        const i = Math.floor(fx);
+        const a = fx - i;
+        const k = j * old.nx + i;
+        out[y * g.nx + x] = (w[k] * (1 - a) + w[k + 1] * a) * (1 - c) + (w[k + old.nx] * (1 - a) + w[k + old.nx + 1] * a) * c;
+      }
+    }
+    return out;
+  }
+
+  _gridFor(cell) {
+    const nx = Math.max(2, Math.round(this.width / cell));
+    const ny = Math.max(2, Math.round(this.height / cell));
+    return { nx, ny, hx: this.width / nx, hy: this.height / ny };
+  }
+
   get _flowGrid() {
     if (this._fg) return this._fg;
-    const nx = Math.round(this.width / CELL);
-    const ny = Math.round(this.height / CELL);
+    const { nx, ny } = this._gridFor(this.flowCell);
     const hx = this.width / nx;
     const hy = this.height / ny;
     const lambda = new Float64Array(nx * ny);
@@ -75,7 +113,7 @@ export class Wake extends Film {
     if (moved > 0) {
       const U = moved / dt;
       const Re = (U * op.D) / this.viscosity;
-      const drag = DRAG * (1 + 10 / Math.max(Re, 0.1) ** (2 / 3));
+      const drag = (this.flowTuning?.push ?? DRAG) * (1 + 10 / Math.max(Re, 0.1) ** (2 / 3));
       const sideways = MOST_SIDEWAYS * Math.max(0, Math.min(1, (Re - SHED_AT) / (SHED_FULL - SHED_AT)));
       const size = 0.5 * U * U * op.D;
       op.offs.forEach((off, i) => {
@@ -264,7 +302,7 @@ export class Wake extends Film {
     this._push = [];
     if (this._fed) this._feedFlow(w, g, dt);
     // Viscosity, friction, and the flow they leave.
-    const friction = Math.max(LEAST_FRICTION, (2.5 * this.viscosity) / DEPTH ** 2);
+    const friction = Math.max(this.flowTuning?.friction ?? LEAST_FRICTION, (2.5 * this.viscosity) / DEPTH ** 2);
     this._forward(g, w, b);
     for (let i = 0; i < nx * ny; i++) {
       b[i] *= Math.exp(-(this.viscosity * lambda[i] + friction) * dt);
@@ -287,7 +325,7 @@ export class Wake extends Film {
       }
     }
     this.flowAge = (this.flowAge ?? 0) + dt;
-    if (top < CALM || this.flowAge > LONGEST_COAST) {
+    if (top < CALM || this.flowAge > (this.flowTuning?.coast ?? LONGEST_COAST)) {
       w.fill(0);
       this.flowing = false;
       this.flowAge = 0;
