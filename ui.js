@@ -136,6 +136,23 @@ bath({ color: '#c8d8c0' });
 stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
 fullRake({ angle: 90, teeth: 3, speed: 60, D: 3 });
 fullRake({ angle: 270, teeth: 3, offset: 16.7, speed: 60, D: 3 });`,
+  'Flames': `// Wide combing up and down, twice, draws stripes out into flames.
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+bath({ color: '#f7e1b5' });
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+for (let i = 0; i < 2; i++) {
+  fullRake({ angle: 90, teeth: 7, speed: 30, D: 1.4 });
+  fullRake({ angle: 270, teeth: 7, offset: 7.14, speed: 30, D: 1.4 });
+}`,
+  'Two-way feathers': `// Combed up and down, across, then up and down again, so the feathers point both ways.
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+bath({ color: '#f7e1b5' });
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+fullRake({ angle: 90, teeth: 6, speed: 30, D: 1 });
+fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
+fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
+fullRake({ angle: 90, teeth: 6, speed: 20, D: 0.8 });
+fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 20, D: 0.8 });`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
 const p = palette('Lapis & Gilt');
 bath({ color: p.bath });
