@@ -14,10 +14,12 @@ function seeded(seed) {
 }
 
 // Slow, smooth wandering between about -1 and 1, along a distance in mm.
-function wander(random, shortest, longest) {
+// With a period, it repeats exactly over that distance, because each wave fits a whole number of times.
+function wander(random, shortest, longest, period) {
   const waves = [];
   for (let i = 0; i < 4; i++) {
-    const length = shortest * (longest / shortest) ** ((i + random()) / 4);
+    let length = shortest * (longest / shortest) ** ((i + random()) / 4);
+    if (period) length = period / Math.max(1, Math.round(period / length));
     waves.push([(2 * Math.PI) / length, random() * 2 * Math.PI, 1 / (4 - i)]);
   }
   const total = waves.reduce((sum, w) => sum + w[2], 0);
@@ -64,17 +66,18 @@ function resample(path, step) {
 
 // The outline of a stroke along path, as a flat [x0, y0, ...] array, counter-clockwise.
 // width: mm. taper: 0 keeps the width, 1 narrows to points at both ends. wobble: mm the line
-// wanders by. swell: how much the width varies along it, 0 to 1.
-export function ribbon({ path, width = 30, taper = 0, wobble = 0, swell = 0, seed = 1 }) {
+// wanders by. swell: how much the width varies along it, 0 to 1. period: mm over which the
+// wandering repeats, for tiling.
+export function ribbon({ path, width = 30, taper = 0, wobble = 0, swell = 0, period = 0, seed = 1 }) {
   const step = Math.max(1.5, Math.min(5, width / 4));
   const { points, total } = resample(smooth(path), step);
   if (points.length < 2) return null;
   const random = seeded(seed);
   const reach = Math.max(width * 4, 60);
-  const drift = wander(random, reach, reach * 8);
-  const edgeA = wander(random, reach / 2, reach * 3);
-  const edgeB = wander(random, reach / 2, reach * 3);
-  const fat = wander(random, reach, reach * 6);
+  const drift = wander(random, reach, reach * 8, period);
+  const edgeA = wander(random, reach / 2, reach * 3, period);
+  const edgeB = wander(random, reach / 2, reach * 3, period);
+  const fat = wander(random, reach, reach * 6, period);
   const left = [];
   const right = [];
   for (let i = 0; i < points.length; i++) {
@@ -103,13 +106,16 @@ export function ribbon({ path, width = 30, taper = 0, wobble = 0, swell = 0, see
 
 // Bands across the whole tank, running along angle (degrees), for simulators to rake.
 // Each one overlaps the last, so no water shows between them. Returns strokes to paint in order.
-export function planStripes({ width, height, angle = 0, count = 16, variation = 0.6, wobble = 0, slivers = 0.5, colors, random }) {
-  const a = (angle * Math.PI) / 180;
+// On a tiled tank, bands run along an edge and repeat exactly. Each is longer than the tile, so
+// its ends are hidden under its own repeat and there's no seam to see.
+export function planStripes({ width, height, angle = 0, count = 16, variation = 0.6, wobble = 0, slivers = 0.5, colors, tiled = false, random }) {
+  const a = ((tiled ? Math.round(angle / 90) * 90 : angle) * Math.PI) / 180;
   const c = Math.cos(a);
   const s = Math.sin(a);
   const along = Math.abs(c) * width + Math.abs(s) * height;
   const across = Math.abs(s) * width + Math.abs(c) * height;
   const half = along * 0.75;
+  const period = tiled ? along : 0;
   const shares = [];
   for (let i = 0; i < count; i++) shares.push(Math.max(0.15, 1 + variation * (random() * 2 - 1) * 1.2));
   const sum = shares.reduce((x, y) => x + y, 0);
@@ -123,7 +129,7 @@ export function planStripes({ width, height, angle = 0, count = 16, variation = 
     const choices = colors.length > 1 ? colors.filter((x) => x !== not) : colors;
     return choices[Math.floor(random() * choices.length)];
   };
-  const reach = across * 1.1;
+  const reach = tiled ? across : across * 1.1;
   let position = -reach / 2;
   let last = null;
   for (let i = 0; i < count; i++) {
@@ -133,7 +139,7 @@ export function planStripes({ width, height, angle = 0, count = 16, variation = 
     const middle = position + pitch / 2;
     const wander = wobble || pitch * 0.12;
     const overlap = Math.max(pitch * 1.5, pitch + wander * 2.5);
-    strokes.push({ path: line(middle, -half, half), width: overlap, wobble: wander, swell: variation * 0.15, color, seed: seed() });
+    strokes.push({ path: line(middle, -half, half), width: overlap, wobble: wander, swell: variation * 0.15, period, color, seed: seed() });
     let extras = slivers;
     while (extras > 0) {
       if (random() < Math.min(1, extras)) {

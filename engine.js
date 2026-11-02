@@ -19,6 +19,7 @@ import { ribbon, planStripes } from './paint.js';
 const DEG = Math.PI / 180;
 const GROWTH_DONE = 0.015; // a drop rests when this fraction of its area remains: the rest is too small to watch
 const COMPACT_TOLERANCE = 0.04; // mm; about a tenth of a pixel in a 3000 pixel print
+const NO_SHIFT = [[0, 0]];
 const DETAIL_BUDGET = 60000; // outline points before detail starts to reduce
 const MAX_DETAIL = 4;
 // With spreading on, ink covers the surface: a drop keeps growing while any of its edge
@@ -179,6 +180,7 @@ export class Marble {
     this.openWaterOn = false;
     this._live = false;
     this.wallsOn = false;
+    this.tileOn = false;
     this.growth = [];
     this.landing = [];
     this.fieldAbove = 2e6; // point-source pairs per push before switching to the coarse field
@@ -324,6 +326,39 @@ export class Marble {
     return this._schedule('walls', args, { kind: 'walls', on });
   }
 
+  // Makes the tank a tile that repeats in both directions, so what leaves one edge comes back in
+  // at the other. Outlines are never cut at the seam: they stay whole and are drawn at each place
+  // they show. Simulators opt in with tileSupported, because all their motion has to repeat too.
+  tile({ on = true, at } = {}) {
+    if (on && !this.tileSupported) throw new Error('This simulator can\'t repeat yet.');
+    const args = { on };
+    if (at !== undefined) args.at = at;
+    return this._schedule('tile', args, { kind: 'tile', on });
+  }
+
+  get tileSupported() { return false; }
+
+  // Where to draw an outline, as shifts from where it is, so that it covers the tank.
+  tileShifts(polys) {
+    if (!this.tileOn) return NO_SHIFT;
+    let left = Infinity, right = -Infinity, low = Infinity, high = -Infinity;
+    for (const { xy, n } of polys) {
+      for (let i = 0; i < n; i++) {
+        const x = xy[i * 2], y = xy[i * 2 + 1];
+        if (x < left) left = x;
+        if (x > right) right = x;
+        if (y < low) low = y;
+        if (y > high) high = y;
+      }
+    }
+    const W = this.width, H = this.height;
+    const shifts = [];
+    for (let i = Math.ceil((-W / 2 - right) / W); i <= Math.floor((W / 2 - left) / W); i++) {
+      for (let j = Math.ceil((-H / 2 - high) / H); j <= Math.floor((H / 2 - low) / H); j++) shifts.push([i * W, j * H]);
+    }
+    return shifts;
+  }
+
   // Prints a shape as ink that never grows but moves with everything else.
   // contours: closed loops, each a flat [x0, y0, x1, y1, ...] array in mm.
   // Together they form one even-odd shape, so inner loops become holes.
@@ -337,12 +372,12 @@ export class Marble {
 
   // Lays ink along a path, like a loaded brush. See paint.js. It doesn't spread, and it sits on
   // top of what's there without pushing it, but every later tool moves it. seed fixes the wobble.
-  paint({ path, width = 30, color = '#1f4e79', shimmer = 0, taper = 0, wobble = 0, swell = 0, seed, at } = {}) {
+  paint({ path, width = 30, color = '#1f4e79', shimmer = 0, taper = 0, wobble = 0, swell = 0, period = 0, seed, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
     const fixed = seed ?? Math.floor(this.random() * 2 ** 31);
-    const args = { path: path.map((p) => [...p]), width, color, shimmer, taper, wobble, swell, seed: fixed };
+    const args = { path: path.map((p) => [...p]), width, color, shimmer, taper, wobble, swell, period, seed: fixed };
     if (at !== undefined) args.at = at;
-    const outline = ribbon({ path, width, taper, wobble, swell, seed: fixed });
+    const outline = ribbon({ path, width, taper, wobble, swell, period, seed: fixed });
     if (!outline) return null;
     return this._schedule('paint', args, { kind: 'paint', outline, color, shimmer });
   }
@@ -350,7 +385,7 @@ export class Marble {
   // Bands of colour across the whole tank, a starting point for combing.
   stripes({ angle = 0, count = 16, colors = ['#1f4e79'], variation = 0.6, wobble = 0, slivers = 0.5, at } = {}) {
     const strokes = planStripes({
-      width: this.width, height: this.height, angle, count, variation, wobble, slivers, colors, random: () => this.random(),
+      width: this.width, height: this.height, angle, count, variation, wobble, slivers, colors, tiled: this.tileOn, random: () => this.random(),
     });
     for (const stroke of strokes) this.paint({ ...stroke, at });
     return strokes.length;
@@ -1160,6 +1195,7 @@ export class Marble {
   }
 
   _inView(x, y) {
+    if (this.tileOn) return true; // every point shows somewhere
     const mx = this.width / 2 + this.width * 0.1;
     const my = this.height / 2 + this.height * 0.1;
     return x > -mx && x < mx && y > -my && y < my;
@@ -1337,7 +1373,7 @@ export class Marble {
   // Without walls, ink can drift far outside the tank. Past half a tank away it can't
   // realistically return, so it stops costing anything. Printed shapes are kept whole.
   _cullOutside() {
-    if (this.wallsOn) return;
+    if (this.wallsOn || this.tileOn) return;
     const mx = this.width;
     const my = this.height;
     const gone = new Set();
@@ -1368,7 +1404,12 @@ export class Marble {
       }
       if (op.kind === 'walls') {
         this.wallsOn = op.on;
-        if (op.on) this._fitInside();
+        if (op.on) { this.tileOn = false; this._fitInside(); }
+        continue;
+      }
+      if (op.kind === 'tile') {
+        this.tileOn = op.on;
+        if (op.on) this.wallsOn = false;
         continue;
       }
       if (op.kind === 'paint') {
@@ -1442,19 +1483,21 @@ export class Marble {
       // Loops of one printed shape share a path, so inner loops become holes.
       do {
         const { xy, n } = this.polys[p];
-        ctx.moveTo(xy[0], xy[1]);
         // Points closer than a third of a pixel can't change the picture.
         const skip = (0.33 / pxPerMm) ** 2;
-        let lx = xy[0], ly = xy[1];
-        for (let i = 1; i < n; i++) {
-          const x = xy[i * 2], y = xy[i * 2 + 1];
-          const dx = x - lx, dy = y - ly;
-          if (dx * dx + dy * dy < skip) continue;
-          ctx.lineTo(x, y);
-          lx = x;
-          ly = y;
+        for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
+          ctx.moveTo(xy[0] + sx, xy[1] + sy);
+          let lx = xy[0], ly = xy[1];
+          for (let i = 1; i < n; i++) {
+            const x = xy[i * 2], y = xy[i * 2 + 1];
+            const dx = x - lx, dy = y - ly;
+            if (dx * dx + dy * dy < skip) continue;
+            ctx.lineTo(x + sx, y + sy);
+            lx = x;
+            ly = y;
+          }
+          ctx.closePath();
         }
-        ctx.closePath();
       } while (group && this.polys[p + 1]?.group === group && ++p);
       ctx.fillStyle = color;
       ctx.fill(group ? 'evenodd' : 'nonzero');
@@ -1498,9 +1541,11 @@ export class Marble {
       let d = '';
       do {
         const { xy, n } = this.polys[p];
-        const pts = [];
-        for (let i = 0; i < n; i++) pts.push(`${xy[i * 2].toFixed(2)} ${(-xy[i * 2 + 1]).toFixed(2)}`);
-        d += `M${pts.join('L')}Z`;
+        for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
+          const pts = [];
+          for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
+          d += `M${pts.join('L')}Z`;
+        }
       } while (group && this.polys[p + 1]?.group === group && ++p);
       const extra = group ? ' fill-rule="evenodd"'
         : isTranslucent(color) ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;

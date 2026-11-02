@@ -88,3 +88,45 @@ test('soft edges blend inks at an edge and leave flat ink alone', async () => {
   }
   assert.ok(changed > 5, `only ${changed} points along the edge softened`);
 });
+
+class Tiled extends Film {
+  get tileSupported() { return true; }
+}
+
+test('a tile is drawn wherever it shows, and joins itself at the seam', async () => {
+  const m = new Tiled(TANK);
+  m.tile({ on: true });
+  m.paint({ path: [[300, 0], [800, 0]], width: 100, color: '#174a7e' });
+  m.step();
+  const { xy, n } = m.polys[0];
+  // Its right end runs past the edge, so it comes back in on the left.
+  assert.deepEqual(m.tileShifts([m.polys[0]]).map(([x]) => x).sort((a, b) => a - b), [-1000, 0]);
+  assert.ok(n > 8 && xy.length >= n * 2);
+  const image = await renderPrint(m, plainOptions);
+  const [r] = pixel(image, -400, 0);
+  assert.ok(Math.abs(r - 0x17) <= 2, 'the part past the right edge shows on the left');
+  assert.deepEqual(pixel(image, -100, 0), [246, 241, 228]);
+});
+
+test('stripes on a tile match across both seams', async () => {
+  const m = new Tiled(TANK);
+  m.tile({ on: true });
+  m.stripes({ count: 14, colors: ['#111111', '#777777', '#dddddd'], slivers: 0 });
+  m.step();
+  const { width, height, data } = await renderPrint(m, { ...plainOptions, width: 500 });
+  const at = (x, y) => data[(y * width + x) * 4];
+  let differ = 0;
+  for (let y = 0; y < height; y++) if (Math.abs(at(0, y) - at(width - 1, y)) > 40) differ++;
+  assert.ok(differ / height < 0.02, `${differ} of ${height} rows differ across the left and right seam`);
+  let bare = 0;
+  for (let i = 0; i < width * height; i++) if (data[i * 4] > 240) bare++;
+  assert.equal(bare, 0, 'no water shows');
+});
+
+test('tile refuses simulators without repeating motion, and leaves them unchanged', () => {
+  assert.throws(() => new Film(TANK).tile({ on: true }), /can't repeat/);
+  const m = new Film(TANK);
+  m.drop({ x: 0, y: 0, quantity: 1 });
+  m.runUntilIdle();
+  assert.deepEqual(m.tileShifts([m.polys[0]]), [[0, 0]]);
+});

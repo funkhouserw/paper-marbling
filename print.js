@@ -105,29 +105,35 @@ function paintLabels(marble, w, h, scale, labels) {
   const { polys } = marble;
   for (let p = 0; p < polys.length; p++) {
     const { group } = polys[p];
-    let lo = h;
-    let hi = -1;
     const first = p;
+    const loops = [];
     do {
-      const { xy, n } = polys[p].group ? polys[p] : smoothOutline(polys[p], 4 / scale);
-      for (let i = 0, j = n - 1; i < n; j = i++) {
-        const y0 = toY(xy[j * 2 + 1]) - 0.5;
-        const y1 = toY(xy[i * 2 + 1]) - 0.5;
-        const from = Math.max(0, Math.ceil(Math.min(y0, y1)));
-        const to = Math.min(h - 1, Math.ceil(Math.max(y0, y1)) - 1);
-        const x0 = toX(xy[j * 2]);
-        const x1 = toX(xy[i * 2]);
-        for (let r = from; r <= to; r++) crossings[r].push(x0 + (x1 - x0) * (r - y0) / (y1 - y0));
-        if (from <= to) { lo = Math.min(lo, from); hi = Math.max(hi, to); }
-      }
+      loops.push(polys[p].group ? polys[p] : smoothOutline(polys[p], 4 / scale));
     } while (group && polys[p + 1]?.group === group && ++p);
-    for (let r = lo; r <= hi; r++) {
-      const c = crossings[r].sort((a, b) => a - b);
-      for (let k = 0; k + 1 < c.length; k += 2) {
-        const end = Math.min(w - 1, Math.floor(c[k + 1] - 0.5));
-        for (let x = Math.max(0, Math.ceil(c[k] - 0.5)); x <= end; x++) labels[r * w + x] = first + 1;
+    // Each repeat is filled on its own, because repeats can overlap and this fill is even-odd.
+    for (const [sx, sy] of marble.tileShifts?.(loops) ?? [[0, 0]]) {
+      let lo = h;
+      let hi = -1;
+      for (const { xy, n } of loops) {
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+          const y0 = toY(xy[j * 2 + 1] + sy) - 0.5;
+          const y1 = toY(xy[i * 2 + 1] + sy) - 0.5;
+          const from = Math.max(0, Math.ceil(Math.min(y0, y1)));
+          const to = Math.min(h - 1, Math.ceil(Math.max(y0, y1)) - 1);
+          const x0 = toX(xy[j * 2] + sx);
+          const x1 = toX(xy[i * 2] + sx);
+          for (let r = from; r <= to; r++) crossings[r].push(x0 + (x1 - x0) * (r - y0) / (y1 - y0));
+          if (from <= to) { lo = Math.min(lo, from); hi = Math.max(hi, to); }
+        }
       }
-      c.length = 0;
+      for (let r = lo; r <= hi; r++) {
+        const c = crossings[r].sort((a, b) => a - b);
+        for (let k = 0; k + 1 < c.length; k += 2) {
+          const end = Math.min(w - 1, Math.floor(c[k + 1] - 0.5));
+          for (let x = Math.max(0, Math.ceil(c[k] - 0.5)); x <= end; x++) labels[r * w + x] = first + 1;
+        }
+        c.length = 0;
+      }
     }
   }
 }

@@ -593,6 +593,8 @@ function syncToggles(entries) {
   const water = entries.filter((e) => e.fn === 'openWater').at(-1);
   if (water) showSpreading(water.args.on);
   $('walls').checked = entries.filter((e) => e.fn === 'walls').at(-1)?.args.on ?? false;
+  $('tile').checked = entries.filter((e) => e.fn === 'tile').at(-1)?.args.on ?? false;
+  syncTile();
   // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
   const thickness = entries.filter((e) => e.fn === 'setViscosity').at(-1);
   if (thickness) $('visc').value = thickness.args.value;
@@ -634,6 +636,7 @@ function updateHistoryButtons() {
 // Rebuilds the tank from log entries, so seeded randomness replays identically.
 function rebuild(entries) {
   $('walls').checked = false;
+  $('tile').checked = false;
   const m = newTank();
   m.replay(entries);
   syncToggles(entries);
@@ -831,6 +834,7 @@ function newTank() {
   queueEnd = 0;
   if (currentModel().spreading) marble.openWater({ on: true, at: 0 });
   if ($('walls').checked) marble.walls({ on: true, at: 0 });
+  if ($('tile').checked && !$('tile').disabled) marble.tile({ on: true, at: 0 });
   resize();
   return marble;
 }
@@ -863,11 +867,36 @@ document.addEventListener('keydown', (ev) => {
   ev.preventDefault();
   setPlaying(!playing);
 });
+// Only some simulators can repeat, so the toggle follows the one chosen.
+function syncTile() {
+  const supported = (currentModel().engine ?? Marble).prototype.tileSupported;
+  $('tile').disabled = !supported;
+  $('tile').closest('label').hidden = !supported;
+  if (!supported) $('tile').checked = false;
+  $('tilePreview').hidden = !$('tile').checked;
+  if ($('tile').checked && $('walls').checked) $('walls').checked = false;
+}
+$('tile').onchange = () => {
+  act(() => marble.live(() => marble.tile({ on: $('tile').checked, at: marble.time })));
+  syncTile();
+};
+$('tilePreview').onclick = () => {
+  const c = Object.assign(document.createElement('canvas'), { width: tank.width, height: tank.height });
+  const ctx = c.getContext('2d');
+  for (let i = 0; i < 2; i++) {
+    for (let j = 0; j < 2; j++) ctx.drawImage(tank, (i * c.width) / 2, (j * c.height) / 2, c.width / 2, c.height / 2);
+  }
+  c.toBlob((blob) => openViewer(blob, null, Date.now()));
+};
 $('simulator').onchange = () => {
   localStorage.setItem('marbler.simulator', $('simulator').value);
+  syncTile();
   act(() => marble.live(() => marble.openWater({ on: currentModel().spreading, at: marble.time })));
 };
-$('walls').onchange = () => act(() => marble.live(() => marble.walls({ on: $('walls').checked, at: marble.time })));
+$('walls').onchange = () => {
+  act(() => marble.live(() => marble.walls({ on: $('walls').checked, at: marble.time })));
+  if ($('walls').checked && $('tile').checked) { $('tile').checked = false; syncTile(); }
+};
 $('queueMode').onchange = () => { $('queueGapLabel').hidden = $('queueMode').value !== 'order'; };
 $('useBath').onchange = $('bath').oninput = () => { marble.bath = bathColor(); dirty = true; };
 // On release only, so a drag adds one log entry.
@@ -1478,3 +1507,4 @@ requestAnimationFrame(frame);
 window.marble = () => marble; // for use from the browser console
 
 for (const el of document.querySelectorAll('[data-info]')) addInfo(el, el.dataset.info);
+syncTile();

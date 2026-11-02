@@ -551,12 +551,15 @@ export class Film extends Marble {
   _beforeInk(ctx) {
     ctx.lineWidth = CLOSE_GAPS * 2;
     ctx.lineJoin = 'round';
-    for (const { xy, n, color, group } of this.polys) {
+    for (const poly of this.polys) {
+      const { xy, n, color, group } = poly;
       if (group || isTranslucent(color)) continue;
       ctx.beginPath();
-      ctx.moveTo(xy[0], xy[1]);
-      for (let i = 1; i < n; i++) ctx.lineTo(xy[i * 2], xy[i * 2 + 1]);
-      ctx.closePath();
+      for (const [sx, sy] of this.tileShifts([poly])) {
+        ctx.moveTo(xy[0] + sx, xy[1] + sy);
+        for (let i = 1; i < n; i++) ctx.lineTo(xy[i * 2] + sx, xy[i * 2 + 1] + sy);
+        ctx.closePath();
+      }
       ctx.strokeStyle = color;
       ctx.stroke();
     }

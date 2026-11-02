@@ -73,6 +73,7 @@ export const COMMANDS = [
     ['taper', 'number', 0, '0 keeps the width; 1 narrows to points at both ends'],
     size('wobble', 0, 'how far the line wanders'),
     ['swell', 'number', 0, 'how much the width varies along the line, 0 to 1'],
+    size('period', 0, 'makes the wobble repeat over this distance, for tiling; 0 does not repeat'),
     ['seed', 'number', null, 'fixes the wobble; left out, it is picked for you'],
     AT,
   ] },
@@ -165,6 +166,9 @@ export const COMMANDS = [
   ] },
   // Tank settings
   { name: 'walls', group: 'Tank', summary: 'Hard edges: ink stays inside the tank and flattens against the walls.', params: [
+    ['on', 'boolean', true, ''], AT,
+  ] },
+  { name: 'tile', group: 'Tank', summary: 'Makes the tank a tile that repeats in both directions: what leaves one edge comes back in at the other, and exports join seamlessly. Only simulators that support it allow this.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },
   { name: 'openWater', group: 'Tank', summary: 'Picks the physics for this script, overriding the sidebar Simulator: on is Spreading, where ink spreads over bare water until it meets other ink or reaches its spreading limit; off is Classic, with fixed-size drops that push everything, water included. Leave it out to use whatever the user has chosen.', params: [
