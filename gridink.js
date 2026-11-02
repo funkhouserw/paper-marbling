@@ -20,13 +20,15 @@
 //   their buoyancy. Other tools add their motion to the flow for the tick they run.
 // - Ink changes (drops, stripes) rewrite the grid and start a new checkpoint, instead of going
 //   through the delta buffers, because they change far too much of the picture to be small deltas.
-// - Ink is only worked out when something reads it. The flow never depends on it.
+// - Ink is only worked out when something reads it. The flow never depends on it, so ink can be on
+//   a finer grid than the flow, read through the flow's maps. That is what keeps its edges sharp.
 //
 // Runs on the CPU for now, which makes it testable in node and a reference for a GPU version.
 import { Marble } from './engine.js';
 import { fftPlan } from './dst.js';
 
-const CELL = 2; // mm
+const CELL = 2; // mm, for the flow
+const INK_DETAIL = 3; // ink cells across each flow cell. The flow is smooth, and ink is only read to be seen.
 const DEPTH = 15; // mm of bath. Friction from the tank floor is about viscosity / depth^2, as in Wake.
 const LEAST_FRICTION = 0.25; // per second
 const CALM = 0.4; // mm/s. Below this the flow is too slow to see, and stops.
@@ -74,6 +76,7 @@ export class GridInk extends Marble {
     super(options);
     this.gridCell = options.gridCell ?? CELL;
     this.method = options.method ?? 'bimocq'; // or 'semilag', the plain solver, to compare against
+    this.inkDetail = options.inkDetail ?? INK_DETAIL;
     this.tileOn = true;
     this.tileWanted = true;
   }
@@ -106,13 +109,17 @@ export class GridInk extends Marble {
     const ny = smoothLength(Math.round(this.height / this.gridCell));
     const size = nx * ny;
     const field = () => new Float32Array(size);
+    const detail = this.inkDetail;
+    const ix = nx * detail;
+    const iy = ny * detail;
+    const inkField = () => new Float32Array(ix * iy);
     this.grid = {
-      nx, ny, hx: this.width / nx, hy: this.height / ny,
+      nx, ny, hx: this.width / nx, hy: this.height / ny, detail, ix, iy, ihx: this.width / ix, ihy: this.height / iy,
       u: field(), v: field(), uNext: field(), vNext: field(), haveNext: false,
       u0: field(), v0: field(), du: field(), dv: field(),
       fx: field(), fy: field(), bx: field(), by: field(), velTicks: 0,
       ifx: field(), ify: field(), ibx: field(), iby: field(), inkTicks: 0,
-      ink0: [field(), field(), field(), field()], ink: [field(), field(), field(), field()], inkStale: false,
+      ink0: [inkField(), inkField(), inkField(), inkField()], ink: [inkField(), inkField(), inkField(), inkField()], inkStale: false,
     };
     return this.grid;
   }
@@ -123,11 +130,15 @@ export class GridInk extends Marble {
     const size = g.nx * g.ny;
     const field = () => new Float32Array(size);
     const samples = () => new Float32Array(size * 5);
+    const inkSize = g.ix * g.iy;
+    const inkField = () => new Float32Array(inkSize);
     this._scratch = {
       size,
       a: field(), b: field(), c: field(), d: field(), e: field(), f: field(), g: field(), h: field(), i: field(), j: field(),
       px: samples(), py: samples(), qx: samples(), qy: samples(),
-      kinX: field(), kinY: field(), advX: field(), advY: field(), pushX: field(), pushY: field(), touched: new Uint8Array(size), cover: field(),
+      kinX: field(), kinY: field(), advX: field(), advY: field(),
+      pushX: inkField(), pushY: inkField(), touched: new Uint8Array(inkSize), cover: inkField(),
+      ipx: inkField(), ipy: inkField(), iqx: inkField(), iqy: inkField(), ia: inkField(), ib: inkField(), ic: inkField(), id: inkField(),
       re: new Float64Array(size), im: new Float64Array(size),
       planX: fftPlan(g.nx), planY: fftPlan(g.ny), kx: Float64Array.from({ length: g.nx }, (_, k) => (2 * Math.PI * (k < g.nx / 2 ? k : k - g.nx)) / this.width),
       ky: Float64Array.from({ length: g.ny }, (_, l) => (2 * Math.PI * (l < g.ny / 2 ? l : l - g.ny)) / this.height),
@@ -145,8 +156,7 @@ export class GridInk extends Marble {
   // ---- Sampling --------------------------------------------------------------------------------
 
   // Bilinear, wrapping at the seams. Positions are in cells, with cell centres on the integers.
-  _sampler() {
-    const { nx, ny } = this._g;
+  _sampler(nx = this._g.nx, ny = this._g.ny) {
     return (a, x, y) => {
       let i = Math.floor(x);
       let j = Math.floor(y);
@@ -188,8 +198,7 @@ export class GridInk extends Marble {
   }
 
   // Keeps a corrected field within the range of each cell's neighbours, so correcting adds no halos.
-  _limit(before, after) {
-    const { nx, ny } = this._g;
+  _limit(before, after, nx = this._g.nx, ny = this._g.ny) {
     for (let j = 0; j < ny; j++) {
       const down = (j === 0 ? ny - 1 : j - 1) * nx;
       const row = j * nx;
@@ -509,26 +518,41 @@ export class GridInk extends Marble {
 
   // ---- Ink -------------------------------------------------------------------------------------
 
+  // Where a flow map sends each ink cell, in ink cells.
+  _inkPositions(mapX, mapY, px, py) {
+    const { ix, iy, detail } = this._g;
+    const at = this._sampler();
+    for (let j = 0, c = 0; j < iy; j++) {
+      const y = (j + 0.5) / detail - 0.5;
+      for (let i = 0; i < ix; i++, c++) {
+        const x = (i + 0.5) / detail - 0.5;
+        px[c] = i + at(mapX, x, y) * detail;
+        py[c] = j + at(mapY, x, y) * detail;
+      }
+    }
+  }
+
   // The picture now: read from the checkpoint through the backward map, then corrected.
   _refreshInk() {
     const g = this._g;
     if (!g.inkStale) return;
     const s = this._s;
-    const { px, py, qx, qy, a: back, b: lost, c: fix, j: plain } = s;
-    this._positions(g.ibx, g.iby, px, py);
+    const { ipx: px, ipy: py, iqx: qx, iqy: qy, ia: back, ib: lost, id: plain } = s;
+    const at = this._sampler(g.ix, g.iy);
+    this._inkPositions(g.ibx, g.iby, px, py);
     const correct = this.method !== 'semilag';
-    if (correct) this._positions(g.ifx, g.ify, qx, qy);
+    if (correct) this._inkPositions(g.ifx, g.ify, qx, qy);
+    const size = g.ix * g.iy;
     for (let ch = 0; ch < 4; ch++) {
       const out = g.ink[ch];
       const start = g.ink0[ch];
-      this._resample(start, px, py, out);
+      for (let c = 0; c < size; c++) out[c] = at(start, px[c], py[c]);
       if (!correct) continue;
       plain.set(out);
-      this._resample(out, qx, qy, back);
-      for (let i = 0; i < out.length; i++) lost[i] = 0.5 * (back[i] - start[i]);
-      this._resample(lost, px, py, fix);
-      for (let i = 0; i < out.length; i++) out[i] -= fix[i];
-      this._limit(plain, out);
+      for (let c = 0; c < size; c++) back[c] = at(out, qx[c], qy[c]);
+      for (let c = 0; c < size; c++) lost[c] = 0.5 * (back[c] - start[c]);
+      for (let c = 0; c < size; c++) out[c] -= at(lost, px[c], py[c]);
+      this._limit(plain, out, g.ix, g.iy);
     }
     g.inkStale = false;
   }
@@ -543,7 +567,7 @@ export class GridInk extends Marble {
 
   // Catmull-Rom, kept within the four nearest cells, for one-off moves of the picture.
   _sharpSample(a, x, y) {
-    const { nx, ny } = this._g;
+    const { ix: nx, iy: ny } = this._g;
     const ix = Math.floor(x);
     const iy = Math.floor(y);
     const s = x - ix;
@@ -584,7 +608,7 @@ export class GridInk extends Marble {
   _absorbOutlines() {
     if (!this.polys.length) return;
     const g = this._g;
-    const { nx, ny, hx, hy } = g;
+    const { ix: nx, iy: ny, ihx: hx, ihy: hy } = g;
     this._checkpointInk();
     const { cover } = this._s;
     const mod = (v, n) => ((v % n) + n) % n;
@@ -653,7 +677,7 @@ export class GridInk extends Marble {
     this.landing = [];
     if (!growth.length) return;
     const g = this._g;
-    const { nx, ny, hx, hy, ink, ink0 } = g;
+    const { ix: nx, iy: ny, ihx: hx, ihy: hy, ink, ink0 } = g;
     const s = this._s;
     const { pushX, pushY, touched } = s;
     const mod = (v, n) => ((v % n) + n) % n;
@@ -766,7 +790,7 @@ export class GridInk extends Marble {
     const g = this._g;
     this._refreshInk();
     const [r, gg, b, a] = g.ink;
-    const out = new Uint8ClampedArray(g.nx * g.ny * 4);
+    const out = new Uint8ClampedArray(g.ix * g.iy * 4);
     for (let c = 0; c < a.length; c++) {
       const w = a[c] > 1e-4 ? 255 / a[c] : 0;
       out[c * 4] = r[c] * w;
@@ -774,7 +798,7 @@ export class GridInk extends Marble {
       out[c * 4 + 2] = b[c] * w;
       out[c * 4 + 3] = a[c] * 255;
     }
-    return { data: out, width: g.nx, height: g.ny };
+    return { data: out, width: g.ix, height: g.iy };
   }
 
   // A print is the grid read with a sharp filter at the print's size, laid over the paper.
@@ -784,9 +808,9 @@ export class GridInk extends Marble {
     const paper = parseColor(options.paper ?? this.bath);
     const data = new Uint8ClampedArray(width * height * 4);
     for (let y = 0; y < height; y++) {
-      const gy = (1 - (y + 0.5) / height) * g.ny - 0.5;
+      const gy = (1 - (y + 0.5) / height) * g.iy - 0.5;
       for (let x = 0; x < width; x++) {
-        const gx = ((x + 0.5) / width) * g.nx - 0.5;
+        const gx = ((x + 0.5) / width) * g.ix - 0.5;
         const a = this._sharpSample(g.ink[3], gx, gy);
         const q = (y * width + x) * 4;
         for (let ch = 0; ch < 3; ch++) data[q + ch] = (this._sharpSample(g.ink[ch], gx, gy) + paper[ch] * (1 - a)) * 255;

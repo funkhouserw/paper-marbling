@@ -35,7 +35,7 @@ export const INFO = {
   script: 'A JavaScript recipe for a whole design, so it can be repeated and shared. Positions and sizes are on a 0 to 100 page. Run clears the tank and plays it. Copy session writes what you\'ve done by hand as a script.',
   savedStates: 'Keeps the tank exactly as it is now, in this browser, to come back to later. They survive a reload, but very big tanks may not fit in the browser\'s storage.',
   tankSize: 'The tank\'s size. Physics works in millimetres, so a bigger tank makes the same drop relatively smaller. Applying clears the tank.',
-  viscosity: 'How thick the bath is, from 5 (thin as water) to 20000; 1000 is the default. Lower generally means tines pull more. In Classic and Film, 200 is a good step and much lower can drag ink off the page. In Wake, 5 to 60 keeps the bath moving for seconds, giving curls. Applying clears the tank; a script can set it with viscosity() instead.',
+  viscosity: 'How thick the bath is, from 5 (thin as water) to 20000; 200 is the default in the sidebar. Lower generally means tines pull more. In Classic and Film, 200 is a good step and much lower can drag ink off the page. In Wake, 5 to 60 keeps the bath moving for seconds, giving curls. Applying clears the tank; a script can set it with viscosity() instead.',
   baseColour: 'A background colour under the ink. Off, an empty tank shows a faint grid, and exports have a transparent background. Print uses it as the paper colour.',
   imperfection: 'How imperfect a pull is: uneven pickup, grain, air bubbles and a hesitation line.',
   mirror: 'A real print is the tank\'s mirror image, so text reads backwards. Off, prints read the same way round as the tank.',

@@ -41,7 +41,7 @@ test('a drop lands round, at the size it should be, and on a seam as well as mid
     const { data, width, height } = m.toRGBA();
     let area = 0;
     for (let i = 3; i < data.length; i += 4) area += data[i] / 255;
-    area *= m._g.hx * m._g.hy;
+    area *= m._g.ihx * m._g.ihy;
     assert.ok(Math.abs(area - Math.PI * m.sources[0].maxArea) / area < 0.08, `area ${area} vs ${Math.PI * m.sources[0].maxArea}, grown ${m.sources[0].grown}`);
     void width; void height;
   }
