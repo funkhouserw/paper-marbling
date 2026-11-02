@@ -1624,11 +1624,13 @@ function frame(now) {
 }
 
 function showStats() {
-  const warn = marble.stoppedAtLimit ? ' <span class="warn">point limit reached: the bath has stopped. A higher limit in Detail lets it run longer</span>'
-    : marble.capped ? ' <span class="warn">point limit reached: curls will look rough, so raise it in Detail</span>' : '';
+  // First, so that a warning still shows if the line runs out of room.
+  const warn = marble.stoppedAtLimit ? '<span class="warn">point limit reached: the bath has stopped. A higher limit in Detail lets it run longer</span> '
+    : marble.capped ? '<span class="warn">point limit reached: curls will look rough, so raise it in Detail</span> ' : '';
   const snap = snapshotting() ? ` <span class="snap">low framerate${autoSnapshots && !$('lowFramerate').checked ? ' (automatic)' : ''}</span>` : '';
-  $('stats').innerHTML = `t ${marble.time.toFixed(1)} s · ${marble.polys.length} shapes · `
-    + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${marble.busy && !marble.active.length && !marble.queued.length ? ' · bath still moving' : ''}${snap}${warn}`;
+  $('stats').innerHTML = `${warn}t ${marble.time.toFixed(1)} s · ${marble.polys.length} shapes · `
+    + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${marble.busy && !marble.active.length && !marble.queued.length ? ' · bath still moving' : ''}${snap}`;
+  $('stats').title = $('stats').textContent; // the whole line, if it's cut off
 }
 
 // ---- Start --------------------------------------------------------------

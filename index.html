@@ -36,7 +36,6 @@
     <label class="toggle" id="queueGapLabel" title="Seconds between queued actions" hidden>gap <input id="queueGap" type="number" value="0.5" min="0" max="30" step="0.1"> s</label>
     <label class="toggle" data-info="lowFramerate"><input id="lowFramerate" type="checkbox"> Low framerate</label>
     <button id="pull" title="Lay a sheet across the tank and keep the print">Pull paper</button>
-    <span id="stats"></span>
   </div>
   <div id="tankBar">
     <label data-info="viscosity">Viscosity (mm²/s)<input id="visc" type="number" value="200" min="5" max="20000"></label>
@@ -44,6 +43,7 @@
     <label>Height (mm)<input id="tankH" type="number" value="700" min="100" max="4000"></label>
     <button id="applyTank">Apply (clears tank)</button>
     <label data-info="baseColour"><input id="useBath" type="checkbox"> Base colour<input id="bath" type="color" value="#f4efe2"></label>
+    <span id="stats"></span>
   </div>
   <div id="wrap"><canvas id="tank"></canvas><canvas id="overlay"></canvas><span id="paused" hidden>Paused: press Space to play</span></div>
   <p id="hint"></p>

@@ -5,7 +5,8 @@ body {
 }
 #stage { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 12px; gap: 8px; }
 #transport { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-#stats { margin-left: auto; font-variant-numeric: tabular-nums; color: #a9adb6; }
+/* Takes only the room that's left and never wraps, so a long line can't move the tank. */
+#stats { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; font-variant-numeric: tabular-nums; color: #a9adb6; }
 #stats .warn { color: #ffb454; }
 #wrap { position: relative; flex: 1; min-height: 0; }
 #wrap canvas { position: absolute; left: 0; top: 0; }
