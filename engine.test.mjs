@@ -947,3 +947,12 @@ test('a wide tine leaves a clean outline, with few sharp turns', () => {
   }
   assert.ok(sharp <= 4, `${sharp} sharp turns`);
 });
+
+test('a slider can run past 100 without moving the values below it', () => {
+  const over = { top: 200, value: 6 };
+  assert.equal(dialToValue(100, 0.3, 3, over), 3);
+  assert.equal(dialToValue(52, 0.3, 3, over), dialToValue(52, 0.3, 3));
+  assert.equal(dialToValue(150, 0.3, 3, over), 4.5);
+  assert.equal(dialToValue(200, 0.3, 3, over), 6);
+  for (const d of [0, 52, 100, 101, 150, 200]) assert.equal(valueToDial(dialToValue(d, 0.3, 3, over), 0.3, 3, over), d);
+});

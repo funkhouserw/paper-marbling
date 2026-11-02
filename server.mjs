@@ -47,7 +47,7 @@ Scripts work on a 0 to 100 page: x is % of the tank's width from the left, y is 
 ${renderReference(PALETTES.map((p) => p.name))}
 
 Timeline: drops start at the current time and don't advance it, so consecutive drops grow together. Tools advance it by their duration. Usually place drops, call settle(), then use tools.
-Sidebar sliders vs script numbers: the user also has sidebar sliders with plain names, and those run 0 to 100 across a useful range. That number is not a script value. A script's numbers are the page units above. When the user quotes a slider, such as "tine thickness at 62", convert it with this table, estimating between stops, and don't write 62 into the script. Numbers the user gives for script options, or sizes without a slider name, are page units. Each line lists slider=script value:
+Sidebar sliders vs script numbers: the user also has sidebar sliders with plain names, and those run 0 to 100 (a few, as the table shows, to 200) across a useful range. That number is not a script value. A script's numbers are the page units above. When the user quotes a slider, such as "tine thickness at 62", convert it with this table, estimating between stops, and don't write 62 into the script. Numbers the user gives for script options, or sizes without a slider name, are page units. Each line lists slider=script value:
 ${renderSliders()}
 
 Techniques:

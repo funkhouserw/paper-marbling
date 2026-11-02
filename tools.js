@@ -9,9 +9,13 @@ const WEAVE_CHOICE = {
   spiral: 'Spiral', wave: 'Wave', shell: 'Shell', flick: 'Flick', hook: 'Hook',
 };
 
+// Much past 100 a tine drags the whole page along, so a full-width rake can push all the
+// ink out of an open tank. Shorter strokes still use the extra reach.
+const FAR_DRAG = { top: 200, value: 6 };
+
 export const TOOLS = {
   drop: {
-    hint: 'Click to place drops. Each click can be a different quantity and colour.',
+    hint: 'Click to place drops. Each click can be a different quantity and colour. Keys 1 to 9 pick a palette ink.',
     color: true,
     params: {
       quantity: ['Drop size', 1.5, 0.05, 30, 0.05],
@@ -46,7 +50,7 @@ export const TOOLS = {
       teeth: ['Teeth', 10, 1, 80, 1],
       spacing: ['Space between teeth', 5, 0.5, 20, 0.1],
       speed: ['Speed', 15, 1, 80, 1],
-      D: ['Tooth thickness', 1, 0.3, 3, 0.1],
+      D: ['Tooth thickness', 1, 0.3, 3, 0.1, FAR_DRAG],
       width: ['Tine width', 0, 0, 8, 0.1],
       waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
@@ -62,7 +66,7 @@ export const TOOLS = {
       teeth: ['Teeth', 12, 1, 80, 1],
       offset: ['Slide sideways', 0, 0, 20, 0.1],
       speed: ['Speed', 20, 1, 80, 1],
-      D: ['Tooth thickness', 0.8, 0.3, 3, 0.1],
+      D: ['Tooth thickness', 0.8, 0.3, 3, 0.1, FAR_DRAG],
       width: ['Tine width', 0, 0, 8, 0.1],
       waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
@@ -72,7 +76,7 @@ export const TOOLS = {
     hint: 'Draw freely: a single tine follows your stroke.',
     params: {
       speed: ['Speed', 15, 1, 80, 1],
-      D: ['Tine thickness', 1, 0.3, 3, 0.1],
+      D: ['Tine thickness', 1, 0.3, 3, 0.1, FAR_DRAG],
       width: ['Tine width', 0, 0, 8, 0.1],
     },
   },
@@ -121,7 +125,7 @@ export const PAGE_UNITS = {
   width: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
 };
 
-// Size-like sliders run 0 to 100 across their useful range; counts, degrees and seconds
+// Size-like sliders run 0 to 100 across their useful range, and past that with a param's sixth entry; counts, degrees and seconds
 // show their real values.
 export const isDial = (key) => key === 'dispersion' || (key in PAGE_UNITS && PAGE_UNITS[key] !== 'tenth');
 
@@ -130,14 +134,14 @@ export function renderSliders() {
   const lines = [];
   for (const [name, def] of Object.entries(TOOLS)) {
     const options = COMMANDS.find((c) => c.name === name)?.params ?? [];
-    for (const [key, [label, , min, max]] of Object.entries(def.params)) {
+    for (const [key, [label, , min, max, , over]] of Object.entries(def.params)) {
       if (!options.some((p) => p[0] === key)) continue;
       if (PAGE_UNITS[key] === 'tenth') {
         lines.push(`  ${def.label ?? name[0].toUpperCase() + name.slice(1)}, "${label}": ${name} option ${key}: slider 0 to ${max}, script value is the slider divided by 10`);
         continue;
       }
       if (!isDial(key)) continue;
-      const stops = [0, 25, 50, 75, 100].map((d) => `${d}=${dialToValue(d, min, max)}`).join(', ');
+      const stops = [0, 25, 50, 75, 100, ...(over ? [150, over.top] : [])].map((d) => `${d}=${dialToValue(d, min, max, over)}`).join(', ');
       lines.push(`  ${def.label ?? name[0].toUpperCase() + name.slice(1)}, "${label}": ${name} option ${key}: ${stops}`);
     }
   }

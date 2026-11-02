@@ -231,14 +231,17 @@ export function fromMm(name, args, tank) {
 // like 0.1 to 4, are curved so that the small values get their share of the slider.
 const curved = (min, max) => min > 0 && max / min >= 10;
 
-export function dialToValue(dial, min, max) {
+// `over` carries a slider past 100, in a straight line from max to over.value at over.top.
+export function dialToValue(dial, min, max, over) {
+  if (over && dial > 100) return Number((max + ((over.value - max) * (dial - 100)) / (over.top - 100)).toPrecision(4));
   const t = dial / 100;
   const v = curved(min, max) ? min * (max / min) ** t : min + (max - min) * t;
   // Enough digits that every slider position gives its own value.
   return Number(Math.min(max, Math.max(min, v)).toPrecision(4));
 }
 
-export function valueToDial(value, min, max) {
+export function valueToDial(value, min, max, over) {
+  if (over && value > max) return Math.round(100 + ((value - max) / (over.value - max)) * (over.top - 100));
   const t = curved(min, max) ? Math.log(value / min) / Math.log(max / min) : (value - min) / (max - min);
   return Math.round(t * 100);
 }

@@ -293,10 +293,11 @@ function colorPicker() {
   const box = document.createElement('div');
   const row = document.createElement('div');
   row.className = 'swatches';
-  const swatches = inks.map((ink) => {
+  const swatches = inks.map((ink, i) => {
     const b = document.createElement('button');
     b.style.background = ink.color;
-    b.title = ink.shimmer > 0 ? `${ink.color}, shimmer ${ink.shimmer}` : ink.color;
+    const name = ink.shimmer > 0 ? `${ink.color}, shimmer ${ink.shimmer}` : ink.color;
+    b.title = i < 9 ? `${i + 1}: ${name}` : name;
     b.classList.toggle('metal', ink.shimmer > 0);
     b.onclick = () => { setInk(ink.color, inkAlpha()); shimmer = ink.shimmer; sync(); };
     return b;
@@ -410,7 +411,7 @@ function showTool(name) {
     wrap.append(label, select);
     box.append(wrap);
   }
-  for (const [key, [label, , min, max, step]] of Object.entries(def.params)) {
+  for (const [key, [label, , min, max, step, over]] of Object.entries(def.params)) {
     const wrap = document.createElement('label');
     const dial = isDial(key);
     const hint = document.createElement('small');
@@ -422,12 +423,12 @@ function showTool(name) {
     };
     const input = document.createElement('input');
     Object.assign(input, dial
-      ? { type: 'range', min: 0, max: 100, step: 1, value: valueToDial(values[name][key], min, max) }
+      ? { type: 'range', min: 0, max: over?.top ?? 100, step: 1, value: valueToDial(values[name][key], min, max, over) }
       : { type: 'range', min, max, step, value: values[name][key] });
     input.dataset.key = key;
     const typed = typeBox(input);
     input.oninput = () => {
-      values[name][key] = dial ? dialToValue(Number(input.value), min, max) : Number(input.value);
+      values[name][key] = dial ? dialToValue(Number(input.value), min, max, over) : Number(input.value);
       typed.refresh();
       describe();
       // Adding height to a straight rake means wanting a weave.
@@ -749,7 +750,18 @@ function setPlaying(p) {
   $('play').textContent = p ? 'Pause' : 'Play';
   $('paused').hidden = p;
 }
+// Keys 1 to 9 pick a palette ink. They only give way to fields being typed in, so they
+// still work after clicking a slider, button or dropdown in the sidebar.
+function pickInkByKey(ev) {
+  if (!/^[1-9]$/.test(ev.key) || ev.metaKey || ev.ctrlKey || ev.altKey || ev.repeat) return false;
+  if (!TOOLS[tool].color || $('viewer').open) return false;
+  if (ev.target.matches('textarea, input:not([type=range]):not([type=checkbox]):not([type=color])')) return false;
+  ev.preventDefault(); // a focused dropdown would otherwise jump to an option starting with that digit
+  $('params').querySelectorAll('.swatches button')[Number(ev.key) - 1]?.click();
+  return true;
+}
 document.addEventListener('keydown', (ev) => {
+  if (pickInkByKey(ev)) return;
   if (ev.target.matches('textarea, input:not([type=range]):not([type=checkbox]), select')) return;
   if ($('viewer').open) return;
   if ((ev.metaKey || ev.ctrlKey) && ev.code === 'KeyZ') {

@@ -25,7 +25,8 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 - **Equal spacing:** a `y` step is the `x` step divided by `ASPECT`.
 - **Time and angles:** seconds and degrees. Angle 0 is right, 90 up, 180 left, 270 down.
 - **`W` and `H`:** always 100.
-- **Sidebar sliders:** size-like sliders run 0 to 100 across a useful range, so their numbers aren't script values. `tools.js` defines them, and the assistant gets the conversion from it.
+- **Sidebar sliders:** size-like sliders run 0 to 100 across a useful range, so their numbers aren't script values. `tools.js` defines them, and the assistant gets the conversion from it. Tooth and tine thickness on rakes and the stylus go on to 200, which is 6 in a script. High values can push all the ink out of an open tank on a full rake.
+- **Number keys:** with a colour tool chosen, 1 to 9 pick a palette ink. They give way only to text and number fields.
 
 - **Timeline:** drops start at the current cursor and don't move it, so consecutive
   drops grow together. Tools move the cursor by their duration, and `wait` moves it
