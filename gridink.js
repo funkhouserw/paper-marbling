@@ -18,6 +18,8 @@
 //   flow travels in a tick, q > 1 to 1.5; our ticks are short, so that would checkpoint too often.
 // - Forces pin the water to each tine, as Ghassaei describes rakes acting on the flow, instead of
 //   their buoyancy. Other tools add their motion to the flow for the tick they run.
+// - Drops push only the film they belong to, as in Film: water carries no pressure, so films ignore
+//   each other until they touch. BiMocq2 itself says nothing about this.
 // - Ink changes (drops, stripes) rewrite the grid and start a new checkpoint, instead of going
 //   through the delta buffers, because they change far too much of the picture to be small deltas.
 // - Ink is only worked out when something reads it. The flow never depends on it, so ink can be on
@@ -39,6 +41,7 @@ const INK_MAP_TICKS = 600; // and an ink one
 const MAP_ERROR = 1; // cells: maps that disagree by this much are due a checkpoint
 const CHECK_EVERY = 10; // ticks between measuring that
 const LEAST_REACH = 1.5; // cells: the narrowest a tine's pin can be
+const FILM_ALPHA = 0.2; // ink thinner than this counts as water when finding films
 const SMALL_PUSH = 0.02; // cells: a drop's push stops being applied below this
 const WEIGHTS = [0.125, 0.125, 0.125, 0.125, 0.5];
 const OFFSETS = [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0, 0]];
@@ -669,23 +672,70 @@ export class GridInk extends Marble {
     return frac >= 1;
   }
 
-  // Growing drops push the picture aside by Jaffer's formula, read backwards, then lay their own
-  // ink over the middle, so a drop's edge stays as sharp as the grid allows.
+  // Which film each flow cell belongs to: ink, plus the growing drops, joined where cells touch.
+  // Films a cell apart have touched. Label 0 is bare water.
+  _labelFilms(growth) {
+    const { nx, ny, ix, detail, hx, hy, ink } = this._g;
+    const inked = new Uint8Array(nx * ny);
+    const alpha = ink[3];
+    for (let c = 0; c < alpha.length; c++) {
+      if (alpha[c] < FILM_ALPHA) continue;
+      const fine = c % ix;
+      inked[Math.floor((c - fine) / ix / detail) * nx + Math.floor(fine / detail)] = 1;
+    }
+    const mod = (v, n) => ((v % n) + n) % n;
+    const seedOf = new Map();
+    for (const [op] of growth) {
+      const R = Math.sqrt(op.grown);
+      const cx = (op.x + this.width / 2) / hx - 0.5;
+      const cy = (op.y + this.height / 2) / hy - 0.5;
+      seedOf.set(op, mod(Math.round(cy), ny) * nx + mod(Math.round(cx), nx));
+      for (let j = Math.floor(cy - R / hy) - 1; j <= cy + R / hy + 1; j++) {
+        for (let i = Math.floor(cx - R / hx) - 1; i <= cx + R / hx + 1; i++) {
+          if (Math.hypot((i - cx) * hx, (j - cy) * hy) <= R + hx) inked[mod(j, ny) * nx + mod(i, nx)] = 1;
+        }
+      }
+    }
+    const labels = new Int32Array(nx * ny);
+    let next = 0;
+    const stack = [];
+    for (let start = 0; start < nx * ny; start++) {
+      if (!inked[start] || labels[start]) continue;
+      labels[start] = ++next;
+      stack.push(start);
+      while (stack.length) {
+        const c = stack.pop();
+        const i = c % nx;
+        const j = (c - i) / nx;
+        for (const n of [j * nx + (i + 1) % nx, j * nx + (i + nx - 1) % nx, ((j + 1) % ny) * nx + i, ((j + ny - 1) % ny) * nx + i]) {
+          if (inked[n] && !labels[n]) { labels[n] = next; stack.push(n); }
+        }
+      }
+    }
+    return { labels, seedOf };
+  }
+
+  // Growing drops push their own film aside by Jaffer's formula, read backwards, then lay their
+  // ink over the middle, so a drop's edge stays as sharp as the grid allows. Water carries no
+  // pressure, so a film nothing has touched stays exactly where it is.
   _flushGrowth() {
     const growth = this.growth;
     this.growth = [];
     this.landing = [];
     if (!growth.length) return;
     const g = this._g;
-    const { ix: nx, iy: ny, ihx: hx, ihy: hy, ink, ink0 } = g;
+    const { ix: nx, iy: ny, ihx: hx, ihy: hy, ink, ink0, nx: flowX, ny: flowY, detail } = g;
     const s = this._s;
     const { pushX, pushY, touched } = s;
     const mod = (v, n) => ((v % n) + n) % n;
     this._checkpointInk();
+    const { labels, seedOf } = this._labelFilms(growth);
+    const labelAt = (x, y) => labels[mod(Math.floor(Math.round(y) / detail), flowY) * flowX + mod(Math.floor(Math.round(x) / detail), flowX)];
     const cells = [];
     const halfW = this.width / 2;
     const halfH = this.height / 2;
     for (const [op, da] of growth) {
+      const film = labels[seedOf.get(op)];
       const reach = Math.min(da / (2 * SMALL_PUSH * Math.min(hx, hy)), Math.min(halfW, halfH));
       const cx = (op.x + halfW) / hx - 0.5;
       const cy = (op.y + halfH) / hy - 0.5;
@@ -697,10 +747,16 @@ export class GridInk extends Marble {
           const d2 = dx * dx + dy * dy;
           if (d2 > reach * reach || d2 < 1e-9) continue;
           const c = row + mod(i, nx);
-          if (!touched[c]) { touched[c] = 1; cells.push(c); }
           const shrink = d2 > da ? 1 - Math.sqrt(1 - da / d2) : 1;
-          pushX[c] -= (dx * shrink) / hx;
-          pushY[c] -= (dy * shrink) / hy;
+          const backX = (dx * shrink) / hx;
+          const backY = (dy * shrink) / hy;
+          // Only this film's ink moves, and only into water or more of this film.
+          if (labelAt(i - backX, j - backY) !== film) continue;
+          const here = labelAt(i, j);
+          if (here && here !== film) continue;
+          if (!touched[c]) { touched[c] = 1; cells.push(c); }
+          pushX[c] -= backX;
+          pushY[c] -= backY;
         }
       }
     }

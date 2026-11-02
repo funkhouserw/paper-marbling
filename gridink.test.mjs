@@ -86,3 +86,34 @@ test('stripes leave no water, and repeat across the seams', () => {
   for (let i = 3; i < data.length; i += 4) if (data[i] < 250) thin++;
   assert.equal(thin, 0);
 });
+
+const bounds = (m, color) => {
+  const { data, width, height } = m.toRGBA();
+  let lo = Infinity, hi = -Infinity, n = 0;
+  for (let i = 0; i < width * height; i++) {
+    if (data[i * 4 + 3] > 128 && data[i * 4] === color) { const x = i % width; lo = Math.min(lo, x); hi = Math.max(hi, x); n++; }
+  }
+  return [lo, hi, n];
+};
+
+test('a drop leaves ink it has not touched exactly where it is, and pushes ink it has', () => {
+  const place = (m, gap) => {
+    m.drop({ x: -gap, y: 0, quantity: 0.2, color: '#500000' });
+    m.drop({ x: gap, y: 0, quantity: 0.2, color: '#a00000' });
+  };
+  const m = new GridInk(TANK);
+  place(m, 100);
+  run(m);
+  const before = bounds(m, 0x50);
+  m.drop({ x: 0, y: 0, quantity: 0.2, color: '#f00000' });
+  run(m);
+  assert.deepEqual(bounds(m, 0x50), before);
+
+  const close = new GridInk(TANK);
+  place(close, 45);
+  run(close);
+  const near = bounds(close, 0x50);
+  close.drop({ x: 0, y: 0, quantity: 0.6, color: '#f00000' });
+  run(close);
+  assert.ok(bounds(close, 0x50)[0] < near[0], `${bounds(close, 0x50)} from ${near}`);
+});
