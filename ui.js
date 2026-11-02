@@ -116,6 +116,12 @@ settle();
 fillDots({ count: 60, min: 1.5, max: 10, gap: 0.8, rings: 3, colors: palette('Copper & Verdigris').inks });
 settle();
 `,
+  'Chevrons': `// Bands of colour combed one way, then back between the first lines.
+const inks = palette('Old Dutch').inks;
+stripes({ count: 30, colors: inks, slivers: 1 });
+fullRake({ angle: 90, teeth: 8, speed: 24, D: 0.7 });
+fullRake({ angle: 270, teeth: 8, offset: 6.25, speed: 24, D: 0.7 });
+fullRake({ angle: 0, teeth: 40, speed: 30, D: 0.3 });`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
 const p = palette('Lapis & Gilt');
 bath({ color: p.bath });
@@ -173,6 +179,7 @@ for (const [name, def] of Object.entries(TOOLS)) {
 }
 
 values.fullRake.angle = 0;
+values.stripes.angle = 0;
 
 const tank = $('tank');
 const overlay = $('overlay');
@@ -709,7 +716,7 @@ overlay.addEventListener('pointerdown', (ev) => {
   if (pull) return;
   overlay.setPointerCapture(ev.pointerId);
   const p = toTank(ev);
-  if (tool === 'rake' || tool === 'stylus') stroke = [p];
+  if (tool === 'rake' || tool === 'stylus' || tool === 'paint') stroke = [p];
   else if (!TOOLS[tool].whole) act(() => clickAction(p));
   if (tool === 'spray') lastSpray = p;
 });
@@ -732,14 +739,20 @@ overlay.addEventListener('pointerup', () => {
   const path = stroke;
   stroke = null;
   if (path.length < 2) return;
+  if (tool === 'paint') {
+    act(() => place(false, (at) => marble.paint({ path, ...inMm('paint'), color, shimmer, at })));
+    return;
+  }
   act(() => place(true, (at) => (tool === 'rake'
     ? marble.rake({ from: path[0], to: path[1], ...inMm('rake'), at })
     : marble.stylus({ path, ...inMm('stylus'), at }))));
 });
 
-$('apply').onclick = () => act(() => place(true, (at) => (tool === 'fullRake'
+$('apply').onclick = () => act(() => (tool === 'stripes'
+  ? place(false, (at) => marble.stripes({ ...inMm('stripes'), colors: inks, at }))
+  : place(true, (at) => (tool === 'fullRake'
   ? marble.fullRake({ ...inMm('fullRake'), at })
-  : marble.jiggle({ ...inMm('jiggle'), at }))));
+  : marble.jiggle({ ...inMm('jiggle'), at })))));
 
 // ---- Transport ----------------------------------------------------------
 
@@ -1326,6 +1339,7 @@ let owed = 0;
 let stepMs = 0;              // smoothed time for one tick
 let autoSnapshots = false;   // ticks got too slow, so low framerate is on until the tank settles
 let drawnLog = 0;
+let wasSnapshotting = false;
 // Runs ticks until the budget is spent, and notes how long they take.
 function runTicks(budgetMs, start, canRun) {
   while (canRun() && performance.now() < start + budgetMs) {
@@ -1383,10 +1397,13 @@ function frame(now) {
   }
   if (marble.busy && (stepMs > SLOW_STEP_MS || lastDrawMs > SLOW_TANK_DRAW_MS)) autoSnapshots = true;
   if (!marble.busy) {
-    if (autoSnapshots) nextDraw = 0; // show the finished tank straight away
     autoSnapshots = false;
     stepMs = 0;
   }
+  // Show the finished or paused tank straight away, not at the next snapshot.
+  const snapshotsOn = snapshotting();
+  if (wasSnapshotting && !snapshotsOn) nextDraw = 0;
+  wasSnapshotting = snapshotsOn;
   // Anything the user just did shows straight away, even between snapshots.
   if (marble.log.length !== drawnLog) nextDraw = 0;
   // A slow redraw waits twice its own length before the next, so most of the time stays free.

@@ -14,6 +14,7 @@
 import { PALETTES, palette } from './palettes.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots } from './fill.js';
+import { ribbon, planStripes } from './paint.js';
 
 const DEG = Math.PI / 180;
 const GROWTH_DONE = 0.015; // a drop rests when this fraction of its area remains: the rest is too small to watch
@@ -332,6 +333,27 @@ export class Marble {
     const args = { contours: loops, color, shimmer };
     if (at !== undefined) args.at = at;
     return this._schedule('print', args, { kind: 'print', contours: loops, color, shimmer });
+  }
+
+  // Lays ink along a path, like a loaded brush. See paint.js. It doesn't spread, and it sits on
+  // top of what's there without pushing it, but every later tool moves it. seed fixes the wobble.
+  paint({ path, width = 30, color = '#1f4e79', shimmer = 0, taper = 0, wobble = 0, swell = 0, seed, at } = {}) {
+    if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
+    const fixed = seed ?? Math.floor(this.random() * 2 ** 31);
+    const args = { path: path.map((p) => [...p]), width, color, shimmer, taper, wobble, swell, seed: fixed };
+    if (at !== undefined) args.at = at;
+    const outline = ribbon({ path, width, taper, wobble, swell, seed: fixed });
+    if (!outline) return null;
+    return this._schedule('paint', args, { kind: 'paint', outline, color, shimmer });
+  }
+
+  // Bands of colour across the whole tank, a starting point for combing.
+  stripes({ angle = 0, count = 16, colors = ['#1f4e79'], variation = 0.6, wobble = 0, slivers = 0.5, at } = {}) {
+    const strokes = planStripes({
+      width: this.width, height: this.height, angle, count, variation, wobble, slivers, colors, random: () => this.random(),
+    });
+    for (const stroke of strokes) this.paint({ ...stroke, at });
+    return strokes.length;
   }
 
   // Named apart from the `bath` colour it sets. null means no colour at all.
@@ -1347,6 +1369,10 @@ export class Marble {
       if (op.kind === 'walls') {
         this.wallsOn = op.on;
         if (op.on) this._fitInside();
+        continue;
+      }
+      if (op.kind === 'paint') {
+        this.polys.push({ xy: Float64Array.from(op.outline), n: op.outline.length / 2, color: op.color, shimmer: op.shimmer });
         continue;
       }
       if (op.kind === 'print') {

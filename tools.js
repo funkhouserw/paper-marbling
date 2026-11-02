@@ -43,6 +43,27 @@ export const TOOLS = {
       size: ['Text size', 12, 2, 50, 0.5],
     },
   },
+  paint: {
+    hint: 'Drag to paint a line of ink. It doesn\'t spread, but later tools move it.',
+    color: true,
+    params: {
+      width: ['Brush width', 3, 0.2, 30, 0.1],
+      taper: ['Taper', 0, 0, 1, 0.05],
+      wobble: ['Wobble', 0, 0, 5, 0.05],
+    },
+  },
+  stripes: {
+    label: 'Stripes',
+    hint: 'Fills the tank with bands of the palette\'s inks. Rake across them for chevrons. Use the button below.',
+    whole: true,
+    directions: true,
+    params: {
+      count: ['Bands', 16, 2, 80, 1],
+      variation: ['Uneven widths', 0.6, 0, 1, 0.05],
+      wobble: ['Wobble', 0, 0, 5, 0.05],
+      slivers: ['Slivers', 0.5, 0, 3, 0.1],
+    },
+  },
   rake: {
     hint: 'Drag across the tank: the rake travels along your line, teeth perpendicular to it.',
     choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'straight'] },
@@ -122,7 +143,7 @@ export const TOOLS = {
 
 export const PAGE_UNITS = {
   quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
-  width: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
+  width: 'w', wobble: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
 };
 
 // Size-like sliders run 0 to 100 across their useful range, and past that with a param's sixth entry; counts, degrees and seconds

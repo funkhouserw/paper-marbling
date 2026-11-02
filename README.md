@@ -45,6 +45,11 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
   as `color`. `drop`, `print` and `text` take `shimmer` from 0 to 1 for metallic ink.
 - **Printed ink:** `text` and `print` ink never expands, but every later action moves it.
 
+## Paint and stripes
+
+- **`paint`:** lays ink along a path like a loaded brush, with optional `taper`, `wobble` and `swell`. It doesn't expand or push anything; it sits on top, and later tools move it. `seed` fixes its wobble, and the app logs one so that undo and scripts redraw it exactly.
+- **`stripes`:** covers the tank in overlapping `paint` bands, so no water shows between them, with thin tapered `slivers` of other colours. Rake across them for chevrons.
+
 ## Dots and spray
 
 - **`fillDots`:** repeatedly finds the largest empty circle and puts a dot in it, an idea from florilegium and Wong, Zongker & Salesin (1998), so big dots land first and small ones fill the gaps. Add `rings` for targets.

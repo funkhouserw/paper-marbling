@@ -66,6 +66,25 @@ export const COMMANDS = [
     ['contours', 'number[][]', null, 'required; loops of [x0, y0, x1, y1, ...] in page coordinates', 'contours'],
     COLOR('#1a1a1a'), SHIMMER, AT,
   ] },
+  { name: 'paint', group: 'Ink', summary: 'Lays ink along a path like a loaded brush. It never expands and sits on top without pushing, but later tools move it. Does not advance the timeline.', params: [
+    ['path', '[x, y][]', null, 'required', 'points'],
+    size('width', 3, 'brush width'),
+    COLOR('#1f4e79'), SHIMMER,
+    ['taper', 'number', 0, '0 keeps the width; 1 narrows to points at both ends'],
+    size('wobble', 0, 'how far the line wanders'),
+    ['swell', 'number', 0, 'how much the width varies along the line, 0 to 1'],
+    ['seed', 'number', null, 'fixes the wobble; left out, it is picked for you'],
+    AT,
+  ] },
+  { name: 'stripes', group: 'Ink', summary: 'Fills the tank with hand-laid bands of colour, no water showing between them. A starting point for combing: rake across them for chevrons. Does not advance the timeline.', params: [
+    ['angle', 'number', 0, 'the direction the bands run, degrees'],
+    ['count', 'number', 16, 'how many bands'],
+    ['colors', 'color[]', ['#1f4e79'], 'CSS colours or palette inks; picked so that neighbours differ, or in order when variation is 0'],
+    ['variation', 'number', 0.6, 'how uneven the bands are, 0 to 1'],
+    size('wobble', 0, 'how far the bands wander; 0 picks a little to suit their width'),
+    ['slivers', 'number', 0.5, 'thin tapered streaks of another colour per band'],
+    AT,
+  ] },
   // Tools
   { name: 'rake', group: 'Tools', summary: 'A comb dragged along a line or path. Advances the timeline.', params: [
     ['from', '[x, y]', null, 'start; use with to', 'point'],

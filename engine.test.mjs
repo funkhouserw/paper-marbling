@@ -976,3 +976,49 @@ test('a point budget raises the detail a tank keeps', () => {
   assert.equal(b.detailBudget, 1000000);
   assert.equal(new Marble({ pointBudget: 5 }).saveState().pointBudget, 5);
 });
+
+test('a painted stroke is ordinary ink that redraws identically', () => {
+  const m = new Marble();
+  m.paint({ path: [[-200, 0], [200, 50]], width: 40, wobble: 8, swell: 0.3, color: '#102030' });
+  m.step();
+  assert.equal(m.polys.length, 1);
+  const again = new Marble();
+  again.replay(m.log);
+  again.step();
+  assert.deepEqual(Array.from(again.polys[0].xy), Array.from(m.polys[0].xy));
+  let area = 0;
+  const { xy, n } = m.polys[0];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area += xy[i * 2] * xy[j * 2 + 1] - xy[j * 2] * xy[i * 2 + 1];
+  }
+  const length = Math.hypot(400, 50);
+  assert.ok(area > 0, 'runs counter-clockwise');
+  assert.ok(Math.abs(area / 2 - length * 40) < length * 40 * 0.25, `area ${area / 2}`);
+  assert.equal(m.saveState().polys.length, 1);
+});
+
+test('stripes leave no water in the tank, in any simulator', async () => {
+  const { MODELS } = await import('./models.js');
+  for (const { label: name, engine: Engine = Marble } of MODELS) {
+    const m = new Engine();
+    m.stripes({ angle: 30, count: 12, colors: ['#111111', '#222222', '#333333'] });
+    m.step();
+    const canvas = { covers(x, y) {
+      for (const { xy, n } of m.polys) {
+        let inside = false;
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+          const yi = xy[i * 2 + 1], yj = xy[j * 2 + 1];
+          if ((yi > y) !== (yj > y) && x < xy[i * 2] + ((y - yi) / (yj - yi)) * (xy[j * 2] - xy[i * 2])) inside = !inside;
+        }
+        if (inside) return true;
+      }
+      return false;
+    } };
+    let bare = 0;
+    for (let i = 0; i < 40; i++) for (let j = 0; j < 30; j++) {
+      if (!canvas.covers(-490 + i * 25, -340 + j * 23.5)) bare++;
+    }
+    assert.equal(bare, 0, `${name}: ${bare} of 1200 points are bare`);
+  }
+});
