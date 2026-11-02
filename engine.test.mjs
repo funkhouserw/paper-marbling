@@ -1001,6 +1001,7 @@ test('a painted stroke is ordinary ink that redraws identically', () => {
 test('stripes leave no water in the tank, in any simulator', async () => {
   const { MODELS } = await import('./models.js');
   for (const { label: name, engine: Engine = Marble } of MODELS) {
+    if (Engine.prototype.printInk) continue; // no outlines; gridink.test.mjs checks its stripes
     const m = new Engine();
     m.stripes({ angle: 30, count: 12, colors: ['#111111', '#222222', '#333333'] });
     m.step();

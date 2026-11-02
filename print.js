@@ -236,6 +236,7 @@ export async function renderPrint(marble, options = {}, onProgress = () => {}) {
   const w = width * o.smooth;
   const h = height * o.smooth;
   const scale = w / marble.width; // samples per mm
+  if (marble.printInk) return marble.printInk(width, height, o, onProgress);
   const breathe = async (share) => {
     onProgress(share);
     await new Promise((resolve) => setTimeout(resolve));

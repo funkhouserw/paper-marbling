@@ -50,6 +50,10 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 - **`paint`:** lays ink along a path like a loaded brush, with optional `taper`, `wobble` and `swell`. It doesn't expand or push anything; it sits on top, and later tools move it. `seed` fixes its wobble, and the app logs one so that undo and scripts redraw it exactly.
 - **`stripes`:** covers the tank in overlapping `paint` bands, so no water shows between them, with thin tapered `slivers` of other colours. Rake across them for chevrons.
 
+## Grid ink (beta)
+
+**Grid ink** is a separate simulator in `gridink.js`, after BiMocq2 (Qu et al. 2019) and Amanda Ghassaei's marbling. Ink is colour on a grid instead of outlines, moved by a full fluid solve, so colours blend softly and a flow never runs out of points. Rakes drive the water instead of dragging the ink directly. It always repeats, has no hard edges, and exports to SVG as an embedded picture. It runs on the CPU for now, which is slow: about a third of a second per tick at the standard 2 mm grid. **Grid ink cell** in Detail sets the grid.
+
 ## Repeating patterns
 
 **Repeating** (`tile()`) makes the tank one tile of a seamless repeat, joined at its edges like a torus. Outlines are never cut at the seam: they stay whole, every motion repeats across it, and they're drawn wherever they show. In Classic, a drop's growth is balanced by a slight contraction of everything else, since a torus has only so much surface. **See it repeat** shows four copies, and exports join up side by side. Classic, Film and Wake repeat; Spreading and Thin film don't yet. In Film, films meet and push across the seams, and in Wake the bath's flow crosses them too. `tile.js` has the Classic maths, and `film.js` and `wake.js` have their own.

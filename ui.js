@@ -172,6 +172,15 @@ stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 settle();
 fullRake({ angle: 0, teeth: 5, speed: 30 });
 settle();`,
+  'Grid ink spirals': `// Spirals in soft, blended colour. Runs for minutes on the grid ink simulator.
+viscosity({ value: 10 });
+flow({ friction: 0.05, coast: 40, push: 3 });
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+bath({ color: '#f7e1b5' });
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+settle();
+air({ scale: 20, speed: 8 });
+settle();`,
   'Storm': `// Two strong passes leave a swirling storm. A higher point limit in Detail lets it run longer.
 viscosity({ value: 10 });
 flow({ friction: 0.05, coast: 40, push: 3 });
@@ -662,7 +671,8 @@ function syncToggles(entries) {
 
 const KEPT_UNDO_STATES = 30;
 const KEPT_UNDO_BYTES = 500e6;
-const stateBytes = (state) => state.polys.reduce((sum, p) => sum + p.xy.byteLength, 0);
+const stateBytes = (state) => state.polys.reduce((sum, p) => sum + p.xy.byteLength, 0)
+  + Object.values(state.grid ?? {}).flat().reduce((sum, f) => sum + (f?.byteLength ?? 0), 0);
 // Big tanks are expensive to copy. Older steps lose their copy and are replayed if undone.
 function trimUndo() {
   let bytes = 0;
@@ -880,6 +890,8 @@ $('lowFramerate').onchange = () => {
 };
 
 setPointLimit(Number(localStorage.getItem('marbler.pointLimit')) || STANDARD_LIMIT);
+$('gridCell').value = localStorage.getItem('marbler.gridCell') || 2;
+$('gridCell').onchange = () => localStorage.setItem('marbler.gridCell', $('gridCell').value);
 
 function newTank() {
   const prev = marble;
@@ -890,6 +902,7 @@ function newTank() {
     viscosity: Number($('visc').value) || prev.viscosity,
     bath: bathColor(),
     seed: prev.seed,
+    gridCell: Number($('gridCell').value) || undefined,
   });
   marble.flowTuning = sidebarFlow(); // a sidebar setting like viscosity, so not in the log
   applyDetail(marble);
@@ -945,7 +958,7 @@ function showFlow(flow) {
   const match = Object.entries(FLOW_PRESETS).find(([, p]) => Object.keys(FLOW_FIELDS).every((k) => p[k] === flow[k]));
   $('flowPreset').value = match ? match[0] : 'custom';
 }
-function syncBathPanel() { $('bathPanel').hidden = currentModel().id !== 'wake'; }
+function syncBathPanel() { $('bathPanel').hidden = !['wake', 'gridink'].includes(currentModel().id); }
 $('flowPreset').onchange = () => {
   const preset = FLOW_PRESETS[$('flowPreset').value];
   if (!preset) return;
@@ -965,10 +978,17 @@ for (const id of Object.values(FLOW_FIELDS)) {
 
 // Only some simulators can repeat, so the toggle follows the one chosen.
 function syncTile() {
+  const always = currentModel().repeats === true;
   const supported = !currentModel().spreading && (currentModel().engine ?? Marble).prototype.tileSupported;
-  $('tile').disabled = !supported;
+  $('tile').disabled = !supported || always;
   $('tile').closest('label').hidden = !supported;
   if (!supported) $('tile').checked = false;
+  // Grid ink's tick was forced on, so it doesn't count as asking other simulators to repeat.
+  if (always) { $('tile').checked = true; $('tile').dataset.forced = '1'; }
+  else if ($('tile').dataset.forced) { $('tile').checked = false; delete $('tile').dataset.forced; }
+  $('walls').disabled = always;
+  $('walls').closest('label').hidden = always;
+  if (always) $('walls').checked = false;
   $('tilePreview').hidden = !$('tile').checked;
   if ($('tile').checked && $('walls').checked) $('walls').checked = false;
 }
@@ -988,6 +1008,13 @@ $('simulator').onchange = () => {
   localStorage.setItem('marbler.simulator', $('simulator').value);
   syncTile();
   syncBathPanel();
+  // An empty tank can simply become the new simulator. With ink in it, the change waits for a clear.
+  const Engine = currentModel().engine ?? Marble;
+  if (!(marble instanceof Engine && marble.constructor === Engine) && !marble.polys.length && !marble.active.length && !marble.log.some((e) => !['openWater', 'walls', 'tile'].includes(e.fn))) {
+    newTank();
+    resetHistory();
+    return;
+  }
   act(() => marble.live(() => marble.openWater({ on: currentModel().spreading, at: marble.time })));
 };
 $('walls').onchange = () => {
@@ -1131,7 +1158,7 @@ $('examples').add(new Option('Examples…', ''));
 for (const name of Object.keys(EXAMPLES)) $('examples').add(new Option(name, name));
 // Some examples only look right on one simulator, so choosing them chooses it too.
 const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink',
 };
 $('examples').onchange = () => {
   if (!$('examples').value) return;

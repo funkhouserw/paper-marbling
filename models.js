@@ -2,6 +2,7 @@
 import { Film } from './film.js';
 import { ThinFilm } from './thinfilm.js';
 import { Wake } from './wake.js';
+import { GridInk } from './gridink.js';
 
 export const MODELS = [
   {
@@ -36,5 +37,13 @@ export const MODELS = [
     title: 'Film, in a bath that keeps moving. Tools leave a flow that lasts longer the thinner the bath is, with curls and wobble behind fast rakes. Try viscosity 5 to 60.',
     spreading: false,
     engine: Wake,
+  },
+  {
+    id: 'gridink',
+    label: 'Grid ink (beta)',
+    title: 'Ink is colour on a grid, moved by a full fluid solve (BiMocq2), so it blends softly and flows can run as long as you like. Always repeats. Slow for now: it runs on the CPU.',
+    spreading: false,
+    repeats: true,
+    engine: GridInk,
   },
 ];
