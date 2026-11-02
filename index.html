@@ -128,6 +128,8 @@
     </div>
     <label class="check" data-info="printPale"><input id="printPale" type="checkbox" checked> Thin ink looks paler</label>
     <label class="check" data-info="printTexture"><input id="printTexture" type="checkbox" checked> Rims and texture</label>
+    <label class="block" data-info="printSoft">Soft edges <span class="value" id="printSoftValue">0</span>
+      <input id="printSoft" type="range" min="0" max="100" step="1" value="0"></label>
     <progress id="printProgress" max="1" value="0" hidden></progress>
     <img id="printResult" alt="The last print" hidden>
   </details>

@@ -71,3 +71,20 @@ test('a print draws a many-sided outline as a curve, not straight chords', async
   const angle = Math.PI / 16;
   assert.ok(pixel(image, 198.5 * Math.cos(angle), 198.5 * Math.sin(angle))[0] < 60);
 });
+
+test('soft edges blend inks at an edge and leave flat ink alone', async () => {
+  const m = new Film(TANK);
+  m.paint({ path: [[-600, 0], [600, 0]], width: 300, color: '#174a7e' });
+  m.step();
+  const crisp = await renderPrint(m, plainOptions);
+  const soft = await renderPrint(m, { ...plainOptions, soft: 12 });
+  assert.deepEqual(pixel(soft, 0, 0), pixel(crisp, 0, 0));
+  assert.deepEqual(pixel(soft, 0, 330), pixel(crisp, 0, 330));
+  let changed = 0;
+  for (let x = -480; x <= 480; x += 20) {
+    const a = pixel(crisp, x, 150);
+    const b = pixel(soft, x, 150);
+    if (Math.abs(a[0] - b[0]) > 5) changed++;
+  }
+  assert.ok(changed > 5, `only ${changed} points along the edge softened`);
+});

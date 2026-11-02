@@ -13,6 +13,7 @@ export const PRINT_DEFAULTS = {
   paleness: 0.35, // 0: every ink keeps its colour. 1: full Beer-Lambert.
   rim: 0.15, // how much deeper ink looks right at its edge
   rimWidth: 1.5, // mm
+  soft: 0, // mm that inks bleed into each other, in patches. 0 keeps every edge crisp.
   mottle: 0.04, // uneven pigment
   grain: 0.012, // paper texture
 };
@@ -183,6 +184,45 @@ function nearestEdge(labels, inkOf, w, h, fillWithin, dist, nearest) {
 
 // Returns { width, height, data } with RGBA bytes. Reports progress from 0 to 1, and gives the
 // page a chance to draw between stages.
+// Three box blurs in a row, which is close to a Gaussian. Works on rows of RGBA, ignoring alpha.
+function blurred(data, width, height, radius) {
+  const out = Float32Array.from(data);
+  const line = new Float32Array(Math.max(width, height));
+  const pass = (count, lines, at) => {
+    const window = radius * 2 + 1;
+    for (let l = 0; l < lines; l++) {
+      for (let c = 0; c < 3; c++) {
+        for (let i = 0; i < count; i++) line[i] = out[at(l, i) + c];
+        let sum = line[0] * (radius + 1);
+        for (let i = 1; i <= radius; i++) sum += line[Math.min(i, count - 1)];
+        for (let i = 0; i < count; i++) {
+          out[at(l, i) + c] = sum / window;
+          sum += line[Math.min(i + radius + 1, count - 1)] - line[Math.max(i - radius, 0)];
+        }
+      }
+    }
+  };
+  for (let round = 0; round < 3; round++) {
+    pass(width, height, (l, i) => (l * width + i) * 4);
+    pass(height, width, (l, i) => (i * width + l) * 4);
+  }
+  return out;
+}
+
+// Lets inks bleed into each other, in soft patches, so some edges stay crisp and others go hazy.
+// Not simulated: it stands in for the blending real ink, and grid-based simulators, have.
+export function softenEdges(data, width, height, radiusPx, noise) {
+  const radius = Math.max(1, Math.round(radiusPx / 2));
+  const soft = blurred(data, width, height, radius);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const q = (y * width + x) * 4;
+      const m = Math.min(1, Math.max(0, (noise(x * 0.012, y * 0.012) - 0.3) / 0.35));
+      for (let c = 0; c < 3; c++) data[q + c] += (soft[q + c] - data[q + c]) * m;
+    }
+  }
+}
+
 export async function renderPrint(marble, options = {}, onProgress = () => {}) {
   const o = { ...PRINT_DEFAULTS, ...options };
   const width = Math.round(o.width);
@@ -290,6 +330,10 @@ export async function renderPrint(marble, options = {}, onProgress = () => {}) {
       done = 0;
       await breathe(0.45 + (0.55 * y) / height);
     }
+  }
+  if (o.soft > 0) {
+    await breathe(0.98);
+    softenEdges(data, width, height, (o.soft * width) / marble.width, noise);
   }
   onProgress(1);
   return { width, height, data };

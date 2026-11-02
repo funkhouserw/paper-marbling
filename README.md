@@ -71,7 +71,7 @@ Every control has an (i), with its text in `info.js`. A test checks that all of 
 
 ## Print
 
-The **Print** button in Export makes a 3000 pixel picture of the tank on paper and downloads it as a PNG, showing its progress. It draws outlines as smooth curves through their points, doesn't change the tank, and works with every simulator except for gap closing, which only Film does. **Thin ink looks paler** tints the paper less where a drop spread further. Nothing confirms real ink behaves this way, so it's subtle and can be turned off. **Rims and texture** are artistic touches, not simulated.
+The **Print** button in Export makes a 3000 pixel picture of the tank on paper and downloads it as a PNG, showing its progress. It draws outlines as smooth curves through their points, doesn't change the tank, and works with every simulator except for gap closing, which only Film does. **Thin ink looks paler** tints the paper less where a drop spread further. Nothing confirms real ink behaves this way, so it's subtle and can be turned off. **Rims and texture** and **Soft edges**, which lets inks bleed into each other in patches, are artistic touches, not simulated. With a base colour on, it becomes the paper colour.
 
 ## Paper pull
 

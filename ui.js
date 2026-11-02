@@ -122,6 +122,20 @@ stripes({ count: 30, colors: inks, slivers: 1 });
 fullRake({ angle: 90, teeth: 8, speed: 24, D: 0.7 });
 fullRake({ angle: 270, teeth: 8, offset: 6.25, speed: 24, D: 0.7 });
 fullRake({ angle: 0, teeth: 40, speed: 30, D: 0.3 });`,
+  'Ribbons': `// Stripes combed back and forth with a few wide teeth, until they stretch into ribbons.
+const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
+bath({ color: '#c8d8c0' });
+stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
+for (let i = 0; i < 3; i++) {
+  fullRake({ angle: 90, teeth: 4, speed: 40, D: 2 });
+  fullRake({ angle: 270, teeth: 4, offset: 12.5, speed: 40, D: 2 });
+}`,
+  'Big waves': `// One slow, very wide pass each way bends stripes into broad waves.
+const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
+bath({ color: '#c8d8c0' });
+stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
+fullRake({ angle: 90, teeth: 3, speed: 60, D: 3 });
+fullRake({ angle: 270, teeth: 3, offset: 16.7, speed: 60, D: 3 });`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
 const p = palette('Lapis & Gilt');
 bath({ color: p.bath });
@@ -1061,6 +1075,8 @@ $('png').onclick = () => {
   c.toBlob((b) => download(b, 'marble.png'));
 };
 $('svg').onclick = () => download(new Blob([marble.toSVG()], { type: 'image/svg+xml' }), 'marble.svg');
+const MM_PER_SOFT = 0.06; // the top of the Soft edges slider is 6 mm
+$('printSoft').oninput = () => { $('printSoftValue').textContent = $('printSoft').value; };
 $('print').onclick = async () => {
   const button = $('print');
   const bar = $('printProgress');
@@ -1073,6 +1089,8 @@ $('print').onclick = async () => {
       rim: texture ? PRINT_DEFAULTS.rim : 0,
       mottle: texture ? PRINT_DEFAULTS.mottle : 0,
       grain: texture ? PRINT_DEFAULTS.grain : 0,
+      soft: Number($('printSoft').value) * MM_PER_SOFT,
+      paper: $('useBath').checked ? $('bath').value : PRINT_DEFAULTS.paper,
     }, (share) => { bar.value = share; });
     const c = Object.assign(document.createElement('canvas'), { width, height });
     c.getContext('2d').putImageData(new ImageData(data, width, height), 0, 0);
