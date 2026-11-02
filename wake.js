@@ -4,6 +4,7 @@
 // coasts on after the tool stops. Past a Reynolds number of about 40, each tine also pushes from
 // side to side at the rate a cylinder sheds vortices, which leaves a wobbling wake.
 import { Film } from './film.js';
+import { sinePlan } from './dst.js';
 
 const CELL = 7; // mm
 const DEPTH = 15; // mm of bath. Friction from the tank floor is about viscosity / depth^2.
@@ -23,12 +24,6 @@ const MIN_CUT = 8; // points
 const MIN_PIECE = 24; // points
 const WIDEST_DRAG = 40; // mm. The closed-form tine drag is for thick baths, where it stays local.
 
-const sineTable = (n) => {
-  const t = new Float64Array(n * n);
-  for (let k = 0; k < n; k++) for (let j = 0; j < n; j++) t[k * n + j] = Math.sin((Math.PI * (k + 1) * (j + 0.5)) / n);
-  return t;
-};
-
 export class Wake extends Film {
   // Long, stretched outlines are the normal state here, so detail starts to reduce sooner.
   get detailBudget() { return this.pointBudget ?? 25000; }
@@ -44,45 +39,22 @@ export class Wake extends Film {
       for (let k = 0; k < nx; k++) lambda[l * nx + k] = (Math.PI * (k + 1) / this.width) ** 2 + (Math.PI * (l + 1) / this.height) ** 2;
     }
     const size = nx * ny;
-    this._fg = { nx, ny, hx, hy, lambda, sx: sineTable(nx), sy: sineTable(ny), a: new Float64Array(size), b: new Float64Array(size),
+    this._fg = { nx, ny, hx, hy, lambda, px: sinePlan(nx), py: sinePlan(ny), a: new Float64Array(size), b: new Float64Array(size),
                  psi: new Float64Array(size), ux: new Float64Array(size), uy: new Float64Array(size), next: new Float64Array(size) };
     return this._fg;
   }
 
+  // Sine transforms along x then y, which make the vorticity zero at the walls.
   _forward(g, from, to) {
-    const { nx, ny, sx, sy, a } = g;
-    for (let y = 0; y < ny; y++) {
-      for (let k = 0; k < nx; k++) {
-        let s = 0;
-        for (let j = 0; j < nx; j++) s += from[y * nx + j] * sx[k * nx + j];
-        a[y * nx + k] = s;
-      }
-    }
-    for (let k = 0; k < nx; k++) {
-      for (let l = 0; l < ny; l++) {
-        let s = 0;
-        for (let j = 0; j < ny; j++) s += a[j * nx + k] * sy[l * ny + j];
-        to[l * nx + k] = s;
-      }
-    }
+    const { nx, ny, px, py, a } = g;
+    for (let y = 0; y < ny; y++) px.forward(from, y * nx, 1, a, y * nx, 1);
+    for (let k = 0; k < nx; k++) py.forward(a, k, nx, to, k, nx);
   }
 
   _inverse(g, from, to) {
-    const { nx, ny, sx, sy, a } = g;
-    for (let k = 0; k < nx; k++) {
-      for (let y = 0; y < ny; y++) {
-        let s = 0;
-        for (let l = 0; l < ny; l++) s += from[l * nx + k] * sy[l * ny + y] * (l === ny - 1 ? 1 : 2);
-        a[y * nx + k] = s / ny;
-      }
-    }
-    for (let y = 0; y < ny; y++) {
-      for (let j = 0; j < nx; j++) {
-        let s = 0;
-        for (let k = 0; k < nx; k++) s += a[y * nx + k] * sx[k * nx + j] * (k === nx - 1 ? 1 : 2);
-        to[y * nx + j] = s / nx;
-      }
-    }
+    const { nx, ny, px, py, a } = g;
+    for (let k = 0; k < nx; k++) py.inverse(from, k, nx, a, k, nx);
+    for (let y = 0; y < ny; y++) px.inverse(a, y * nx, 1, to, y * nx, 1);
   }
 
   // Thin baths drag less widely. The rest of what a tine does there goes into the flow.
