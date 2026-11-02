@@ -153,6 +153,25 @@ fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
 fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
 fullRake({ angle: 90, teeth: 6, speed: 20, D: 0.8 });
 fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 20, D: 0.8 });`,
+  'Whorls': `// In a thin bath with a strong push, the wake behind each tine rolls up into spirals.
+viscosity({ value: 10 });
+flow({ friction: 0.05, coast: 120, push: 3 });
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+bath({ color: '#f7e1b5' });
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+settle();
+fullRake({ angle: 0, teeth: 5, speed: 30 });
+settle();`,
+  'Storm': `// Several strong passes leave a swirling storm. It's heavy: raise the point limit in Detail.
+viscosity({ value: 10 });
+flow({ friction: 0.05, coast: 120, push: 3 });
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+bath({ color: '#f7e1b5' });
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+settle();
+fullRake({ angle: 90, teeth: 5, speed: 30, D: 1 });
+fullRake({ angle: 270, teeth: 5, offset: 10, speed: 30, D: 1 });
+settle();`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
 const p = palette('Lapis & Gilt');
 bath({ color: p.bath });
@@ -598,6 +617,9 @@ function syncToggles(entries) {
   // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
   const thickness = entries.filter((e) => e.fn === 'setViscosity').at(-1);
   if (thickness) $('visc').value = thickness.args.value;
+  const flow = entries.filter((e) => e.fn === 'setFlow').at(-1);
+  if (flow) showFlow(flow.args);
+  syncBathPanel();
   const bath = entries.filter((e) => e.fn === 'setBath').at(-1);
   if (bath) {
     $('useBath').checked = bath.args.color !== null;
@@ -830,6 +852,7 @@ function newTank() {
     bath: bathColor(),
     seed: prev.seed,
   });
+  marble.flowTuning = sidebarFlow(); // a sidebar setting like viscosity, so not in the log
   applyDetail(marble);
   queueEnd = 0;
   if (currentModel().spreading) marble.openWater({ on: true, at: 0 });
@@ -867,6 +890,40 @@ document.addEventListener('keydown', (ev) => {
   ev.preventDefault();
   setPlaying(!playing);
 });
+// The Wake simulator's bath. Each preset is also a viscosity, since it needs a thin bath to show.
+const FLOW_PRESETS = {
+  calm: { viscosity: 1000, push: 1, friction: 0.25, coast: 25, cell: 7 },
+  curling: { viscosity: 30, push: 1, friction: 0.05, coast: 120, cell: 7 },
+  whorls: { viscosity: 10, push: 3, friction: 0.05, coast: 120, cell: 7 },
+  storm: { viscosity: 10, push: 10, friction: 0.05, coast: 120, cell: 7 },
+};
+const FLOW_FIELDS = { push: 'flowPush', friction: 'flowFriction', coast: 'flowCoast', cell: 'flowCell' };
+function sidebarFlow() {
+  return Object.fromEntries(Object.entries(FLOW_FIELDS).map(([key, id]) => [key, Number($(id).value)]));
+}
+function showFlow(flow) {
+  for (const [key, id] of Object.entries(FLOW_FIELDS)) $(id).value = flow[key];
+  const match = Object.entries(FLOW_PRESETS).find(([, p]) => Object.keys(FLOW_FIELDS).every((k) => p[k] === flow[k]));
+  $('flowPreset').value = match ? match[0] : 'custom';
+}
+function syncBathPanel() { $('bathPanel').hidden = currentModel().id !== 'wake'; }
+$('flowPreset').onchange = () => {
+  const preset = FLOW_PRESETS[$('flowPreset').value];
+  if (!preset) return;
+  showFlow(preset);
+  $('visc').value = preset.viscosity;
+  act(() => {
+    marble.setViscosity({ value: preset.viscosity });
+    marble.setFlow(sidebarFlow());
+  });
+};
+for (const id of Object.values(FLOW_FIELDS)) {
+  $(id).onchange = () => {
+    showFlow(sidebarFlow());
+    act(() => marble.setFlow(sidebarFlow()));
+  };
+}
+
 // Only some simulators can repeat, so the toggle follows the one chosen.
 function syncTile() {
   const supported = (currentModel().engine ?? Marble).prototype.tileSupported;
@@ -891,6 +948,7 @@ $('tilePreview').onclick = () => {
 $('simulator').onchange = () => {
   localStorage.setItem('marbler.simulator', $('simulator').value);
   syncTile();
+  syncBathPanel();
   act(() => marble.live(() => marble.openWater({ on: currentModel().spreading, at: marble.time })));
 };
 $('walls').onchange = () => {
@@ -1032,8 +1090,19 @@ if (Speech) {
 
 $('examples').add(new Option('Examples…', ''));
 for (const name of Object.keys(EXAMPLES)) $('examples').add(new Option(name, name));
+// Some examples only look right on one simulator, so choosing them chooses it too.
+const EXAMPLE_SIMULATOR = {
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake',
+};
 $('examples').onchange = () => {
   if (!$('examples').value) return;
+  const simulator = EXAMPLE_SIMULATOR[$('examples').value];
+  if (simulator) {
+    $('simulator').value = simulator;
+    localStorage.setItem('marbler.simulator', simulator);
+    syncTile();
+    syncBathPanel();
+  }
   $('script').value = EXAMPLES[$('examples').value];
   runSource();
 };
@@ -1508,3 +1577,4 @@ window.marble = () => marble; // for use from the browser console
 
 for (const el of document.querySelectorAll('[data-info]')) addInfo(el, el.dataset.info);
 syncTile();
+syncBathPanel();

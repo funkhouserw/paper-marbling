@@ -59,6 +59,8 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 
 The **Wake** simulator is Film in a bath that keeps moving. Tools push momentum into a flow on a 7 mm grid, and the flow lasts longer the thinner the bath is: at viscosity 1000 it stops almost at once, so the picture stays close to Film, and at viscosity 5 to 60 ink coasts on for seconds and curls where the rake stopped. Past a Reynolds number of about 40 (speed x tine thickness / viscosity), tines also leave a wobble. Thin baths also narrow a tine's direct drag. Stir, vortex, jiggle and wriggle set the bath moving too, without the wobble. Drops, shift and turn don't. The flow's edge is the tank's edge, with or without walls.
 
+The **Moving bath** panel, shown under Wake, sets how much life the bath has, and scripts can do the same with `flow({ cell, friction, coast, push })`. Calm is the default. **Whorls** (viscosity 10, friction 0.05, coast 120, push 3) makes wakes roll up into spirals, because damping and how hard tines push decide this far more than the grid does.
+
 Long sessions stretch outlines a long way, so Wake starts reducing detail at fewer points than Film and cuts off ribbons of ink thinner than 0.5 mm, which can split one drop's outline into several, so the point and drop counts on the status line rise. Scripts set the bath with `viscosity({ value })`.
 
 ## Detail and speed
