@@ -436,6 +436,7 @@ function colorPicker() {
 
 function showTool(name) {
   tool = name;
+  stroke = null;
   const def = TOOLS[name];
   for (const b of $('tools').children) b.classList.toggle('on', b.dataset.tool === name);
   $('hint').textContent = `${def.hint} `;
@@ -794,15 +795,21 @@ overlay.addEventListener('pointerdown', (ev) => {
   if (pull) return;
   overlay.setPointerCapture(ev.pointerId);
   const p = toTank(ev);
+  stroke = null; // a press that never saw its release must not carry over into this one
+  lastSpray = null;
   if (tool === 'rake' || tool === 'stylus' || tool === 'paint') stroke = [p];
   else if (!TOOLS[tool].whole) act(() => clickAction(p));
   if (tool === 'spray') lastSpray = p;
 });
 overlay.addEventListener('pointerup', () => { lastSpray = null; });
+// The system can take the pointer away mid-press, with no pointerup, so a press also ends here.
+const dropPress = () => { stroke = null; lastSpray = null; };
+overlay.addEventListener('pointercancel', dropPress);
 overlay.addEventListener('pointerleave', () => { hover = null; });
 overlay.addEventListener('pointermove', (ev) => {
   const p = toTank(ev);
   hover = p;
+  if (!ev.buttons) dropPress(); // the button is up, whatever we were told
   // Dragging keeps spraying along the way, a little at a time.
   if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > inMm('spray').radius * 0.75) {
     lastSpray = p;
