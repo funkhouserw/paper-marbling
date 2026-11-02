@@ -186,6 +186,14 @@ stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 settle();
 air({ scale: 20, speed: 8 });
 settle();`,
+  'Seamless wallpaper': `// One tile of a repeating pattern. Press See it repeat to check it joins up.
+tile();
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+fullRake({ angle: 90, teeth: 6, speed: 30, D: 1 });
+fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
+fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
+air({ scale: 25, speed: 6 });`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
 const p = palette('Lapis & Gilt');
 bath({ color: p.bath });
@@ -1106,7 +1114,7 @@ $('examples').add(new Option('Examples…', ''));
 for (const name of Object.keys(EXAMPLES)) $('examples').add(new Option(name, name));
 // Some examples only look right on one simulator, so choosing them chooses it too.
 const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic',
 };
 $('examples').onchange = () => {
   if (!$('examples').value) return;
