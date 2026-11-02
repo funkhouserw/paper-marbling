@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Film } from './film.js';
+import { ThinFilm } from './thinfilm.js';
 import { renderPrint } from './print.js';
 
 const TANK = { width: 1000, height: 700 };
@@ -124,8 +125,8 @@ test('stripes on a tile match across both seams', async () => {
 });
 
 test('tile refuses simulators without repeating motion, and leaves them unchanged', () => {
-  assert.throws(() => new Film(TANK).tile({ on: true }), /can't repeat/);
-  const m = new Film(TANK);
+  assert.throws(() => new ThinFilm(TANK).tile({ on: true }), /can't repeat/);
+  const m = new ThinFilm(TANK);
   m.drop({ x: 0, y: 0, quantity: 1 });
   m.runUntilIdle();
   assert.deepEqual(m.tileShifts([m.polys[0]]), [[0, 0]]);

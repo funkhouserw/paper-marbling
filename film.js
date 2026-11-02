@@ -12,6 +12,7 @@
 // Close to a drop, the exact radial map from pst-marble takes over, so rings stay round below
 // grid size. Tools are unchanged. This is one-phase Hele-Shaw flow with a screened outer region.
 import { Marble, isTranslucent } from './engine.js';
+import { wrap } from './tile.js';
 
 const CELL = 5; // mm. Every setting here was tested together at this size.
 const MARGIN = 250; // mm of surface beyond the tank, for when there are no walls
@@ -41,9 +42,26 @@ const polygonArea = ({ xy, n }) => {
   return Math.abs(sum) / 2;
 };
 
+// Each cell's neighbours in the four directions, or -1 at an edge that isn't joined to anything.
+const linksFor = (nx, ny, joined) => {
+  const size = nx * ny;
+  const west = new Int32Array(size), east = new Int32Array(size), south = new Int32Array(size), north = new Int32Array(size);
+  for (let y = 0; y < ny; y++) {
+    for (let x = 0; x < nx; x++) {
+      const i = y * nx + x;
+      west[i] = x > 0 ? i - 1 : joined ? i + nx - 1 : -1;
+      east[i] = x < nx - 1 ? i + 1 : joined ? i - nx + 1 : -1;
+      south[i] = y > 0 ? i - nx : joined ? i + nx * (ny - 1) : -1;
+      north[i] = y < ny - 1 ? i + nx : joined ? i - nx * (ny - 1) : -1;
+    }
+  }
+  return { west, east, south, north };
+};
+const mod = (i, n) => ((i % n) + n) % n;
+
 export class Film extends Marble {
-  // The pressure grid doesn't wrap yet, so this simulator can't repeat.
-  get tileSupported() { return false; }
+  // The pressure grid joins up at the seams, so films meet and push across them.
+  get tileSupported() { return true; }
 
   get spreadFactor() { return 4; }
   get evenWalls() { return true; }
@@ -52,21 +70,22 @@ export class Film extends Marble {
 
   // Rebuilt when the walls change, because without walls the grid extends past the tank.
   _getGrid() {
-    const pad = this.wallsOn ? 0 : MARGIN;
+    const torus = this.tileOn;
+    const pad = this.wallsOn || torus ? 0 : MARGIN;
     const nx = Math.round((this.width + 2 * pad) / CELL);
     const ny = Math.round((this.height + 2 * pad) / CELL);
-    const key = `${nx}x${ny}`;
+    const key = `${nx}x${ny}${torus ? 'torus' : ''}`;
     if (this._grid?.key === key) return this._grid;
     const levels = [];
     for (let a = nx, b = ny, h = CELL; ; a /= 2, b /= 2, h *= 2) {
       const size = a * b;
       levels.push({ nx: a, ny: b, h, p: new Float64Array(size), f: new Float64Array(size),
-                    k: new Float64Array(size), r: new Float64Array(size), t: new Float64Array(size) });
+                    k: new Float64Array(size), r: new Float64Array(size), t: new Float64Array(size), ...linksFor(a, b, torus) });
       if (a % 2 || b % 2 || Math.min(a, b) < 12) break;
     }
     const size = nx * ny;
     this._grid = {
-      key, nx, ny, x0: -this.width / 2 - pad, y0: -this.height / 2 - pad, open: pad > 0, levels,
+      key, nx, ny, x0: -this.width / 2 - pad, y0: -this.height / 2 - pad, open: pad > 0, torus, levels,
       coverage: new Float64Array(size), label: new Int32Array(size), ink: new Uint8Array(size), seam: new Uint8Array(size),
       ux: new Float64Array(size), uy: new Float64Array(size), ex: new Float64Array(size), ey: new Float64Array(size),
       crossings: Array.from({ length: ny * SUB_ROWS }, () => []), spans: Array.from({ length: ny * SUB_ROWS }, () => []),
@@ -81,23 +100,27 @@ export class Film extends Marble {
     const rows = ny * SUB_ROWS;
     coverage.fill(0);
     for (const s of spans) s.length = 0;
-    for (const { xy, n } of this.polys) {
-      let lo = rows;
-      let hi = -1;
-      for (let i = 0, j = n - 1; i < n; j = i++) {
-        const a = (xy[j * 2 + 1] - y0) / rowHeight - 0.5;
-        const b = (xy[i * 2 + 1] - y0) / rowHeight - 0.5;
-        const from = Math.max(0, Math.ceil(Math.min(a, b)));
-        const to = Math.min(rows - 1, Math.ceil(Math.max(a, b)) - 1);
-        for (let r = from; r <= to; r++) {
-          crossings[r].push((xy[j * 2] + (xy[i * 2] - xy[j * 2]) * (r - a) / (b - a) - x0) / CELL);
+    for (const poly of this.polys) {
+      const { xy, n } = poly;
+      // On a repeating tank an outline can run past the tile, so every copy that shows counts.
+      for (const [sx, sy] of this.tileShifts([poly])) {
+        let lo = rows;
+        let hi = -1;
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+          const a = (xy[j * 2 + 1] + sy - y0) / rowHeight - 0.5;
+          const b = (xy[i * 2 + 1] + sy - y0) / rowHeight - 0.5;
+          const from = Math.max(0, Math.ceil(Math.min(a, b)));
+          const to = Math.min(rows - 1, Math.ceil(Math.max(a, b)) - 1);
+          for (let r = from; r <= to; r++) {
+            crossings[r].push((xy[j * 2] + sx + (xy[i * 2] - xy[j * 2]) * (r - a) / (b - a) - x0) / CELL);
+          }
+          if (from <= to) { lo = Math.min(lo, from); hi = Math.max(hi, to); }
         }
-        if (from <= to) { lo = Math.min(lo, from); hi = Math.max(hi, to); }
-      }
-      for (let r = lo; r <= hi; r++) {
-        const c = crossings[r].sort((p, q) => p - q);
-        for (let k = 0; k + 1 < c.length; k += 2) spans[r].push([c[k], c[k + 1]]);
-        c.length = 0;
+        for (let r = lo; r <= hi; r++) {
+          const c = crossings[r].sort((p, q) => p - q);
+          for (let k = 0; k + 1 < c.length; k += 2) spans[r].push([c[k], c[k + 1]]);
+          c.length = 0;
+        }
       }
     }
     const fill = (row, from, to) => {
@@ -122,7 +145,8 @@ export class Film extends Marble {
 
   // Finds separate films and how much of each one's edge still faces water.
   _findFilms(g, feeding, sourceWidth) {
-    const { nx, ny, x0, y0, coverage, label, ink, seam, open } = g;
+    const { nx, ny, x0, y0, coverage, label, ink, seam, open, torus } = g;
+    const { west, east, south, north } = g.levels[0];
     label.fill(0);
     seam.fill(0);
     // A landing drop brings its own ink, even before its outline shows on the grid.
@@ -130,11 +154,13 @@ export class Film extends Marble {
       const cx = (op.x - x0) / CELL - 0.5;
       const cy = (op.y - y0) / CELL - 0.5;
       const reach = (2.5 * sourceWidth) / CELL;
-      for (let y = Math.max(0, Math.floor(cy - reach - 1)); y <= Math.min(ny - 1, cy + reach + 1); y++) {
-        for (let x = Math.max(0, Math.floor(cx - reach - 1)); x <= Math.min(nx - 1, cx + reach + 1); x++) {
+      const fromY = Math.floor(cy - reach - 1), toY = cy + reach + 1;
+      const fromX = Math.floor(cx - reach - 1), toX = cx + reach + 1;
+      for (let y = torus ? fromY : Math.max(0, fromY); y <= (torus ? toY : Math.min(ny - 1, toY)); y++) {
+        for (let x = torus ? fromX : Math.max(0, fromX); x <= (torus ? toX : Math.min(nx - 1, toX)); x++) {
           // Fractional, because a stepped set of cells stamps its shape on the growing drop.
           const share = Math.max(0, Math.min(1, reach + 0.5 - Math.hypot(x - cx, y - cy)));
-          const i = y * nx + x;
+          const i = mod(y, ny) * nx + mod(x, nx);
           if (share > coverage[i]) coverage[i] = share;
         }
       }
@@ -150,11 +176,9 @@ export class Film extends Marble {
       stack.push(s);
       while (stack.length) {
         const i = stack.pop();
-        const x = i % nx;
-        if (x > 0 && ink[i - 1] && !label[i - 1]) { label[i - 1] = id; stack.push(i - 1); }
-        if (x < nx - 1 && ink[i + 1] && !label[i + 1]) { label[i + 1] = id; stack.push(i + 1); }
-        if (i >= nx && ink[i - nx] && !label[i - nx]) { label[i - nx] = id; stack.push(i - nx); }
-        if (i < nx * (ny - 1) && ink[i + nx] && !label[i + nx]) { label[i + nx] = id; stack.push(i + nx); }
+        for (const j of [west[i], east[i], south[i], north[i]]) {
+          if (j >= 0 && ink[j] && !label[j]) { label[j] = id; stack.push(j); }
+        }
       }
     }
     const find = (a) => {
@@ -166,13 +190,13 @@ export class Film extends Marble {
       for (let x = 0; x < nx; x++) {
         const i = y * nx + x;
         if (ink[i]) continue;
-        const left = x > 0 && ink[i - 1];
-        const right = x < nx - 1 && ink[i + 1];
-        const down = y > 0 && ink[i - nx];
-        const up = y < ny - 1 && ink[i + nx];
+        const left = west[i] >= 0 && ink[west[i]];
+        const right = east[i] >= 0 && ink[east[i]];
+        const down = south[i] >= 0 && ink[south[i]];
+        const up = north[i] >= 0 && ink[north[i]];
         if (!((left && right) || (down && up))) continue;
         seam[i] = 1;
-        const sides = [left && label[i - 1], right && label[i + 1], down && label[i - nx], up && label[i + nx]].filter(Boolean);
+        const sides = [left && label[west[i]], right && label[east[i]], down && label[south[i]], up && label[north[i]]].filter(Boolean);
         for (const side of sides) parent[find(side)] = find(sides[0]);
       }
     }
@@ -186,10 +210,7 @@ export class Film extends Marble {
         const film = find(label[i]);
         area[film] += CELL * CELL;
         // Walls aren't water. The grid's far edge, with no walls, counts as open water.
-        if (x > 0 ? faces(i - 1) : open) edge[film] += CELL;
-        if (x < nx - 1 ? faces(i + 1) : open) edge[film] += CELL;
-        if (y > 0 ? faces(i - nx) : open) edge[film] += CELL;
-        if (y < ny - 1 ? faces(i + nx) : open) edge[film] += CELL;
+        for (const j of [west[i], east[i], south[i], north[i]]) if (j >= 0 ? faces(j) : open) edge[film] += CELL;
       }
     }
     // Compared with a circle of the same area. A stepped outline measures 4/pi too long.
@@ -200,10 +221,10 @@ export class Film extends Marble {
   // A round film with one drop feeding it needs no grid: the exact radial map from pst-marble is
   // right for it, and a grid would imprint its own shape. Returns those drops and how far they reach.
   _roundFilms(g, feeding, filmAt) {
-    const { nx, ny, x0, y0, ink, open } = g;
+    const { nx, ny, x0, y0, ink, open, torus } = g;
+    const { west, east, south, north } = g.levels[0];
     const owners = new Map();
-    const atCell = (op) => Math.max(0, Math.min(ny - 1, Math.round((op.y - y0) / CELL - 0.5))) * nx
-      + Math.max(0, Math.min(nx - 1, Math.round((op.x - x0) / CELL - 0.5)));
+    const atCell = (op) => this._cellAt(g, op.x, op.y);
     for (const op of feeding) {
       if (!(op.feed > 0)) continue;
       const film = filmAt(atCell(op));
@@ -218,10 +239,13 @@ export class Film extends Marble {
         if (!ink[i]) continue;
         const range = ranges.get(filmAt(i));
         if (!range) continue;
-        const onGridEdge = x === 0 || y === 0 || x === nx - 1 || y === ny - 1;
+        const onGridEdge = !torus && (x === 0 || y === 0 || x === nx - 1 || y === ny - 1);
         if (onGridEdge && !open) range.ok = false;
-        if (!onGridEdge && ink[i - 1] && ink[i + 1] && ink[i - nx] && ink[i + nx]) continue;
-        const d = Math.hypot(x0 + (x + 0.5) * CELL - range.op.x, y0 + (y + 0.5) * CELL - range.op.y);
+        if (!onGridEdge && ink[west[i]] && ink[east[i]] && ink[south[i]] && ink[north[i]]) continue;
+        let dx = x0 + (x + 0.5) * CELL - range.op.x;
+        let dy = y0 + (y + 0.5) * CELL - range.op.y;
+        if (torus) { dx = wrap(dx, this.width); dy = wrap(dy, this.height); }
+        const d = Math.hypot(dx, dy);
         range.near = Math.min(range.near, d);
         range.far = Math.max(range.far, d);
       }
@@ -233,10 +257,19 @@ export class Film extends Marble {
     return exact;
   }
 
+  // The cell holding a point: clamped to the grid, or wrapped into it on a repeating tank.
+  _cellAt(g, x, y) {
+    const { nx, ny, x0, y0, torus } = g;
+    const col = Math.round((x - x0) / CELL - 0.5);
+    const row = Math.round((y - y0) / CELL - 0.5);
+    if (torus) return mod(row, ny) * nx + mod(col, nx);
+    return Math.max(0, Math.min(ny - 1, row)) * nx + Math.max(0, Math.min(nx - 1, col));
+  }
+
   // The share of a drop's own outline with water just outside it.
   _ownEdgeFacing(op, g) {
     if (!op.poly) return 1;
-    const { nx, ny, x0, y0, coverage, open } = g;
+    const { nx, ny, x0, y0, coverage, open, torus } = g;
     const { xy, n } = op.poly;
     const step = Math.max(1, Math.floor(n / 64));
     let water = 0;
@@ -248,15 +281,15 @@ export class Film extends Marble {
       const col = Math.round((xy[i * 2] + (dx / d) * 1.5 * CELL - x0) / CELL - 0.5);
       const row = Math.round((xy[i * 2 + 1] + (dy / d) * 1.5 * CELL - y0) / CELL - 0.5);
       samples++;
-      if (col < 0 || col >= nx || row < 0 || row >= ny) { if (open) water++; continue; }
-      if (coverage[row * nx + col] < EDGE_COVERAGE) water++;
+      if (!torus && (col < 0 || col >= nx || row < 0 || row >= ny)) { if (open) water++; continue; }
+      if (coverage[mod(row, ny) * nx + mod(col, nx)] < EDGE_COVERAGE) water++;
     }
     return water / samples;
   }
 
   // Damped Jacobi, which treats mirrored cells alike, so symmetric input gives symmetric output.
   _smooth(L, sweeps) {
-    const { nx, ny, h, f, k } = L;
+    const { nx, ny, h, f, k, west, east, south, north } = L;
     const open = this._grid.open;
     const inv = 1 / (h * h);
     const weight = 0.8;
@@ -267,10 +300,10 @@ export class Film extends Marble {
           const i = y * nx + x;
           let sum = 0;
           let d = 0;
-          if (x > 0) { sum += p[i - 1]; d++; } else if (open) d++;
-          if (x < nx - 1) { sum += p[i + 1]; d++; } else if (open) d++;
-          if (y > 0) { sum += p[i - nx]; d++; } else if (open) d++;
-          if (y < ny - 1) { sum += p[i + nx]; d++; } else if (open) d++;
+          if (west[i] >= 0) { sum += p[west[i]]; d++; } else if (open) d++;
+          if (east[i] >= 0) { sum += p[east[i]]; d++; } else if (open) d++;
+          if (south[i] >= 0) { sum += p[south[i]]; d++; } else if (open) d++;
+          if (north[i] >= 0) { sum += p[north[i]]; d++; } else if (open) d++;
           t[i] = (1 - weight) * p[i] + (weight * (f[i] + sum * inv)) / (d * inv + k[i]);
         }
       }
@@ -281,7 +314,7 @@ export class Film extends Marble {
   }
 
   _residual(L) {
-    const { nx, ny, h, p, f, k, r } = L;
+    const { nx, ny, h, p, f, k, r, west, east, south, north } = L;
     const open = this._grid.open;
     const inv = 1 / (h * h);
     for (let y = 0; y < ny; y++) {
@@ -289,10 +322,10 @@ export class Film extends Marble {
         const i = y * nx + x;
         let sum = 0;
         let d = 0;
-        if (x > 0) { sum += p[i - 1]; d++; } else if (open) d++;
-        if (x < nx - 1) { sum += p[i + 1]; d++; } else if (open) d++;
-        if (y > 0) { sum += p[i - nx]; d++; } else if (open) d++;
-        if (y < ny - 1) { sum += p[i + nx]; d++; } else if (open) d++;
+        if (west[i] >= 0) { sum += p[west[i]]; d++; } else if (open) d++;
+        if (east[i] >= 0) { sum += p[east[i]]; d++; } else if (open) d++;
+        if (south[i] >= 0) { sum += p[south[i]]; d++; } else if (open) d++;
+        if (north[i] >= 0) { sum += p[north[i]]; d++; } else if (open) d++;
         r[i] = f[i] - ((d * p[i] - sum) * inv + k[i] * p[i]);
       }
     }
@@ -352,8 +385,10 @@ export class Film extends Marble {
     const dt = this.dt;
     const g = this._getGrid();
     this._measureCoverage(g);
-    const { nx, ny, x0, y0, coverage, ink, seam, ux, uy, ex, ey, levels } = g;
+    const { nx, ny, x0, y0, coverage, ink, seam, ux, uy, ex, ey, levels, torus } = g;
     const L = levels[0];
+    const { west, east, south, north } = L;
+    const W = this.width, H = this.height;
     const sourceWidth = Math.max(SOURCE_WIDTH, CELL * 1.2);
     const { facingAt, filmAt } = this._findFilms(g, feeding, sourceWidth);
     const exact = this._roundFilms(g, feeding, filmAt);
@@ -376,11 +411,11 @@ export class Film extends Marble {
       const fy = Math.round(cy);
       let total = 0;
       for (let pass = 0; pass < 2; pass++) {
-        for (let y = Math.max(0, fy - sourceCells); y <= Math.min(ny - 1, fy + sourceCells); y++) {
-          for (let x = Math.max(0, fx - sourceCells); x <= Math.min(nx - 1, fx + sourceCells); x++) {
+        for (let y = torus ? fy - sourceCells : Math.max(0, fy - sourceCells); y <= (torus ? fy + sourceCells : Math.min(ny - 1, fy + sourceCells)); y++) {
+          for (let x = torus ? fx - sourceCells : Math.max(0, fx - sourceCells); x <= (torus ? fx + sourceCells : Math.min(nx - 1, fx + sourceCells)); x++) {
             const w = Math.exp(-(((x - cx) ** 2 + (y - cy) ** 2) * CELL * CELL) / (2 * sourceWidth * sourceWidth));
             if (pass === 0) total += w;
-            else L.f[y * nx + x] += (op.feed * w) / total / (CELL * CELL);
+            else L.f[mod(y, ny) * nx + mod(x, nx)] += (op.feed * w) / total / (CELL * CELL);
           }
         }
       }
@@ -408,19 +443,19 @@ export class Film extends Marble {
       for (let x = 0; x < nx; x++) {
         const i = y * nx + x;
         const here = p[i];
-        const left = x > 0 ? p[i - 1] : open ? 0 : here;
-        const right = x < nx - 1 ? p[i + 1] : open ? 0 : here;
-        const down = y > 0 ? p[i - nx] : open ? 0 : here;
-        const up = y < ny - 1 ? p[i + nx] : open ? 0 : here;
+        const left = west[i] >= 0 ? p[west[i]] : open ? 0 : here;
+        const right = east[i] >= 0 ? p[east[i]] : open ? 0 : here;
+        const down = south[i] >= 0 ? p[south[i]] : open ? 0 : here;
+        const up = north[i] >= 0 ? p[north[i]] : open ? 0 : here;
         let gx = (right - left) / (2 * CELL);
         let gy = (up - down) / (2 * CELL);
         if (ink[i]) {
           // Eased by how watery the neighbour is, so the reading doesn't jump as an edge crosses a cell.
           const wet = (j) => Math.max(0, 1 - coverage[j] / EDGE_COVERAGE);
-          const waterLeft = x > 0 ? wet(i - 1) : 0;
-          const waterRight = x < nx - 1 ? wet(i + 1) : 0;
-          const waterDown = y > 0 ? wet(i - nx) : 0;
-          const waterUp = y < ny - 1 ? wet(i + nx) : 0;
+          const waterLeft = west[i] >= 0 ? wet(west[i]) : 0;
+          const waterRight = east[i] >= 0 ? wet(east[i]) : 0;
+          const waterDown = south[i] >= 0 ? wet(south[i]) : 0;
+          const waterUp = north[i] >= 0 ? wet(north[i]) : 0;
           gx += (waterRight * (right - here) - waterLeft * (left - here)) / (2 * CELL);
           gy += (waterUp * (up - here) - waterDown * (down - here)) / (2 * CELL);
         }
@@ -438,10 +473,9 @@ export class Film extends Marble {
         let sx = 0;
         let sy = 0;
         let c = 0;
-        if (x > 0 && ink[i - 1]) { sx += ux[i - 1]; sy += uy[i - 1]; c++; }
-        if (x < nx - 1 && ink[i + 1]) { sx += ux[i + 1]; sy += uy[i + 1]; c++; }
-        if (y > 0 && ink[i - nx]) { sx += ux[i - nx]; sy += uy[i - nx]; c++; }
-        if (y < ny - 1 && ink[i + nx]) { sx += ux[i + nx]; sy += uy[i + nx]; c++; }
+        for (const j of [west[i], east[i], south[i], north[i]]) {
+          if (j >= 0 && ink[j]) { sx += ux[j]; sy += uy[j]; c++; }
+        }
         if (c) { ex[i] = sx / c; ey[i] = sy / c; }
       }
     }
@@ -453,19 +487,32 @@ export class Film extends Marble {
         for (let y = 0; y < ny; y++) {
           for (let x = 0; x < nx; x++) {
             const i = y * nx + x;
-            t[i] = (2 * f[i] + (x > 0 ? f[i - 1] : f[i]) + (x < nx - 1 ? f[i + 1] : f[i])) / 4;
+            t[i] = (2 * f[i] + (west[i] >= 0 ? f[west[i]] : f[i]) + (east[i] >= 0 ? f[east[i]] : f[i])) / 4;
           }
         }
         for (let y = 0; y < ny; y++) {
           for (let x = 0; x < nx; x++) {
             const i = y * nx + x;
-            f[i] = (2 * t[i] + (y > 0 ? t[i - nx] : t[i]) + (y < ny - 1 ? t[i + nx] : t[i])) / 4;
+            f[i] = (2 * t[i] + (south[i] >= 0 ? t[south[i]] : t[i]) + (north[i] >= 0 ? t[north[i]] : t[i])) / 4;
           }
         }
       }
     }
 
-    const sample = (x, y, out) => {
+    const sample = torus ? (x, y, out) => {
+      const fx = (x - x0) / CELL - 0.5;
+      const fy = (y - y0) / CELL - 0.5;
+      const i0 = Math.floor(fx);
+      const j0 = Math.floor(fy);
+      const a = fx - i0;
+      const b = fy - j0;
+      const i = mod(i0, nx);
+      const j = mod(j0, ny);
+      const i1 = (i + 1) % nx;
+      const j1 = (j + 1) % ny;
+      out[0] = (ex[j * nx + i] * (1 - a) + ex[j * nx + i1] * a) * (1 - b) + (ex[j1 * nx + i] * (1 - a) + ex[j1 * nx + i1] * a) * b;
+      out[1] = (ey[j * nx + i] * (1 - a) + ey[j * nx + i1] * a) * (1 - b) + (ey[j1 * nx + i] * (1 - a) + ey[j1 * nx + i1] * a) * b;
+    } : (x, y, out) => {
       const fx = Math.max(0, Math.min(nx - 1.000001, (x - x0) / CELL - 0.5));
       const fy = Math.max(0, Math.min(ny - 1.000001, (y - y0) / CELL - 0.5));
       const i = Math.floor(fx);
@@ -481,11 +528,9 @@ export class Film extends Marble {
     const u = [0, 0];
     const live = [];
     for (const op of feeding) {
-      const col = Math.max(0, Math.min(nx - 1, Math.round((op.x - x0) / CELL - 0.5)));
-      const row = Math.max(0, Math.min(ny - 1, Math.round((op.y - y0) / CELL - 0.5)));
       // Its film has to reach water, and so does the drop itself: one landing on ink only gets its
       // plain size, however much water the film around it can still reach further off.
-      const facing = Math.min(facingAt(row * nx + col), this._ownEdgeFacing(op, g));
+      const facing = Math.min(facingAt(this._cellAt(g, op.x, op.y)), this._ownEdgeFacing(op, g));
       const wanted = Math.max(0, Math.min(1, (facing - STOPS_FACING) / FULL_FACING));
       op.head += (wanted - op.head) * 0.25;
       if (op.feed > 0 && !exact.has(op)) {
@@ -502,13 +547,13 @@ export class Film extends Marble {
     const exactOps = [...exact.entries()];
     this._map((x, y, out) => {
       for (const [op, reach] of exactOps) {
-        const dx = x - op.x;
-        const dy = y - op.y;
+        const dx = torus ? wrap(x - op.x, W) : x - op.x;
+        const dy = torus ? wrap(y - op.y, H) : y - op.y;
         const r2 = dx * dx + dy * dy;
         if (r2 > reach * reach || r2 < 1e-12) continue;
         const a = Math.sqrt(1 + (op.feed * dt) / Math.PI / r2);
-        out[0] = op.x + dx * a;
-        out[1] = op.y + dy * a;
+        out[0] = (torus ? x - dx : op.x) + dx * a;
+        out[1] = (torus ? y - dy : op.y) + dy * a;
         return;
       }
       if (!gridded) { out[0] = x; out[1] = y; return; }
@@ -517,8 +562,8 @@ export class Film extends Marble {
       let nx2 = x + u[0] * dt;
       let ny2 = y + u[1] * dt;
       for (const op of live) {
-        const dx = x - op.x;
-        const dy = y - op.y;
+        const dx = torus ? wrap(x - op.x, W) : x - op.x;
+        const dy = torus ? wrap(y - op.y, H) : y - op.y;
         const r2 = dx * dx + dy * dy;
         if (r2 < pinReach) {
           const w = Math.exp(-r2 / (2 * pinWidth * pinWidth)) * dt;
@@ -569,10 +614,15 @@ export class Film extends Marble {
   }
 
   _svgBeforeInk() {
-    return this.polys.filter(({ group, color }) => !group && !isTranslucent(color)).map(({ xy, n, color }) => {
-      const pts = [];
-      for (let i = 0; i < n; i++) pts.push(`${xy[i * 2].toFixed(2)} ${(-xy[i * 2 + 1]).toFixed(2)}`);
-      return `<path fill="none" stroke="${color}" stroke-width="${CLOSE_GAPS * 2}" stroke-linejoin="round" d="M${pts.join('L')}Z"/>`;
+    return this.polys.filter(({ group, color }) => !group && !isTranslucent(color)).map((poly) => {
+      const { xy, n, color } = poly;
+      let d = '';
+      for (const [sx, sy] of this.tileShifts([poly])) {
+        const pts = [];
+        for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
+        d += `M${pts.join('L')}Z`;
+      }
+      return `<path fill="none" stroke="${color}" stroke-width="${CLOSE_GAPS * 2}" stroke-linejoin="round" d="${d}"/>`;
     }).join('');
   }
 }

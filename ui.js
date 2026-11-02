@@ -162,6 +162,16 @@ stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 settle();
 fullRake({ angle: 0, teeth: 5, speed: 30 });
 settle();`,
+  'Repeating whorls': `// Whorls on a repeating tank: swirls roll across the seams. Press See it repeat to check.
+tile();
+viscosity({ value: 10 });
+flow({ friction: 0.05, coast: 120, push: 3 });
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+bath({ color: '#f7e1b5' });
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+settle();
+fullRake({ angle: 0, teeth: 5, speed: 30 });
+settle();`,
   'Storm': `// Two strong passes leave a swirling storm. A higher point limit in Detail lets it run longer.
 viscosity({ value: 10 });
 flow({ friction: 0.05, coast: 40, push: 3 });
@@ -955,7 +965,7 @@ for (const id of Object.values(FLOW_FIELDS)) {
 
 // Only some simulators can repeat, so the toggle follows the one chosen.
 function syncTile() {
-  const supported = (currentModel().engine ?? Marble).prototype.tileSupported;
+  const supported = !currentModel().spreading && (currentModel().engine ?? Marble).prototype.tileSupported;
   $('tile').disabled = !supported;
   $('tile').closest('label').hidden = !supported;
   if (!supported) $('tile').checked = false;

@@ -52,7 +52,7 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 
 ## Repeating patterns
 
-**Repeating** (`tile()`) makes the tank one tile of a seamless repeat, joined at its edges like a torus. Outlines are never cut at the seam: they stay whole, every motion repeats across it, and they're drawn wherever they show. A drop's growth is balanced by a slight contraction of everything else, since a torus has only so much surface. **See it repeat** shows four copies, and exports join up side by side. It's in Classic so far. `tile.js` has the maths.
+**Repeating** (`tile()`) makes the tank one tile of a seamless repeat, joined at its edges like a torus. Outlines are never cut at the seam: they stay whole, every motion repeats across it, and they're drawn wherever they show. In Classic, a drop's growth is balanced by a slight contraction of everything else, since a torus has only so much surface. **See it repeat** shows four copies, and exports join up side by side. Classic, Film and Wake repeat; Spreading and Thin film don't yet. In Film, films meet and push across the seams, and in Wake the bath's flow crosses them too. `tile.js` has the Classic maths, and `film.js` and `wake.js` have their own.
 
 ## Air
 
@@ -102,6 +102,6 @@ Positive `degrees` and `circulation` turn counter-clockwise and negative clockwi
 - Without `walls`, the tank has no walls: ink pushed past the rectangle continues outside the view.
 - With `walls`, `shift` and `turn` smear ink along the walls because it's clamped there.
 - With `walls`, ink slows and compresses near the walls but doesn't spread along them, so ink dragged hard into a wall thins to a sliver and loses most of its area.
-- On a repeating tank (Classic only so far), a tine's pull reaches at most a fourteenth of the tile, a jiggle takes a whole number of waves each way so its period and angle shift slightly, wriggle's in-and-out movement is left out, and `turn` throws. Every drop also shrinks all other ink by its own share of the tank, because a torus has only so much surface.
+- On a repeating tank, a tine's pull reaches at most a fourteenth of the tile, a jiggle takes a whole number of waves each way so its period and angle shift slightly, wriggle's in-and-out movement is left out, and `turn` throws. In Classic, every drop also shrinks all other ink by its own share of the tank, because a torus has only so much surface. Film and Wake drops spread over water instead, so a tank with no water left stops them growing.
 - Neighbouring open-water drops stop about 8 mm apart. Drops of one colour only read as joined when the gap is under about a pixel, and they always stay separate outlines.
 - Quantity sets area only, and a drop's ink has one flat colour.

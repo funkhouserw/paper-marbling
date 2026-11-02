@@ -4,7 +4,7 @@
 // coasts on after the tool stops. Past a Reynolds number of about 40, each tine also pushes from
 // side to side at the rate a cylinder sheds vortices, which leaves a wobbling wake.
 import { Film } from './film.js';
-import { sinePlan } from './dst.js';
+import { fft2, sinePlan } from './dst.js';
 
 const CELL = 7; // mm
 const DEPTH = 15; // mm of bath. Friction from the tank floor is about viscosity / depth^2.
@@ -22,6 +22,7 @@ const THINNEST = 0.5; // mm. Ribbons of ink narrower than this are cut, which is
 const CUT_EVERY = 15; // ticks
 const MIN_CUT = 8; // points
 const MIN_PIECE = 24; // points
+const mod = (i, n) => ((i % n) + n) % n;
 const WIDEST_DRAG = 40; // mm. The closed-form tine drag is for thick baths, where it stays local.
 
 export class Wake extends Film {
@@ -47,15 +48,20 @@ export class Wake extends Film {
     const x0 = -this.width / 2;
     const y0 = -this.height / 2;
     for (let y = 0; y < g.ny; y++) {
-      const fy = Math.max(0, Math.min(old.ny - 1.000001, (y + 0.5) * g.hy / old.hy - 0.5));
+      const ry = (y + 0.5) * g.hy / old.hy - 0.5;
+      const fy = this.tileOn ? ry : Math.max(0, Math.min(old.ny - 1.000001, ry));
       const j = Math.floor(fy);
       const c = fy - j;
+      const row0 = mod(j, old.ny) * old.nx;
+      const row1 = mod(j + 1, old.ny) * old.nx;
       for (let x = 0; x < g.nx; x++) {
-        const fx = Math.max(0, Math.min(old.nx - 1.000001, (x + 0.5) * g.hx / old.hx - 0.5));
+        const rx = (x + 0.5) * g.hx / old.hx - 0.5;
+        const fx = this.tileOn ? rx : Math.max(0, Math.min(old.nx - 1.000001, rx));
         const i = Math.floor(fx);
         const a = fx - i;
-        const k = j * old.nx + i;
-        out[y * g.nx + x] = (w[k] * (1 - a) + w[k + 1] * a) * (1 - c) + (w[k + old.nx] * (1 - a) + w[k + old.nx + 1] * a) * c;
+        const i0 = mod(i, old.nx);
+        const i1 = mod(i + 1, old.nx);
+        out[y * g.nx + x] = (w[row0 + i0] * (1 - a) + w[row0 + i1] * a) * (1 - c) + (w[row1 + i0] * (1 - a) + w[row1 + i1] * a) * c;
       }
     }
     return out;
@@ -68,16 +74,22 @@ export class Wake extends Film {
   }
 
   get _flowGrid() {
-    if (this._fg) return this._fg;
+    const tiled = this.tileOn;
+    if (this._fg?.tiled === tiled) return this._fg;
     const { nx, ny } = this._gridFor(this.flowCell);
     const hx = this.width / nx;
     const hy = this.height / ny;
     const lambda = new Float64Array(nx * ny);
     for (let l = 0; l < ny; l++) {
-      for (let k = 0; k < nx; k++) lambda[l * nx + k] = (Math.PI * (k + 1) / this.width) ** 2 + (Math.PI * (l + 1) / this.height) ** 2;
+      for (let k = 0; k < nx; k++) {
+        // Walls allow sine waves, which fit half a wave in the tank. A tile allows whole waves, both ways.
+        lambda[l * nx + k] = tiled
+          ? (2 * Math.PI * (k < nx / 2 ? k : k - nx) / this.width) ** 2 + (2 * Math.PI * (l < ny / 2 ? l : l - ny) / this.height) ** 2
+          : (Math.PI * (k + 1) / this.width) ** 2 + (Math.PI * (l + 1) / this.height) ** 2;
+      }
     }
     const size = nx * ny;
-    this._fg = { nx, ny, hx, hy, lambda, px: sinePlan(nx), py: sinePlan(ny), a: new Float64Array(size), b: new Float64Array(size),
+    this._fg = { tiled, nx, ny, hx, hy, lambda, px: sinePlan(nx), py: sinePlan(ny), a: new Float64Array(size), b: new Float64Array(size),
                  psi: new Float64Array(size), ux: new Float64Array(size), uy: new Float64Array(size), next: new Float64Array(size) };
     return this._fg;
   }
@@ -161,12 +173,16 @@ export class Wake extends Film {
   }
 
   _feedFlow(w, g, dt) {
-    const { nx, ny, hx, hy, moveX, moveY } = g;
+    const { tiled, nx, ny, hx, hy, moveX, moveY } = g;
     for (let y = 0; y < ny; y++) {
       for (let x = 0; x < nx; x++) {
         const i = y * nx + x;
-        const dVy = ((x < nx - 1 ? moveY[i + 1] : moveY[i]) - (x > 0 ? moveY[i - 1] : moveY[i])) / (2 * hx);
-        const dVx = ((y < ny - 1 ? moveX[i + nx] : moveX[i]) - (y > 0 ? moveX[i - nx] : moveX[i])) / (2 * hy);
+        const east = x < nx - 1 ? i + 1 : tiled ? i + 1 - nx : i;
+        const west = x > 0 ? i - 1 : tiled ? i - 1 + nx : i;
+        const north = y < ny - 1 ? i + nx : tiled ? x : i;
+        const south = y > 0 ? i - nx : tiled ? i + nx * (ny - 1) : i;
+        const dVy = (moveY[east] - moveY[west]) / (2 * hx);
+        const dVx = (moveX[north] - moveX[south]) / (2 * hy);
         // Displacement over the tick is velocity x dt, so the grip's dt cancels it.
         w[i] += TOOL_GRIP * (dVy - dVx);
       }
@@ -302,9 +318,30 @@ export class Wake extends Film {
     }
   }
 
+  // The same solve on a tile: vorticity and stream function come back from one inverse transform,
+  // the real part and the imaginary part. Whole-tank spin has no periodic flow, so it's dropped.
+  _solveTiled(g, w, friction, dt) {
+    const { nx, ny, lambda, psi, a, b } = g;
+    const size = nx * ny;
+    b.set(w);
+    a.fill(0);
+    fft2(b, a, nx, ny);
+    for (let i = 0; i < size; i++) {
+      if (lambda[i] === 0) { b[i] = 0; a[i] = 0; continue; }
+      const keep = Math.exp(-(this.viscosity * lambda[i] + friction) * dt) / size;
+      const re = b[i] * keep;
+      const im = a[i] * keep;
+      b[i] = re - im / lambda[i];
+      a[i] = im + re / lambda[i];
+    }
+    fft2(b, a, nx, ny, true);
+    w.set(b);
+    psi.set(a);
+  }
+
   _stepFlow(dt) {
     const g = this._flowGrid;
-    const { nx, ny, hx, hy, lambda, psi, ux, uy, next, b } = g;
+    const { tiled, nx, ny, hx, hy, lambda, psi, ux, uy, next, b } = g;
     this.vorticity ??= new Float64Array(nx * ny);
     let w = this.vorticity;
     const x0 = -this.width / 2;
@@ -314,11 +351,13 @@ export class Wake extends Film {
       const sigma = Math.max(D, 1.3 * Math.max(hx, hy));
       const reach = 4 * sigma;
       const c = dt / (2 * Math.PI * sigma ** 4);
-      for (let y = Math.max(0, Math.floor((py - reach - y0) / hy)); y <= Math.min(ny - 1, (py + reach - y0) / hy); y++) {
+      const fromY = Math.floor((py - reach - y0) / hy), toY = (py + reach - y0) / hy;
+      const fromX = Math.floor((px - reach - x0) / hx), toX = (px + reach - x0) / hx;
+      for (let y = tiled ? fromY : Math.max(0, fromY); y <= (tiled ? toY : Math.min(ny - 1, toY)); y++) {
         const dy = y0 + (y + 0.5) * hy - py;
-        for (let x = Math.max(0, Math.floor((px - reach - x0) / hx)); x <= Math.min(nx - 1, (px + reach - x0) / hx); x++) {
+        for (let x = tiled ? fromX : Math.max(0, fromX); x <= (tiled ? toX : Math.min(nx - 1, toX)); x++) {
           const dx = x0 + (x + 0.5) * hx - px;
-          w[y * nx + x] += c * (fx * dy - fy * dx) * Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+          w[mod(y, ny) * nx + mod(x, nx)] += c * (fx * dy - fy * dx) * Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
         }
       }
     }
@@ -326,22 +365,26 @@ export class Wake extends Film {
     if (this._fed) this._feedFlow(w, g, dt);
     // Viscosity, friction, and the flow they leave.
     const friction = Math.max(this.flowTuning?.friction ?? LEAST_FRICTION, (2.5 * this.viscosity) / DEPTH ** 2);
-    this._forward(g, w, b);
-    for (let i = 0; i < nx * ny; i++) {
-      b[i] *= Math.exp(-(this.viscosity * lambda[i] + friction) * dt);
-      psi[i] = b[i] / lambda[i];
+    if (tiled) this._solveTiled(g, w, friction, dt);
+    else {
+      this._forward(g, w, b);
+      for (let i = 0; i < nx * ny; i++) {
+        b[i] *= Math.exp(-(this.viscosity * lambda[i] + friction) * dt);
+        psi[i] = b[i] / lambda[i];
+      }
+      this._inverse(g, b, w);
+      this._inverse(g, psi, psi);
     }
-    this._inverse(g, b, w);
-    this._inverse(g, psi, psi);
     let top = 0;
     for (let y = 0; y < ny; y++) {
       for (let x = 0; x < nx; x++) {
         const i = y * nx + x;
         // Psi is zero at the walls, so flow runs along them and never through.
-        const left = x > 0 ? psi[i - 1] : -psi[i];
-        const right = x < nx - 1 ? psi[i + 1] : -psi[i];
-        const down = y > 0 ? psi[i - nx] : -psi[i];
-        const up = y < ny - 1 ? psi[i + nx] : -psi[i];
+        // On a tile the row beyond the edge is the far edge's row.
+        const left = x > 0 ? psi[i - 1] : tiled ? psi[i - 1 + nx] : -psi[i];
+        const right = x < nx - 1 ? psi[i + 1] : tiled ? psi[i + 1 - nx] : -psi[i];
+        const down = y > 0 ? psi[i - nx] : tiled ? psi[i + nx * (ny - 1)] : -psi[i];
+        const up = y < ny - 1 ? psi[i + nx] : tiled ? psi[x] : -psi[i];
         ux[i] = (up - down) / (2 * hy);
         uy[i] = -(right - left) / (2 * hx);
         top = Math.max(top, Math.hypot(ux[i], uy[i]));
@@ -354,7 +397,19 @@ export class Wake extends Film {
     }
     if (!this.flowing) this.flowAge = 0;
     this.flowing = true;
-    const sample = (arr, x, y) => {
+    const sample = tiled ? (arr, x, y) => {
+      const fx = (x - x0) / hx - 0.5;
+      const fy = (y - y0) / hy - 0.5;
+      const i0 = Math.floor(fx);
+      const j0 = Math.floor(fy);
+      const a = fx - i0;
+      const c = fy - j0;
+      const i = mod(i0, nx);
+      const j = mod(j0, ny);
+      const i1 = (i + 1) % nx;
+      const j1 = (j + 1) % ny;
+      return (arr[j * nx + i] * (1 - a) + arr[j * nx + i1] * a) * (1 - c) + (arr[j1 * nx + i] * (1 - a) + arr[j1 * nx + i1] * a) * c;
+    } : (arr, x, y) => {
       const fx = Math.max(0, Math.min(nx - 1.000001, (x - x0) / hx - 0.5));
       const fy = Math.max(0, Math.min(ny - 1.000001, (y - y0) / hy - 0.5));
       const i = Math.floor(fx);
@@ -366,14 +421,16 @@ export class Wake extends Film {
     };
     // The flow carries its own vorticity, tracing back along a smooth interpolation so swirls stay sharp.
     const cubic = (p0, p1, p2, p3, t) => p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
-    const clampI = (v, n) => Math.max(0, Math.min(n - 1, v));
+    const clampI = tiled ? mod : (v, n) => Math.max(0, Math.min(n - 1, v));
     for (let y = 0; y < ny; y++) {
       for (let x = 0; x < nx; x++) {
         const i = y * nx + x;
         const px = x0 + (x + 0.5) * hx - ux[i] * dt;
         const py = y0 + (y + 0.5) * hy - uy[i] * dt;
-        const fx = Math.max(0, Math.min(nx - 1.000001, (px - x0) / hx - 0.5));
-        const fy = Math.max(0, Math.min(ny - 1.000001, (py - y0) / hy - 0.5));
+        const rx = (px - x0) / hx - 0.5;
+        const ry = (py - y0) / hy - 0.5;
+        const fx = tiled ? rx : Math.max(0, Math.min(nx - 1.000001, rx));
+        const fy = tiled ? ry : Math.max(0, Math.min(ny - 1.000001, ry));
         const ix = Math.floor(fx);
         const iy = Math.floor(fy);
         let lo = Infinity;
@@ -382,7 +439,7 @@ export class Wake extends Film {
         for (let r = -1; r <= 2; r++) {
           const row = clampI(iy + r, ny) * nx;
           const a = w[row + clampI(ix - 1, nx)];
-          const c = w[row + ix];
+          const c = w[row + clampI(ix, nx)];
           const d = w[row + clampI(ix + 1, nx)];
           const e = w[row + clampI(ix + 2, nx)];
           if (r === 0 || r === 1) { lo = Math.min(lo, c, d); hi = Math.max(hi, c, d); }
