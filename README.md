@@ -50,6 +50,10 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 - **`paint`:** lays ink along a path like a loaded brush, with optional `taper`, `wobble` and `swell`. It doesn't expand or push anything; it sits on top, and later tools move it. `seed` fixes its wobble, and the app logs one so that undo and scripts redraw it exactly.
 - **`stripes`:** covers the tank in overlapping `paint` bands, so no water shows between them, with thin tapered `slivers` of other colours. Rake across them for chevrons.
 
+## Wake (fast)
+
+**Wake (fast)** runs exactly Wake's simulation, but draws in a background worker with outlines thinned to what the screen can show (`wakefast.js`, `drawworker.js`, `thin.js`). The simulation doesn't wait for drawing, and the picture catches up. Prints and exports keep every point. Metallic ink only shows at rest.
+
 ## Grid ink (beta)
 
 **Grid ink** is a separate simulator in `gridink.js`, after BiMocq2 (Qu et al. 2019) and Amanda Ghassaei's marbling. Ink is colour on a grid instead of outlines, moved by a full fluid solve, so colours blend softly and a flow never runs out of points. Rakes drive the water instead of dragging the ink directly, and drops only push ink they've touched. It always repeats, has no hard edges, and exports to SVG as an embedded picture. It runs on the GPU through WebGL2 (`gridgl.js`), and falls back to the CPU (`gridink.js`) without float textures. **Grid ink cell** in Detail sets the flow's grid, and ink sits on a grid three times finer.

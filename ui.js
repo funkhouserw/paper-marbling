@@ -959,7 +959,7 @@ function showFlow(flow) {
   const match = Object.entries(FLOW_PRESETS).find(([, p]) => Object.keys(FLOW_FIELDS).every((k) => p[k] === flow[k]));
   $('flowPreset').value = match ? match[0] : 'custom';
 }
-function syncBathPanel() { $('bathPanel').hidden = !['wake', 'gridink'].includes(currentModel().id); }
+function syncBathPanel() { $('bathPanel').hidden = !['wake', 'wakefast', 'gridink'].includes(currentModel().id); }
 $('flowPreset').onchange = () => {
   const preset = FLOW_PRESETS[$('flowPreset').value];
   if (!preset) return;
@@ -1623,7 +1623,24 @@ function frame(now) {
   // Anything the user just did shows straight away, even between snapshots.
   if (marble.log.length !== drawnLog) nextDraw = 0;
   // A slow redraw waits twice its own length before the next, so most of the time stays free.
-  if (dirty && performance.now() >= nextDraw) {
+  // Drawing in the background: the page only posts the work, and shows it when it's ready.
+  let drawnLive = false;
+  if (dirty && marble.drawLive && performance.now() >= nextDraw) {
+    const drawing = marble;
+    const sent = marble.drawLive(tctx, pxPerMm, ({ ms }) => {
+      lastDrawMs = ms;
+      profiler.draw(ms);
+      return drawing === marble;
+    });
+    if (sent === 'busy') drawnLive = true;
+    else if (sent) {
+      drawnLive = true;
+      dirty = false;
+      drawnLog = marble.log.length;
+      nextDraw = performance.now() + 100;
+    }
+  }
+  if (!drawnLive && dirty && performance.now() >= nextDraw) {
     const drawStart = performance.now();
     marble.draw(tctx, pxPerMm);
     lastDrawMs = performance.now() - drawStart;

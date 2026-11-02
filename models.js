@@ -2,6 +2,7 @@
 import { Film } from './film.js';
 import { ThinFilm } from './thinfilm.js';
 import { Wake } from './wake.js';
+import { WakeFast } from './wakefast.js';
 import { GridInkGL } from './gridgl.js';
 
 export const MODELS = [
@@ -37,6 +38,13 @@ export const MODELS = [
     title: 'Film, in a bath that keeps moving. Tools leave a flow that lasts longer the thinner the bath is, with curls and wobble behind fast rakes. Try viscosity 5 to 60.',
     spreading: false,
     engine: Wake,
+  },
+  {
+    id: 'wakefast',
+    label: 'Wake (fast)',
+    title: 'The same simulation as Wake, but drawn in the background with outlines thinned to what the screen can show, so busy tanks keep moving. Prints and exports keep every point.',
+    spreading: false,
+    engine: WakeFast,
   },
   {
     id: 'gridink',
