@@ -190,3 +190,28 @@ test('less floor friction coasts longer, and more push moves the bath faster, wh
   const pushy = coast({ push: 3 });
   assert.ok(pushy.peak > plain.peak * 2, `${pushy.peak} vs ${plain.peak}`);
 });
+
+test('when the point limit is reached the bath stops, rather than tearing outlines into chords', () => {
+  const m = new Wake({ width: 1000, height: 700, viscosity: 10, maxVertices: 6000, pointBudget: 6000 });
+  m.setFlow({ friction: 0.05, coast: 120, push: 3 });
+  m.walls();
+  for (let i = 0; i < 12; i++) m.drop({ x: -400 + (i % 4) * 260, y: -200 + Math.floor(i / 4) * 200, quantity: 6, spreading: 1, color: '#123' });
+  m.runUntilIdle();
+  m.fullRake({ angle: 0, teeth: 4, speed: 400 });
+  let cappedAt = null;
+  let n = 0;
+  while (m.busy && n++ < 6000) {
+    m.step();
+    if (m.capped && cappedAt === null) cappedAt = m.time;
+    // A weak flow that needs no new points may carry on; a capped tick always ends with the bath stopped.
+    if (m.capped) assert.equal(m.flowing, false, `still flowing at ${m.time} on a capped tick`);
+  }
+  assert.ok(cappedAt !== null, 'the limit was never reached, so this test checks nothing');
+  assert.equal(m.stoppedAtLimit, true);
+  assert.ok(m.vertexCount <= 6000 * 1.05, `${m.vertexCount} points`);
+  // The flow can be set going again by the next tool.
+  m.fullRake({ angle: 180, teeth: 4, speed: 400 });
+  m.step();
+  m.step();
+  assert.ok(m._push.length || m.flowing || m.active.length);
+});

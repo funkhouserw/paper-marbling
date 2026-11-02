@@ -166,7 +166,7 @@ export const COMMANDS = [
     ['duration', 'number', 1, 'seconds'],
     AT,
   ] },
-  { name: 'turn', group: 'Tools', summary: 'Rotates everything in the tank around a point.', params: [
+  { name: 'turn', group: 'Tools', summary: 'Rotates everything in the tank around a point. Not available on a repeating tank, where it throws.', params: [
     X, Y,
     ['degrees', 'number', 90, 'positive is counter-clockwise'],
     ['duration', 'number', 1, 'seconds'],

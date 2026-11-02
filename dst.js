@@ -14,7 +14,7 @@ const factorsOf = (n) => {
 
 // An n-point FFT, e^{-2 pi i jk / n}, from (re, im) into (outRe, outIm). Both pairs are scratch
 // after the call: the result is in whichever pair the last stage wrote, which it returns.
-function fftPlan(n) {
+export function fftPlan(n) {
   const cos = new Float64Array(n);
   const sin = new Float64Array(n);
   for (let i = 0; i < n; i++) { cos[i] = Math.cos((2 * Math.PI * i) / n); sin[i] = -Math.sin((2 * Math.PI * i) / n); }
@@ -116,4 +116,23 @@ export function sinePlan(n) {
   };
 
   return { n, forward, inverse };
+}
+
+// A 2D FFT of (re, im) laid out row by row, in place, forward (e^{-2 pi i jk/n}) or inverse
+// (e^{+2 pi i jk/n}, without the 1/n). Plans are cached by length.
+const plans = new Map();
+const planFor = (n) => { let p = plans.get(n); if (!p) { p = fftPlan(n); plans.set(n, p); } return p; };
+export function fft2(re, im, nx, ny, inverse = false) {
+  const aRe = new Float64Array(Math.max(nx, ny)), aIm = new Float64Array(Math.max(nx, ny));
+  const bRe = new Float64Array(Math.max(nx, ny)), bIm = new Float64Array(Math.max(nx, ny));
+  const sign = inverse ? -1 : 1;
+  const line = (plan, n, get, set) => {
+    for (let i = 0; i < n; i++) { aRe[i] = get(i, 0); aIm[i] = sign * get(i, 1); }
+    const which = plan.run(aRe, aIm, bRe, bIm);
+    const [oRe, oIm] = which === 0 ? [aRe, aIm] : [bRe, bIm];
+    for (let i = 0; i < n; i++) set(i, oRe[i], sign * oIm[i]);
+  };
+  const px = planFor(nx), py = planFor(ny);
+  for (let y = 0; y < ny; y++) line(px, nx, (i, c) => (c ? im : re)[y * nx + i], (i, r, m) => { re[y * nx + i] = r; im[y * nx + i] = m; });
+  for (let x = 0; x < nx; x++) line(py, ny, (i, c) => (c ? im : re)[i * nx + x], (i, r, m) => { re[i * nx + x] = r; im[i * nx + x] = m; });
 }

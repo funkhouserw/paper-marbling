@@ -334,6 +334,7 @@ export class Marble {
     if (on && !this.tileSupported) throw new Error('This simulator can\'t repeat yet.');
     const args = { on };
     if (at !== undefined) args.at = at;
+    this.tileWanted = on; // what later commands should expect, ahead of the op running
     return this._schedule('tile', args, { kind: 'tile', on });
   }
 
@@ -602,6 +603,8 @@ export class Marble {
   }
 
   turn({ x = 0, y = 0, degrees = 90, duration = 1, at } = {}) {
+    // A rotation can't repeat across the seams of a repeating tank.
+    if (this.tileWanted ?? this.tileOn) throw new Error('A repeating tank can\'t be turned. Use shift, stir or air instead.');
     const args = { x, y, degrees, duration };
     if (at !== undefined) args.at = at;
     return this._schedule('turn', args, { kind: 'turn', x, y, degrees, duration, elapsed: 0 }, duration, true);

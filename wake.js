@@ -276,7 +276,30 @@ export class Wake extends Film {
   step() {
     super.step();
     if (this.tick % CUT_EVERY === 0 && (this.flowing || this.active.length) && !this.active.some((op) => op.kind === 'drop')) this._cutFilaments();
-    if (this._push?.length || this._fed || this.flowing) this._stepFlow(this.dt);
+    // A stretching bath needs ever more points. Once the limit is reached, outlines can't follow
+    // the flow any more and would tear into long chords, so the bath stops instead.
+    if (this.capped && this.flowing) {
+      this._stopFlow();
+      this.stoppedAtLimit = true;
+    } else if (!this.capped && (this._push?.length || this._fed)) this.stoppedAtLimit = false;
+    if (this.stoppedAtLimit) this._dropPushes();
+    else if (this._push?.length || this._fed || this.flowing) this._stepFlow(this.dt);
+  }
+
+  _stopFlow() {
+    this.vorticity?.fill(0);
+    this._dropPushes();
+    this.flowing = false;
+    this.flowAge = 0;
+  }
+
+  _dropPushes() {
+    this._push = [];
+    if (this._fed) {
+      this._fg?.moveX?.fill(0);
+      this._fg?.moveY?.fill(0);
+      this._fed = false;
+    }
   }
 
   _stepFlow(dt) {
@@ -326,9 +349,7 @@ export class Wake extends Film {
     }
     this.flowAge = (this.flowAge ?? 0) + dt;
     if (top < CALM || this.flowAge > (this.flowTuning?.coast ?? LONGEST_COAST)) {
-      w.fill(0);
-      this.flowing = false;
-      this.flowAge = 0;
+      this._stopFlow();
       return;
     }
     if (!this.flowing) this.flowAge = 0;
