@@ -159,8 +159,8 @@ export function maxRadius(quantity, film) {
 
 export class Marble {
   constructor({ width = 1000, height = 700, viscosity = 1000, bath = '#f4efe2',
-                film = 0.1, dt = 1 / 30, seed = 1, maxVertices = 400000 } = {}) {
-    Object.assign(this, { width, height, viscosity, bath, film, dt, seed, maxVertices });
+                film = 0.1, dt = 1 / 30, seed = 1, maxVertices = 400000, pointBudget = null } = {}) {
+    Object.assign(this, { width, height, viscosity, bath, film, dt, seed, maxVertices, pointBudget });
     this.maxEdge = Math.max(width, height) / 400;
     this.reset();
   }
@@ -535,7 +535,7 @@ export class Marble {
   }
 
   // Outline points past which fine detail starts to reduce.
-  get detailBudget() { return DETAIL_BUDGET; }
+  get detailBudget() { return this.pointBudget ?? DETAIL_BUDGET; }
 
   // With this false, ink only slows when moving towards a wall. Back-and-forth flow beside a wall
   // then walks the ink away from it, because the moves away are bigger than the moves towards.
@@ -1143,17 +1143,11 @@ export class Marble {
     return x > -mx && x < mx && y > -my && y < my;
   }
 
-  // Adds vertices where stretching has made edges too long to look smooth.
-  _refine() {
-    let total = 0;
-    for (const p of this.polys) total += p.n;
-    if (total >= this.maxVertices) { this.capped = true; return; }
-    this.capped = false;
-    // Past the budget, trade fine detail for speed instead of slowing without limit.
-    this.detail = Math.min(MAX_DETAIL, Math.max(1, total / this.detailBudget));
-    const lim = this.maxEdge * this.detail;
-    for (const poly of this.polys) {
-      const { xy, n } = poly;
+  // How many vertices each outline needs so that no edge in view is longer than lim.
+  _extraVertices(lim, extras) {
+    let sum = 0;
+    for (let p = 0; p < this.polys.length; p++) {
+      const { xy, n } = this.polys[p];
       let extra = 0;
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
@@ -1162,6 +1156,34 @@ export class Marble {
         const len = Math.hypot(bx - ax, by - ay);
         if (len > lim) extra += Math.ceil(len / lim) - 1;
       }
+      extras[p] = extra;
+      sum += extra;
+    }
+    return sum;
+  }
+
+  // Adds vertices where stretching has made edges too long to look smooth. maxVertices is a
+  // real limit: when the ink needs more, every edge gets coarser so that the total still fits.
+  _refine() {
+    let total = 0;
+    for (const poly of this.polys) total += poly.n;
+    if (total >= this.maxVertices) { this.capped = true; return; }
+    this.capped = false;
+    // Past the budget, trade fine detail for speed instead of slowing without limit.
+    this.detail = Math.min(MAX_DETAIL, Math.max(1, total / this.detailBudget));
+    let lim = this.maxEdge * this.detail;
+    const extras = new Int32Array(this.polys.length);
+    let needed = this._extraVertices(lim, extras);
+    const room = this.maxVertices - total;
+    while (needed > room) {
+      this.capped = true;
+      lim *= Math.max(1.1, needed / room);
+      needed = this._extraVertices(lim, extras);
+    }
+    for (let p = 0; p < this.polys.length; p++) {
+      const poly = this.polys[p];
+      const { xy, n } = poly;
+      const extra = extras[p];
       if (!extra) continue;
       const out = xy.length >= (n + extra) * 2 ? new Float64Array(xy.length)
                                                 : new Float64Array((n + extra) * 4);

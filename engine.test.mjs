@@ -956,3 +956,23 @@ test('a slider can run past 100 without moving the values below it', () => {
   assert.equal(dialToValue(200, 0.3, 3, over), 6);
   for (const d of [0, 52, 100, 101, 150, 200]) assert.equal(valueToDial(dialToValue(d, 0.3, 3, over), 0.3, 3, over), d);
 });
+
+test('the point limit holds however hard ink is stretched', () => {
+  const m = new Marble({ maxVertices: 6000 });
+  for (let i = 0; i < 40; i++) m.drop({ x: -400 + (i % 8) * 110, y: -280 + (i >> 3) * 140, quantity: 1, dispersion: 5 });
+  m.settle();
+  m.fullRake({ angle: 0, teeth: 40, speed: 800, D: 40 });
+  m.fullRake({ angle: 90, teeth: 40, speed: 800, D: 40 });
+  let most = 0;
+  for (let i = 0; i < 400 && m.busy; i++) { m.step(); most = Math.max(most, m.vertexCount); }
+  assert.ok(most <= 6000 * 1.01, `reached ${most}`);
+  assert.ok(most > 4500, `only reached ${most}, so this test didn't press the limit`);
+});
+
+test('a point budget raises the detail a tank keeps', () => {
+  const a = new Marble();
+  const b = new Marble({ pointBudget: 1000000, maxVertices: 5000000 });
+  assert.equal(a.detailBudget, 60000);
+  assert.equal(b.detailBudget, 1000000);
+  assert.equal(new Marble({ pointBudget: 5 }).saveState().pointBudget, 5);
+});

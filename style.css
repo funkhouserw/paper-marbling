@@ -110,3 +110,19 @@ button:disabled { opacity: .5; cursor: default; }
 
 #printProgress, #printResult { display: block; width: 100%; margin-top: 6px; }
 #printProgress[hidden], #printResult[hidden] { display: none; }
+
+.info {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 13px; height: 13px; margin: 0 3px; border-radius: 50%;
+  border: 1px solid #6b7079; color: #a9adb6; background: transparent;
+  font: italic 600 9px/1 Georgia, serif; cursor: help; vertical-align: 1px; user-select: none;
+}
+.info:hover, .info:focus-visible { border-color: #e6e8ec; color: #e6e8ec; outline: none; }
+#infoTip {
+  position: fixed; z-index: 50; max-width: 300px; padding: 8px 10px; border-radius: 6px;
+  background: #15171b; border: 1px solid #4a4e57; color: #e6e8ec;
+  font-size: 12px; line-height: 1.4; box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
+}
+#infoTip[hidden] { display: none; }
+#stats .snap { color: #7fc4ff; }
+#pointLimit { width: 100%; box-sizing: border-box; margin-top: 4px; }

@@ -31,7 +31,7 @@ const sineTable = (n) => {
 
 export class Wake extends Film {
   // Long, stretched outlines are the normal state here, so detail starts to reduce sooner.
-  get detailBudget() { return 25000; }
+  get detailBudget() { return this.pointBudget ?? 25000; }
 
   get _flowGrid() {
     if (this._fg) return this._fg;

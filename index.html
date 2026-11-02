@@ -9,7 +9,7 @@
 <main id="stage">
   <div id="transport">
     <button id="play" title="Space">Pause</button>
-    <label>Speed
+    <label data-info="speed">Speed
       <select id="speed">
         <option value="0.5">0.5×</option>
         <option value="1" selected>1×</option>
@@ -21,10 +21,10 @@
     <button id="undo" title="Cmd/Ctrl+Z">Undo last</button>
     <button id="redo" title="Shift+Cmd/Ctrl+Z" disabled>Redo</button>
     <button id="clear">Clear tank</button>
-    <label class="toggle" title="Which physics simulates the ink">Simulator <select id="simulator"></select></label>
-    <label class="toggle" title="Ink stays inside the rectangle and flattens against the walls"><input id="walls" type="checkbox"> Hard edges</label>
-    <label class="toggle" title="A rake, stir or other tool waits until all ink has stopped growing"><input id="toolsWait" type="checkbox" checked> Tools wait for ink to settle</label>
-    <label class="toggle" title="What happens to actions you queue while paused">While paused
+    <label class="toggle" data-info="simulator">Simulator <select id="simulator"></select></label>
+    <label class="toggle" data-info="walls"><input id="walls" type="checkbox"> Hard edges</label>
+    <label class="toggle" data-info="toolsWait"><input id="toolsWait" type="checkbox" checked> Tools wait for ink to settle</label>
+    <label class="toggle" data-info="queueMode">While paused
       <select id="queueMode">
         <option value="together">all at once</option>
         <option value="order">in order</option>
@@ -32,6 +32,7 @@
       </select>
     </label>
     <label class="toggle" id="queueGapLabel" title="Seconds between queued actions" hidden>gap <input id="queueGap" type="number" value="0.5" min="0" max="30" step="0.1"> s</label>
+    <label class="toggle" data-info="lowFramerate"><input id="lowFramerate" type="checkbox"> Low framerate</label>
     <button id="pull" title="Lay a sheet across the tank and keep the print">Pull paper</button>
     <span id="stats"></span>
   </div>
@@ -48,12 +49,12 @@
   </details>
 
   <details class="panel" data-panel="Palette" open>
-    <summary>Palette</summary>
+    <summary data-info="palette">Palette</summary>
     <select id="palette" aria-label="Palette"></select>
   </details>
 
   <details class="panel" data-panel="Assistant" open>
-    <summary>Assistant</summary>
+    <summary data-info="assistant">Assistant</summary>
     <div id="chatLog" aria-live="polite" hidden></div>
     <div class="row prompt">
       <input id="prompt" type="text" placeholder="Describe a pattern or a change…" aria-label="Message the assistant">
@@ -64,7 +65,7 @@
   </details>
 
   <details class="panel" data-panel="Script" open>
-    <summary>Script</summary>
+    <summary data-info="script">Script</summary>
     <select id="examples"></select>
     <textarea id="script" spellcheck="false" rows="14"></textarea>
     <div class="row">
@@ -75,7 +76,7 @@
   </details>
 
   <details class="panel" data-panel="Saved states" open>
-    <summary>Saved states</summary>
+    <summary data-info="savedStates">Saved states</summary>
     <button id="saveState" title="Keep the tank exactly as it is now, to come back to">Save state</button>
     <div id="saves"></div>
   </details>
@@ -83,36 +84,50 @@
   <details class="panel" data-panel="Tank">
     <summary>Tank</summary>
     <div class="grid">
-      <label>Width (mm)<input id="tankW" type="number" value="1000" min="100" max="4000"></label>
+      <label data-info="tankSize">Width (mm)<input id="tankW" type="number" value="1000" min="100" max="4000"></label>
       <label>Height (mm)<input id="tankH" type="number" value="700" min="100" max="4000"></label>
-      <label>Viscosity (mm²/s)<input id="visc" type="number" value="1000" min="5" max="20000"></label>
-      <label><input id="useBath" type="checkbox"> Base colour<input id="bath" type="color" value="#f4efe2"></label>
+      <label data-info="viscosity">Viscosity (mm²/s)<input id="visc" type="number" value="1000" min="5" max="20000"></label>
+      <label data-info="baseColour"><input id="useBath" type="checkbox"> Base colour<input id="bath" type="color" value="#f4efe2"></label>
     </div>
     <button id="applyTank">Apply (clears tank)</button>
+  </details>
+
+  <details class="panel" data-panel="Detail">
+    <summary>Detail</summary>
+    <label class="block" data-info="pointLimit">Point limit
+      <select id="detailPreset">
+        <option value="400000">Standard: smooth live play</option>
+        <option value="2000000">High</option>
+        <option value="5000000">Very high</option>
+        <option value="10000000">Extreme</option>
+        <option value="custom">Custom</option>
+      </select>
+    </label>
+    <input id="pointLimit" type="number" value="400000" min="50000" max="20000000" step="50000" aria-label="Point limit">
   </details>
 
   <details class="panel" data-panel="Paper">
     <summary>Paper</summary>
     <div class="swatches" id="tints"></div>
     <div id="pullOptions">
-      <label>Imperfections <span class="value" id="imperfectionValue">50%</span>
+      <label data-info="imperfection">Imperfections <span class="value" id="imperfectionValue">50%</span>
         <input id="imperfection" type="range" min="0" max="100" step="5" value="50"></label>
     </div>
-    <label class="check"><input id="clearAfter" type="checkbox"> Clear tank after pull</label>
-    <label class="check" title="A real print is the tank's mirror image, so text reads backwards"><input id="mirror" type="checkbox"> Mirror like a real print</label>
-    <label class="check"><input id="autoSave" type="checkbox" checked> Download PNG on each pull</label>
+    <label class="check" data-info="clearAfter"><input id="clearAfter" type="checkbox"> Clear tank after pull</label>
+    <label class="check" data-info="mirror"><input id="mirror" type="checkbox"> Mirror like a real print</label>
+    <label class="check" data-info="autoSave"><input id="autoSave" type="checkbox" checked> Download PNG on each pull</label>
     <div id="gallery"></div>
   </details>
 
   <details class="panel" data-panel="Export">
-    <summary>Export</summary>
+    <summary data-info="exportButtons">Export</summary>
     <div class="row">
       <button id="png">PNG</button>
       <button id="svg">SVG</button>
       <button id="print" title="A slow, high-resolution picture of the tank on paper. Doesn't change the tank.">Print</button>
     </div>
-    <label class="check" title="Ink that spread further is a thinner layer, so it tints the paper less"><input id="printPale" type="checkbox" checked> Thin ink looks paler</label>
-    <label class="check" title="Slightly deeper edges and uneven pigment. An artistic touch, not simulated"><input id="printTexture" type="checkbox" checked> Rims and texture</label>
+    <label class="check" data-info="printPale"><input id="printPale" type="checkbox" checked> Thin ink looks paler</label>
+    <label class="check" data-info="printTexture"><input id="printTexture" type="checkbox" checked> Rims and texture</label>
     <progress id="printProgress" max="1" value="0" hidden></progress>
     <img id="printResult" alt="The last print" hidden>
   </details>

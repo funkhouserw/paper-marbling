@@ -7,7 +7,7 @@ This is a modified reimplementation in JavaScript, not the original package.
 ## Run
 
     python3 -m http.server 8000     # then open http://localhost:8000
-    node --test engine.test.mjs thinfilm.test.mjs server.test.mjs     # tests
+    node --test *.test.mjs     # tests
 
 To chat with the assistant that edits the script, put `OPENAI_API_KEY=...` in `../.env.local` (outside this repo) and run the local server instead:
 
@@ -55,6 +55,14 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 The **Wake** simulator is Film in a bath that keeps moving. Tools push momentum into a flow on a 7 mm grid, and the flow lasts longer the thinner the bath is: at viscosity 1000 it stops almost at once, so the picture stays close to Film, and at viscosity 5 to 60 ink coasts on for seconds and curls where the rake stopped. Past a Reynolds number of about 40 (speed x tine thickness / viscosity), tines also leave a wobble. Thin baths also narrow a tine's direct drag. Stir, vortex, jiggle and wriggle set the bath moving too, without the wobble. Drops, shift and turn don't. The flow's edge is the tank's edge, with or without walls.
 
 Long sessions stretch outlines a long way, so Wake starts reducing detail at fewer points than Film and cuts off ribbons of ink thinner than 0.5 mm, which can split one drop's outline into several, so the point and drop counts on the status line rise. Scripts set the bath with `viscosity({ value })`.
+
+## Detail and speed
+
+- **Point limit:** the Detail section sets the most points outlines may use, from 50,000 to 20 million. It's a setting of the machine, kept in the browser rather than with a tank. The limit holds: when ink needs more, edges get coarser so the total fits. Standard (400,000) is tuned for live play. Above it, detail starts to reduce at a fifth of the limit.
+- **Low framerate:** shows a snapshot about every 2 seconds and spends the rest of the time simulating, as fast as the machine allows. It also switches on by itself when a tick averages over 66 ms or a redraw takes over 150 ms, until the tank settles. The simulation still runs on the page's main thread, so clicks can wait for the current tick.
+- **Undo:** keeps full copies up to 500 MB. Older steps replay when undone.
+
+Every control has an (i), with its text in `info.js`. A test checks that all of them do.
 
 ## Print
 

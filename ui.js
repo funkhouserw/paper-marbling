@@ -5,6 +5,7 @@ import { MODELS } from './models.js';
 import { renderPrint, PRINT_DEFAULTS } from './print.js';
 import { listSaves, addSave, deleteSave } from './saves.js';
 import { PALETTES, palette } from './palettes.js';
+import { addInfo, infoIcon } from './info.js';
 import { FONTS, textContours, moveContours } from './text.js';
 import { TINTS, PULL_SECONDS, LAY_SECONDS, pullPrint, drawSweep, savePull, listPulls, deletePull } from './paper.js';
 
@@ -305,7 +306,7 @@ function colorPicker() {
   const native = Object.assign(document.createElement('input'), { type: 'color', id: 'customColor' });
   native.style.width = '40px';
   native.oninput = () => { setInk(native.value, inkAlpha()); sync(); };
-  row.append(...swatches, native);
+  row.append(...swatches, native, infoIcon('color.swatches'));
 
   const hex = Object.assign(document.createElement('input'), {
     type: 'text', id: 'colorHex', spellcheck: false, title: '#rrggbb or #rrggbbaa',
@@ -325,7 +326,7 @@ function colorPicker() {
   alpha.oninput = () => { setInk(inkRgb(), Number(alpha.value) / 100); sync(); };
   const alphaLabel = document.createElement('label');
   alphaLabel.className = 'block';
-  alphaLabel.append('Opacity (%)', alphaValue, alpha);
+  alphaLabel.append('Opacity (%)', infoIcon('color.alpha'), alphaValue, alpha);
 
   // Refreshes every control, leaving alone the one being typed in.
   function sync(typing) {
@@ -347,7 +348,7 @@ function colorPicker() {
   sheen.oninput = () => { shimmer = Number(sheen.value) / 100; sync(); };
   const sheenLabel = document.createElement('label');
   sheenLabel.className = 'block';
-  sheenLabel.append('Shimmer (%)', sheenValue, sheen);
+  sheenLabel.append('Shimmer (%)', infoIcon('color.shimmer'), sheenValue, sheen);
 
   sync();
   box.append(row, hex, alphaLabel, sheenLabel);
@@ -358,7 +359,8 @@ function showTool(name) {
   tool = name;
   const def = TOOLS[name];
   for (const b of $('tools').children) b.classList.toggle('on', b.dataset.tool === name);
-  $('hint').textContent = def.hint;
+  $('hint').textContent = `${def.hint} `;
+  $('hint').append(infoIcon(`tool.${name}`));
   $('apply').hidden = !def.whole;
   const box = $('params');
   box.replaceChildren();
@@ -408,7 +410,7 @@ function showTool(name) {
     select.onchange = () => { values[name][key] = select.value; };
     const wrap = document.createElement('label');
     wrap.className = 'block';
-    wrap.append(label, select);
+    wrap.append(label, infoIcon(`${name}.${key}`), select);
     box.append(wrap);
   }
   for (const [key, [label, , min, max, step, over]] of Object.entries(def.params)) {
@@ -438,7 +440,7 @@ function showTool(name) {
       }
     };
     describe();
-    wrap.append(label, typed, input);
+    wrap.append(label, infoIcon(`${name}.${key}`), typed, input);
     if (hint.textContent) wrap.append(hint);
     box.append(wrap);
   }
@@ -466,7 +468,7 @@ const DEFAULT_WEAVE_HEIGHT = 30;
 function weavePicker(name, label, options) {
   const wrap = document.createElement('div');
   wrap.className = 'block';
-  wrap.append(label);
+  wrap.append(label, infoIcon(`${name}.waveShape`));
   const grid = document.createElement('div');
   grid.className = 'weaves';
   const buttons = Object.entries(options).map(([shape, text]) => {
@@ -541,6 +543,7 @@ function act(fn) {
     undoMarks.push(before);
     undoStates.push(state);
     if (undoStates.length > KEPT_UNDO_STATES) undoStates[undoStates.length - KEPT_UNDO_STATES - 1] = null;
+    trimUndo();
     redoGroups = [];
     redoStates = [];
     updateHistoryButtons();
@@ -563,6 +566,17 @@ function syncToggles(entries) {
 }
 
 const KEPT_UNDO_STATES = 30;
+const KEPT_UNDO_BYTES = 500e6;
+const stateBytes = (state) => state.polys.reduce((sum, p) => sum + p.xy.byteLength, 0);
+// Big tanks are expensive to copy. Older steps lose their copy and are replayed if undone.
+function trimUndo() {
+  let bytes = 0;
+  for (let i = undoStates.length - 1; i >= 0; i--) {
+    if (!undoStates[i]) continue;
+    bytes += stateBytes(undoStates[i]);
+    if (bytes > KEPT_UNDO_BYTES && i < undoStates.length - 1) undoStates[i] = null;
+  }
+}
 let undoStates = [];
 let redoStates = [];
 
@@ -591,6 +605,7 @@ function rebuild(entries) {
 
 function showState(state) {
   marble.loadState(state);
+  applyDetail(marble);
   syncToggles(marble.log);
   finishing = false;
   owed = 0;
@@ -728,6 +743,36 @@ $('apply').onclick = () => act(() => place(true, (at) => (tool === 'fullRake'
 
 // ---- Transport ----------------------------------------------------------
 
+// Point limits are a setting of the machine, not of the tank, so saved tanks and undo don't change them.
+const STANDARD_LIMIT = 400000;
+const LEAST_LIMIT = 50000;
+const MOST_LIMIT = 20000000;
+const pointLimit = () => Math.min(MOST_LIMIT, Math.max(LEAST_LIMIT, Number($('pointLimit').value) || STANDARD_LIMIT));
+// Above the standard limit, detail holds until about a fifth of the way there, then slowly coarsens.
+function applyDetail(m) {
+  const limit = pointLimit();
+  m.maxVertices = limit;
+  m.pointBudget = limit > STANDARD_LIMIT ? limit / 5 : null;
+}
+function setPointLimit(limit) {
+  $('pointLimit').value = limit;
+  const preset = [...$('detailPreset').options].find((o) => Number(o.value) === limit);
+  $('detailPreset').value = preset ? preset.value : 'custom';
+  localStorage.setItem('marbler.pointLimit', String(pointLimit()));
+  applyDetail(marble);
+}
+$('detailPreset').onchange = () => {
+  if ($('detailPreset').value !== 'custom') setPointLimit(Number($('detailPreset').value));
+};
+$('pointLimit').onchange = () => setPointLimit(pointLimit());
+$('lowFramerate').checked = localStorage.getItem('marbler.lowFramerate') === '1';
+$('lowFramerate').onchange = () => {
+  localStorage.setItem('marbler.lowFramerate', $('lowFramerate').checked ? '1' : '0');
+  nextDraw = 0;
+};
+
+setPointLimit(Number(localStorage.getItem('marbler.pointLimit')) || STANDARD_LIMIT);
+
 function newTank() {
   const prev = marble;
   const Engine = currentModel().engine ?? Marble;
@@ -738,6 +783,7 @@ function newTank() {
     bath: bathColor(),
     seed: prev.seed,
   });
+  applyDetail(marble);
   queueEnd = 0;
   if (currentModel().spreading) marble.openWater({ on: true, at: 0 });
   if ($('walls').checked) marble.walls({ on: true, at: 0 });
@@ -943,7 +989,7 @@ $('saveState').onclick = async () => {
   shot.width = 120;
   shot.height = Math.round((120 * tank.height) / tank.width) || 84;
   shot.getContext('2d').drawImage(tank, 0, 0, shot.width, shot.height);
-  await addSave({
+  const saved = addSave({
     created: Date.now(),
     thumb: shot.toDataURL('image/png'),
     simulator: $('simulator').value,
@@ -953,6 +999,12 @@ $('saveState').onclick = async () => {
     visc: $('visc').value,
     state: marble.saveState(),
   });
+  try {
+    await saved;
+  } catch (err) {
+    $('hint').textContent = `This tank couldn't be saved, probably because it's too big for the browser's storage. ${err.message ?? ''}`;
+    return;
+  }
   renderSaves();
 };
 
@@ -967,6 +1019,7 @@ function restoreSave(save) {
   newTank();
   resetHistory();
   marble.loadState(save.state);
+  applyDetail(marble);
   queueEnd = 0;
   syncToggles(marble.log);
   $('simulator').value = save.simulator;
@@ -1255,6 +1308,10 @@ const STEP_BUDGET_MS = 10;   // simulation per frame while playing, leaving room
 const FINISH_BUDGET_MS = 24; // Finish now asks for speed, so it gets more
 const GLINT_MS = 33;
 const SLOW_DRAW_MS = 25;
+const SNAPSHOT_STEP_MS = 150; // simulation per frame in low framerate mode
+const SNAPSHOT_EVERY_MS = 2000;
+const SLOW_STEP_MS = 66;      // a tick this slow can't reach half of real time
+const SLOW_TANK_DRAW_MS = 150;
 const LOADED_FRAME_MS = 28;  // average frame gap that counts as the page falling behind
 const BEHIND_FRAME_MS = 40;  // ...and that slows tank redraws too
 
@@ -1266,6 +1323,19 @@ let frameGap = 16;      // smoothed time between frames; canvas work mostly land
 let glintResting = null; // the tank state the glint gave up on, until something changes
 let last = performance.now();
 let owed = 0;
+let stepMs = 0;              // smoothed time for one tick
+let autoSnapshots = false;   // ticks got too slow, so low framerate is on until the tank settles
+let drawnLog = 0;
+// Runs ticks until the budget is spent, and notes how long they take.
+function runTicks(budgetMs, start, canRun) {
+  while (canRun() && performance.now() < start + budgetMs) {
+    const t = performance.now();
+    marble.step();
+    stepMs += (performance.now() - t - stepMs) * 0.1;
+    dirty = true;
+  }
+}
+const snapshotting = () => playing && marble.busy && ($('lowFramerate').checked || autoSnapshots);
 function frame(now) {
   const wall = Math.min((now - last) / 1000, 0.1);
   const gap = now - last;
@@ -1282,15 +1352,19 @@ function frame(now) {
     }
     if (elapsed >= PULL_SECONDS) finishPull();
   } else if (finishing) {
-    while (marble.busy && performance.now() < start + FINISH_BUDGET_MS) { marble.step(); dirty = true; }
+    runTicks(FINISH_BUDGET_MS, start, () => marble.busy);
     if (!marble.busy) finishing = false;
+  } else if (snapshotting()) {
+    // Nothing to keep in step with, so it runs as fast as the machine allows.
+    runTicks(SNAPSHOT_STEP_MS, start, () => marble.busy);
+    owed = 0;
   } else if (playing && marble.busy) {
     owed += wall * Number($('speed').value);
-    while (owed >= marble.dt && performance.now() < start + STEP_BUDGET_MS) {
-      marble.step();
+    runTicks(STEP_BUDGET_MS, start, () => {
+      if (owed < marble.dt) return false;
       owed -= marble.dt;
-      dirty = true;
-    }
+      return true;
+    });
     owed = Math.min(owed, 0.5); // run slower than real time rather than freezing
   } else if (playing) {
     marble.time += wall; // idle time passes, so new actions start now
@@ -1298,7 +1372,7 @@ function frame(now) {
   }
   // Metallic inks glint, but not under load. If the page can't keep up even when the
   // sim has settled, the glint rests until the tank next changes.
-  const underLoad = finishing || owed > 0.1 || lastDrawMs > SLOW_DRAW_MS || frameGap > LOADED_FRAME_MS;
+  const underLoad = finishing || snapshotting() || owed > 0.1 || lastDrawMs > SLOW_DRAW_MS || frameGap > LOADED_FRAME_MS;
   const tankState = `${marble.seed}|${marble.log.length}|${marble.polys.length}`;
   if (underLoad && !marble.busy && !finishing) glintResting = tankState;
   else if (glintResting !== tankState) glintResting = null;
@@ -1307,12 +1381,22 @@ function frame(now) {
     nextGlint = now + GLINT_MS;
     dirty = true;
   }
+  if (marble.busy && (stepMs > SLOW_STEP_MS || lastDrawMs > SLOW_TANK_DRAW_MS)) autoSnapshots = true;
+  if (!marble.busy) {
+    if (autoSnapshots) nextDraw = 0; // show the finished tank straight away
+    autoSnapshots = false;
+    stepMs = 0;
+  }
+  // Anything the user just did shows straight away, even between snapshots.
+  if (marble.log.length !== drawnLog) nextDraw = 0;
   // A slow redraw waits twice its own length before the next, so most of the time stays free.
   if (dirty && performance.now() >= nextDraw) {
     const drawStart = performance.now();
     marble.draw(tctx, pxPerMm);
     lastDrawMs = performance.now() - drawStart;
-    nextDraw = drawStart + Math.max(lastDrawMs * 3, frameGap > BEHIND_FRAME_MS ? 100 : 0);
+    drawnLog = marble.log.length;
+    nextDraw = drawStart + Math.max(lastDrawMs * 3, frameGap > BEHIND_FRAME_MS ? 100 : 0,
+      snapshotting() ? SNAPSHOT_EVERY_MS : 0);
     dirty = false;
   }
   drawOverlay();
@@ -1324,9 +1408,10 @@ function frame(now) {
 }
 
 function showStats() {
-  const warn = marble.capped ? ' <span class="warn">detail limit reached: edges may look coarse</span>' : '';
+  const warn = marble.capped ? ' <span class="warn">point limit reached: edges may look coarse</span>' : '';
+  const snap = snapshotting() ? ` <span class="snap">low framerate${autoSnapshots && !$('lowFramerate').checked ? ' (automatic)' : ''}</span>` : '';
   $('stats').innerHTML = `t ${marble.time.toFixed(1)} s · ${marble.polys.length} shapes · `
-    + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${marble.busy && !marble.active.length && !marble.queued.length ? ' · bath still moving' : ''}${warn}`;
+    + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${marble.busy && !marble.active.length && !marble.queued.length ? ' · bath still moving' : ''}${snap}${warn}`;
 }
 
 // ---- Start --------------------------------------------------------------
@@ -1339,3 +1424,5 @@ showGallery();
 requestAnimationFrame(frame);
 
 window.marble = () => marble; // for use from the browser console
+
+for (const el of document.querySelectorAll('[data-info]')) addInfo(el, el.dataset.info);
