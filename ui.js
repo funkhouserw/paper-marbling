@@ -162,9 +162,9 @@ stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 settle();
 fullRake({ angle: 0, teeth: 5, speed: 30 });
 settle();`,
-  'Storm': `// Several strong passes leave a swirling storm. It's heavy: raise the point limit in Detail.
+  'Storm': `// Two strong passes leave a swirling storm. A higher point limit in Detail lets it run longer.
 viscosity({ value: 10 });
-flow({ friction: 0.05, coast: 120, push: 3 });
+flow({ friction: 0.05, coast: 40, push: 3 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
@@ -179,7 +179,7 @@ stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 air({ scale: 20, speed: 8 });`,
   'Spiral field': `// A breath of air in a whorling bath fills the page with spirals. Heavy: it makes a lot of points.
 viscosity({ value: 10 });
-flow({ friction: 0.05, coast: 120, push: 3 });
+flow({ friction: 0.05, coast: 40, push: 3 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
@@ -909,7 +909,7 @@ const FLOW_PRESETS = {
   calm: { viscosity: 1000, push: 1, friction: 0.25, coast: 25, cell: 7 },
   curling: { viscosity: 30, push: 1, friction: 0.05, coast: 120, cell: 7 },
   whorls: { viscosity: 10, push: 3, friction: 0.05, coast: 120, cell: 7 },
-  storm: { viscosity: 10, push: 10, friction: 0.05, coast: 120, cell: 7 },
+  storm: { viscosity: 10, push: 10, friction: 0.05, coast: 40, cell: 7 },
 };
 const FLOW_FIELDS = { push: 'flowPush', friction: 'flowFriction', coast: 'flowCoast', cell: 'flowCell' };
 function sidebarFlow() {
@@ -1572,7 +1572,8 @@ function frame(now) {
 }
 
 function showStats() {
-  const warn = marble.capped ? ' <span class="warn">point limit reached: curls will look rough, so raise it in Detail</span>' : '';
+  const warn = marble.stoppedAtLimit ? ' <span class="warn">point limit reached: the bath has stopped. A higher limit in Detail lets it run longer</span>'
+    : marble.capped ? ' <span class="warn">point limit reached: curls will look rough, so raise it in Detail</span>' : '';
   const snap = snapshotting() ? ` <span class="snap">low framerate${autoSnapshots && !$('lowFramerate').checked ? ' (automatic)' : ''}</span>` : '';
   $('stats').innerHTML = `t ${marble.time.toFixed(1)} s · ${marble.polys.length} shapes · `
     + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${marble.busy && !marble.active.length && !marble.queued.length ? ' · bath still moving' : ''}${snap}${warn}`;

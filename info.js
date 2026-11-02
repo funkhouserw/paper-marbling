@@ -23,7 +23,7 @@ export const INFO = {
   // Performance
   pointLimit: 'Outlines are made of points, and stretched ink needs more of them to stay smooth. This is the most the tank will use. More keeps fine curls crisp but runs slower and uses more memory. Standard is tuned for smooth live play, and low framerate takes over when higher settings get slow. As a rough guide, each million points adds about 16 to 32 MB per copy, and undo keeps copies. Takes effect straight away.',
   // Moving bath
-  flowPreset: 'How much life the bath has in the Wake simulator. Each preset also sets the viscosity. It takes effect straight away, on everything from here on, without clearing the tank. Higher settings make far more points, so low framerate and a higher point limit help.',
+  flowPreset: 'How much life the bath has in the Wake simulator. Each preset also sets the viscosity. It takes effect straight away, on everything from here on, without clearing the tank. Higher settings make far more points. If the tank reaches the point limit, the bath stops so that the picture stays smooth, and a higher limit in Detail lets it run longer.',
   flowPush: 'How hard each tine shoves the water, as a multiple of normal. About 3 makes wakes roll up into whorls, and 10 is chaos.',
   flowFriction: 'Drag from the tank floor. Lower lets the water keep swirling for longer. Very thick baths add their own drag on top.',
   flowCoast: 'The longest the water keeps moving after a tool stops, whatever else is going on.',
