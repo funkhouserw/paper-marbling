@@ -13,6 +13,7 @@ export const INFO = {
   // Transport
   speed: 'How fast the simulation plays compared with real time. It doesn\'t change the result. Low framerate ignores this and runs as fast as it can.',
   finish: 'Skips ahead until everything has stopped moving.',
+  profiling: 'Records where the time goes while the tank runs, every 2 seconds, to profiles/marbler-profile.jsonl next to this project. It stays on this computer. It holds timings and settings, not your scripts. Leave it off when you are not measuring something.',
   gridCell: 'How finely the Grid ink simulator divides the tank, in mm. Smaller is sharper and much slower: half the size is about four times the work. Takes effect the next time the tank clears.',
   simulator: 'Which physics moves the ink. Classic: the original; drops keep a fixed size and each pushes everything. Spreading: ink grows over bare water until it meets other ink. Thin film (beta): each ink can claim a limited area, which gives even rings. Film: ink carries pressure and water doesn\'t, so drops ignore each other until they touch. Best for filling the canvas. Wake: Film in a bath that keeps moving, so ink coasts and curls after a tool stops. Try viscosity 5 to 60. Grid ink (beta): ink is colour on a grid, moved by a full fluid solve, so colours blend softly and a flow never runs out of points. It always repeats, has no hard edges, and runs on the GPU.',
   walls: 'Keeps ink inside the rectangle, where it flattens against the walls. Off, ink pushed past the edge carries on out of view.',

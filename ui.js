@@ -3,6 +3,7 @@ import { toMm, dialToValue, valueToDial } from './api.js';
 import { TOOLS, TURNS, PAGE_UNITS, isDial } from './tools.js';
 import { MODELS } from './models.js';
 import { renderPrint, PRINT_DEFAULTS } from './print.js';
+import { makeProfiler } from './profile.js';
 import { listSaves, addSave, deleteSave } from './saves.js';
 import { PALETTES, palette } from './palettes.js';
 import { addInfo, infoIcon } from './info.js';
@@ -1540,16 +1541,32 @@ let autoSnapshots = false;   // ticks got too slow, so low framerate is on until
 let drawnLog = 0;
 let wasSnapshotting = false;
 // Runs ticks until the budget is spent, and notes how long they take.
+const profiler = makeProfiler(() => ({
+  simulator: currentModel().id, engine: marble.constructor.name, simTime: Math.round(marble.time * 10) / 10,
+  points: marble.vertexCount, shapes: marble.polys.length, active: marble.active.length, activeKinds: [...new Set(marble.active.map((op) => op.kind))],
+  flowing: Boolean(marble.flowing), detail: marble.detail, capped: Boolean(marble.capped), gpuInUse: Boolean(marble.gpu), viscosity: marble.viscosity,
+  tank: [marble.width, marble.height], canvas: [tank.width, tank.height], lowFramerate: snapshotting(), speed: Number($('speed').value),
+}));
+$('profiling').checked = localStorage.getItem('marbler.profiling') === '1';
+profiler.on = $('profiling').checked;
+$('profiling').onchange = () => {
+  profiler.on = $('profiling').checked;
+  localStorage.setItem('marbler.profiling', profiler.on ? '1' : '0');
+};
+
 function runTicks(budgetMs, start, canRun) {
   while (canRun() && performance.now() < start + budgetMs) {
     const t = performance.now();
     marble.step();
     stepMs += (performance.now() - t - stepMs) * 0.1;
+    profiler.tick(performance.now() - t);
     dirty = true;
   }
 }
 const snapshotting = () => playing && marble.busy && ($('lowFramerate').checked || autoSnapshots);
 function frame(now) {
+  profiler.frame(now - last, now);
+  profiler.watch(marble);
   const wall = Math.min((now - last) / 1000, 0.1);
   const gap = now - last;
   if (gap < 250) frameGap += (gap - frameGap) * 0.1; // longer gaps are a hidden tab, not load
@@ -1610,6 +1627,7 @@ function frame(now) {
     const drawStart = performance.now();
     marble.draw(tctx, pxPerMm);
     lastDrawMs = performance.now() - drawStart;
+    profiler.draw(lastDrawMs);
     drawnLog = marble.log.length;
     nextDraw = drawStart + Math.max(lastDrawMs * 3, frameGap > BEHIND_FRAME_MS ? 100 : 0,
       snapshotting() ? SNAPSHOT_EVERY_MS : 0);

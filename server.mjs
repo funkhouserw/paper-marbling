@@ -6,7 +6,7 @@
 // the browser. Options, from the same places:
 //   PORT (8000), MARBLE_MODEL (gpt-6-luna), MARBLE_EFFORT (medium), OPENAI_BASE_URL (https://api.openai.com/v1)
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderReference } from './api.js';
@@ -28,6 +28,7 @@ const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
   '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml',
 };
+const PROFILE_DIR = process.env.MARBLE_PROFILE_DIR || join(ROOT, '..', 'profiles');
 const MAX_BODY = 1024 * 1024; // the browser sends the whole chat each time
 const MAX_ROUNDS = 12;
 
@@ -207,6 +208,20 @@ export const server = createServer(async (req, res) => {
       if (!validMessages(messages)) return json(res, 400, { error: 'Expected messages ending in a user message' });
       const { status, body } = await chat(messages, typeof script === 'string' ? script : '');
       return json(res, status, body);
+    }
+    if (url.pathname === '/api/profile') {
+      const origin = req.headers.origin;
+      if (req.method !== 'POST' || (origin && new URL(origin).host !== req.headers.host)) return json(res, 403, { error: 'Forbidden' });
+      if (!(req.headers['content-type'] || '').startsWith('application/json')) return json(res, 415, { error: 'Expected JSON' });
+      let raw = '';
+      for await (const chunk of req) {
+        raw += chunk;
+        if (raw.length > MAX_BODY) return json(res, 413, { error: 'Request too large' });
+      }
+      const line = JSON.stringify(JSON.parse(raw));
+      await mkdir(PROFILE_DIR, { recursive: true });
+      await appendFile(join(PROFILE_DIR, 'marbler-profile.jsonl'), `${line}\n`);
+      return json(res, 200, { ok: true });
     }
     const rel = normalize(decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname));
     const file = join(ROOT, rel);
