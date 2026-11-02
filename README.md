@@ -102,5 +102,6 @@ Positive `degrees` and `circulation` turn counter-clockwise and negative clockwi
 - Without `walls`, the tank has no walls: ink pushed past the rectangle continues outside the view.
 - With `walls`, `shift` and `turn` smear ink along the walls because it's clamped there.
 - With `walls`, ink slows and compresses near the walls but doesn't spread along them, so ink dragged hard into a wall thins to a sliver and loses most of its area.
+- On a repeating tank (Classic only so far), a tine's pull reaches at most a fourteenth of the tile, a jiggle takes a whole number of waves each way so its period and angle shift slightly, wriggle's in-and-out movement is left out, and `turn` throws. Every drop also shrinks all other ink by its own share of the tank, because a torus has only so much surface.
 - Neighbouring open-water drops stop about 8 mm apart. Drops of one colour only read as joined when the gap is under about a pixel, and they always stay separate outlines.
 - Quantity sets area only, and a drop's ink has one flat colour.
