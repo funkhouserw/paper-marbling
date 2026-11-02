@@ -88,6 +88,7 @@ for (const [name, use] of [
   ['jiggle', (m) => m.jiggle({ angle: 45, duration: 1 })],
   ['wriggle', (m) => m.wriggle({ x: 0, y: 0, duration: 1 })],
   ['stylus', (m) => m.stylus({ path: [[-300, 0], [300, 0]], speed: 400 })],
+  ['air', (m) => m.air({ scale: 150, speed: 80, duration: 1, seed: 2 })],
 ]) {
   test(`${name} keeps the bath moving in a thin bath, and hardly at all in a thick one`, () => {
     const coast = (viscosity) => {

@@ -12,6 +12,7 @@
 // reimplementation, not the original package.
 
 import { PALETTES, palette } from './palettes.js';
+import { makeAir } from './air.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
@@ -570,6 +571,28 @@ export class Marble {
     if (at !== undefined) args.at = at;
     const op = { kind: 'vortex', x, y, circulation, duration, elapsed: 0 };
     return this._schedule('vortex', args, op, duration, true);
+  }
+
+  // A breath of air: a smooth random flow over the whole bath that stretches ink without
+  // changing its area. The same seed gives the same breath, and a fresh one is drawn otherwise.
+  air({ scale = 200, speed = 50, octaves = 2, duration = 2, seed, at } = {}) {
+    if (seed === undefined || seed === null) seed = Math.floor(this.random() * 2 ** 31);
+    const args = { scale, speed, octaves, duration, seed };
+    if (at !== undefined) args.at = at;
+    const op = { kind: 'air', scale, speed, octaves: Math.max(1, Math.min(4, Math.round(octaves))), duration, seed, elapsed: 0 };
+    return this._schedule('air', args, op, duration, true);
+  }
+
+  // The breath's velocity field. Ops are copied into saved states, so the field lives apart from them.
+  _airField(op) {
+    const key = `${op.seed}/${op.scale}/${op.speed}/${op.octaves}`;
+    this._airs ??= new Map();
+    let field = this._airs.get(key);
+    if (!field) {
+      field = makeAir({ seed: op.seed, scale: op.scale, speed: op.speed, octaves: op.octaves });
+      this._airs.set(key, field);
+    }
+    return field;
   }
 
   shift({ dx = 0, dy = 0, duration = 1, at } = {}) {
@@ -1173,6 +1196,22 @@ export class Marble {
           if (r2 < 1e-9) { out[0] = x; out[1] = y; return; }
           const omega = (gamma / r2) * (1 - Math.exp(-r2 / nu4t));
           this._rotateAbout(op.x, op.y, x, y, omega * dt, out);
+        });
+        break;
+      }
+      case 'air': {
+        // The breath blows for its duration, easing in and out, carrying ink along the flow.
+        const span = op.duration * dp;
+        if (span <= 0) break;
+        const { velocity } = this._airField(op);
+        const u = [0, 0];
+        this._map((x, y, out) => {
+          velocity(x, y, u);
+          const mx = x + (u[0] * span) / 2;
+          const my = y + (u[1] * span) / 2;
+          velocity(mx, my, u);
+          out[0] = x + u[0] * span;
+          out[1] = y + u[1] * span;
         });
         break;
       }

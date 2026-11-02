@@ -1022,3 +1022,75 @@ test('stripes leave no water in the tank, in any simulator', async () => {
     assert.equal(bare, 0, `${name}: ${bare} of 1200 points are bare`);
   }
 });
+
+// ---- Air
+
+test('a breath of air moves ink around without changing its area, and the same seed repeats exactly', () => {
+  const run = (seed) => {
+    const m = new Marble();
+    m.drop({ x: -100, y: 50, quantity: 2, color: '#a00' });
+    m.drop({ x: 150, y: -80, quantity: 1, color: '#00a' });
+    m.runUntilIdle();
+    const before = m.polys.map(area);
+    const start = m.polys.map((p) => Float64Array.from(p.xy.subarray(0, p.n * 2)));
+    m.air({ scale: 150, speed: 80, duration: 2, seed });
+    m.runUntilIdle();
+    return { m, before, start, after: m.polys.map(area) };
+  };
+  const a = run(7);
+  for (let i = 0; i < a.before.length; i++) near(a.after[i], a.before[i], a.before[i] * 0.01, `area of drop ${i}`);
+  let moved = 0;
+  for (let i = 0; i < a.start.length; i++) for (let j = 0; j < a.start[i].length; j++) moved = Math.max(moved, Math.abs(a.m.polys[i].xy[j] - a.start[i][j]));
+  assert.ok(moved > 20, `ink moved ${moved} mm`);
+  const b = run(7);
+  for (let i = 0; i < a.m.polys.length; i++) assert.deepEqual(Array.from(a.m.polys[i].xy.subarray(0, a.m.polys[i].n * 2)), Array.from(b.m.polys[i].xy.subarray(0, b.m.polys[i].n * 2)));
+  const c = run(8);
+  assert.notDeepEqual(Array.from(a.m.polys[0].xy.subarray(0, 20)), Array.from(c.m.polys[0].xy.subarray(0, 20)));
+});
+
+test('air draws a seed when none is given, records it, and the script and replay reproduce it', () => {
+  const m = new Marble();
+  m.drop({ quantity: 2 });
+  m.runUntilIdle();
+  runScript(m, 'air({ scale: 15, speed: 6, duration: 1 });');
+  m.runUntilIdle();
+  const logged = m.log.at(-1);
+  assert.equal(logged.fn, 'air');
+  assert.ok(Number.isInteger(logged.args.seed));
+  assert.match(m.toScript(), /air\(\{"scale":15,"speed":6,"octaves":2,"duration":1,"seed":\d+,"at":[\d.]+\}\);/);
+  // A replay never idles between the drop and the breath, so its outline is sampled differently;
+  // the shape has to be the same.
+  const centroid = ({ xy, n }) => {
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const cross = xy[i * 2] * xy[j * 2 + 1] - xy[j * 2] * xy[i * 2 + 1];
+      a += cross;
+      cx += (xy[i * 2] + xy[j * 2]) * cross;
+      cy += (xy[i * 2 + 1] + xy[j * 2 + 1]) * cross;
+    }
+    return [cx / (3 * a), cy / (3 * a)];
+  };
+  const same = (other, what) => {
+    near(area(other.polys[0]), area(m.polys[0]), area(m.polys[0]) * 0.005, `${what} area`);
+    const [ax, ay] = centroid(other.polys[0]);
+    const [bx, by] = centroid(m.polys[0]);
+    assert.ok(Math.hypot(ax - bx, ay - by) < 0.5, `${what} centroid moved ${Math.hypot(ax - bx, ay - by)} mm`);
+  };
+  same(new Marble().replay(m.log).runUntilIdle(), 'replay');
+  const fromScript = new Marble();
+  runScript(fromScript, m.toScript());
+  same(fromScript.runUntilIdle(), 'script');
+});
+
+test('a saved state in the middle of a breath carries on the same', () => {
+  const m = new Marble();
+  m.drop({ quantity: 2 });
+  m.runUntilIdle();
+  m.air({ scale: 150, speed: 80, duration: 2, seed: 3 });
+  for (let i = 0; i < 20; i++) m.step();
+  const copy = new Marble().loadState(m.saveState());
+  m.runUntilIdle();
+  copy.runUntilIdle();
+  assert.deepEqual(Array.from(copy.polys[0].xy.subarray(0, copy.polys[0].n * 2)), Array.from(m.polys[0].xy.subarray(0, m.polys[0].n * 2)));
+});

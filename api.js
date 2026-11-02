@@ -152,6 +152,14 @@ export const COMMANDS = [
     ['duration', 'number', 2, 'seconds'],
     AT,
   ] },
+  { name: 'air', group: 'Tools', summary: 'A breath of air over the whole bath: a smooth random flow that stretches and swirls the ink without changing its area, so patterns loosen and wander. Works in every simulator, and in Wake it also sets the bath moving. Advances the timeline.', params: [
+    size('scale', 20, 'size of the eddies'),
+    SPEED(5),
+    ['octaves', 'number', 2, 'layers of detail, 1 to 4; each adds eddies half the size'],
+    ['duration', 'number', 2, 'seconds'],
+    ['seed', 'number', null, 'a whole number; the same seed gives the same breath. Left out, a fresh one is drawn'],
+    AT,
+  ] },
   { name: 'shift', group: 'Tools', summary: 'Moves everything in the tank.', params: [
     ['dx', 'number', 0, '% of width; positive is right', 'w'],
     ['dy', 'number', 0, '% of height; positive is down', 'dy'],
