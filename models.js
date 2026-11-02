@@ -2,7 +2,7 @@
 import { Film } from './film.js';
 import { ThinFilm } from './thinfilm.js';
 import { Wake } from './wake.js';
-import { GridInk } from './gridink.js';
+import { GridInkGL } from './gridgl.js';
 
 export const MODELS = [
   {
@@ -41,9 +41,9 @@ export const MODELS = [
   {
     id: 'gridink',
     label: 'Grid ink (beta)',
-    title: 'Ink is colour on a grid, moved by a full fluid solve (BiMocq2), so it blends softly and flows can run as long as you like. Always repeats. Slow for now: it runs on the CPU.',
+    title: 'Ink is colour on a grid, moved by a full fluid solve (BiMocq2), so it blends softly and flows can run as long as you like. Always repeats. Runs on the GPU where it can.',
     spreading: false,
     repeats: true,
-    engine: GridInk,
+    engine: GridInkGL,
   },
 ];

@@ -52,7 +52,7 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 
 ## Grid ink (beta)
 
-**Grid ink** is a separate simulator in `gridink.js`, after BiMocq2 (Qu et al. 2019) and Amanda Ghassaei's marbling. Ink is colour on a grid instead of outlines, moved by a full fluid solve, so colours blend softly and a flow never runs out of points. Rakes drive the water instead of dragging the ink directly. It always repeats, has no hard edges, and exports to SVG as an embedded picture. It runs on the CPU for now, which is slow: about a third of a second per tick at the standard 2 mm grid. **Grid ink cell** in Detail sets the flow's grid, and ink sits on a grid three times finer.
+**Grid ink** is a separate simulator in `gridink.js`, after BiMocq2 (Qu et al. 2019) and Amanda Ghassaei's marbling. Ink is colour on a grid instead of outlines, moved by a full fluid solve, so colours blend softly and a flow never runs out of points. Rakes drive the water instead of dragging the ink directly, and drops only push ink they've touched. It always repeats, has no hard edges, and exports to SVG as an embedded picture. It runs on the GPU through WebGL2 (`gridgl.js`), and falls back to the CPU (`gridink.js`) without float textures. **Grid ink cell** in Detail sets the flow's grid, and ink sits on a grid three times finer.
 
 ## Repeating patterns
 
