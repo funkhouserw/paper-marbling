@@ -126,3 +126,8 @@ button:disabled { opacity: .5; cursor: default; }
 #infoTip[hidden] { display: none; }
 #stats .snap { color: #7fc4ff; }
 #pointLimit { width: 100%; box-sizing: border-box; margin-top: 4px; }
+
+#tankBar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+#tankBar label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+#tankBar input[type=number] { width: 68px; }
+#tankBar input[type=color] { width: 32px; height: 22px; padding: 0; }

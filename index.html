@@ -38,6 +38,13 @@
     <button id="pull" title="Lay a sheet across the tank and keep the print">Pull paper</button>
     <span id="stats"></span>
   </div>
+  <div id="tankBar">
+    <label data-info="viscosity">Viscosity (mm²/s)<input id="visc" type="number" value="1000" min="5" max="20000"></label>
+    <label data-info="tankSize">Width (mm)<input id="tankW" type="number" value="1000" min="100" max="4000"></label>
+    <label>Height (mm)<input id="tankH" type="number" value="700" min="100" max="4000"></label>
+    <button id="applyTank">Apply (clears tank)</button>
+    <label data-info="baseColour"><input id="useBath" type="checkbox"> Base colour<input id="bath" type="color" value="#f4efe2"></label>
+  </div>
   <div id="wrap"><canvas id="tank"></canvas><canvas id="overlay"></canvas><span id="paused" hidden>Paused: press Space to play</span></div>
   <p id="hint"></p>
 </main>
@@ -81,17 +88,6 @@
     <summary data-info="savedStates">Saved states</summary>
     <button id="saveState" title="Keep the tank exactly as it is now, to come back to">Save state</button>
     <div id="saves"></div>
-  </details>
-
-  <details class="panel" data-panel="Tank">
-    <summary>Tank</summary>
-    <div class="grid">
-      <label data-info="tankSize">Width (mm)<input id="tankW" type="number" value="1000" min="100" max="4000"></label>
-      <label>Height (mm)<input id="tankH" type="number" value="700" min="100" max="4000"></label>
-      <label data-info="viscosity">Viscosity (mm²/s)<input id="visc" type="number" value="1000" min="5" max="20000"></label>
-      <label data-info="baseColour"><input id="useBath" type="checkbox"> Base colour<input id="bath" type="color" value="#f4efe2"></label>
-    </div>
-    <button id="applyTank">Apply (clears tank)</button>
   </details>
 
   <details class="panel" data-panel="Bath" id="bathPanel" hidden open>

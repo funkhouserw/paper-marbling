@@ -172,6 +172,20 @@ settle();
 fullRake({ angle: 90, teeth: 5, speed: 30, D: 1 });
 fullRake({ angle: 270, teeth: 5, offset: 10, speed: 30, D: 1 });
 settle();`,
+  'Italian marble': `// One breath of air over stripes, with no comb at all.
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+bath({ color: '#f7e1b5' });
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+air({ scale: 20, speed: 8 });`,
+  'Spiral field': `// A breath of air in a whorling bath fills the page with spirals. Heavy: it makes a lot of points.
+viscosity({ value: 10 });
+flow({ friction: 0.05, coast: 120, push: 3 });
+const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
+bath({ color: '#f7e1b5' });
+stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+settle();
+air({ scale: 20, speed: 8 });
+settle();`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
 const p = palette('Lapis & Gilt');
 bath({ color: p.bath });
@@ -806,7 +820,7 @@ overlay.addEventListener('pointerup', () => {
 
 $('apply').onclick = () => act(() => (tool === 'stripes'
   ? place(false, (at) => marble.stripes({ ...inMm('stripes'), colors: inks, at }))
-  : place(true, (at) => (tool === 'fullRake'
+  : place(true, (at) => (tool === 'air' ? marble.air({ ...inMm('air'), at }) : tool === 'fullRake'
   ? marble.fullRake({ ...inMm('fullRake'), at })
   : marble.jiggle({ ...inMm('jiggle'), at })))));
 
@@ -1092,7 +1106,7 @@ $('examples').add(new Option('Examples…', ''));
 for (const name of Object.keys(EXAMPLES)) $('examples').add(new Option(name, name));
 // Some examples only look right on one simulator, so choosing them chooses it too.
 const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake',
 };
 $('examples').onchange = () => {
   if (!$('examples').value) return;
@@ -1558,7 +1572,7 @@ function frame(now) {
 }
 
 function showStats() {
-  const warn = marble.capped ? ' <span class="warn">point limit reached: edges may look coarse</span>' : '';
+  const warn = marble.capped ? ' <span class="warn">point limit reached: curls will look rough, so raise it in Detail</span>' : '';
   const snap = snapshotting() ? ` <span class="snap">low framerate${autoSnapshots && !$('lowFramerate').checked ? ' (automatic)' : ''}</span>` : '';
   $('stats').innerHTML = `t ${marble.time.toFixed(1)} s · ${marble.polys.length} shapes · `
     + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${marble.busy && !marble.active.length && !marble.queued.length ? ' · bath still moving' : ''}${snap}${warn}`;

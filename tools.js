@@ -131,6 +131,17 @@ export const TOOLS = {
       D: ['Tine thickness', 3, 0.2, 10, 0.1],
     },
   },
+  air: {
+    label: 'Air',
+    hint: 'A breath of air across the whole tank. Each press is a different breath. Use the button below.',
+    whole: true,
+    params: {
+      scale: ['Swirl size', 20, 3, 60, 0.5],
+      speed: ['Strength', 5, 0.5, 30, 0.1],
+      octaves: ['Fine detail', 2, 1, 4, 1],
+      duration: ['Duration (s)', 2, 0.2, 10, 0.1],
+    },
+  },
   vortex: {
     hint: 'Click a centre: a swirl spins up around it.',
     choices: { direction: ['Direction', TURNS, 'ccw'] },
@@ -143,7 +154,7 @@ export const TOOLS = {
 
 export const PAGE_UNITS = {
   quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
-  width: 'w', wobble: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
+  width: 'w', wobble: 'w', scale: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
 };
 
 // Size-like sliders run 0 to 100 across their useful range, and past that with a param's sixth entry; counts, degrees and seconds

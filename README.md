@@ -50,6 +50,10 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 - **`paint`:** lays ink along a path like a loaded brush, with optional `taper`, `wobble` and `swell`. It doesn't expand or push anything; it sits on top, and later tools move it. `seed` fixes its wobble, and the app logs one so that undo and scripts redraw it exactly.
 - **`stripes`:** covers the tank in overlapping `paint` bands, so no water shows between them, with thin tapered `slivers` of other colours. Rake across them for chevrons.
 
+## Air
+
+The **Air** tool and `air({ scale, speed, octaves, duration, seed })` blow a smooth random flow across the tank, after curl noise (Bridson et al. 2007). It stretches ink without changing its area, works in every simulator, and in Wake also sets the bath moving. The same seed repeats the same breath.
+
 ## Dots and spray
 
 - **`fillDots`:** repeatedly finds the largest empty circle and puts a dot in it, an idea from florilegium and Wong, Zongker & Salesin (1998), so big dots land first and small ones fill the gaps. Add `rings` for targets.
