@@ -4,6 +4,8 @@
 // projecting, and working out the picture. The fields live on the GPU while the flow runs and are
 // copied back into this.grid only when something on the CPU needs them.
 //
+// With repeating off, textures mirror at their edges instead of wrapping, which gives solid sides.
+//
 // One difference: projection is Jacobi iteration, warm-started from the last tick, not an FFT. It's
 // less exact over long distances, so large-scale flow may compress the surface very slightly.
 import { GridInk } from './gridink.js';
@@ -76,15 +78,29 @@ const SHADERS = {
       o = vec4(v + p.z * (p.xy - v) + grip * texelFetch(kin, c, 0).xy, 0, 1); }`,
   minus: `uniform sampler2D a, b;
     void main() { ivec2 c = ivec2(CELL); o = vec4(texelFetch(a, c, 0).xy - texelFetch(b, c, 0).xy, 0, 1); }`,
-  div: `uniform sampler2D U; uniform vec2 h;
-    void main() { o = vec4((S(U, CELL + vec2(1,0)).x - S(U, CELL - vec2(1,0)).x) / (2. * h.x) + (S(U, CELL + vec2(0,1)).y - S(U, CELL - vec2(0,1)).y) / (2. * h.y), 0, 0, 1); }`,
+  // With solid sides, the flow reversed past a side stands for no flow through it.
+  div: `uniform sampler2D U; uniform vec2 h; uniform float solid;
+    void main() { vec2 c = S(U, CELL).xy;
+      float e = S(U, CELL + vec2(1,0)).x, w = S(U, CELL - vec2(1,0)).x, n = S(U, CELL + vec2(0,1)).y, s = S(U, CELL - vec2(0,1)).y;
+      if (solid > .5) {
+        if (CELL.x < .5) w = -c.x;
+        if (CELL.x > size.x - 1.5) e = -c.x;
+        if (CELL.y < .5) s = -c.y;
+        if (CELL.y > size.y - 1.5) n = -c.y;
+      }
+      o = vec4((e - w) / (2. * h.x) + (n - s) / (2. * h.y), 0, 0, 1); }`,
   jacobi: `uniform sampler2D P, D; uniform vec2 h;
     void main() { vec2 i = 1. / (h * h);
       float s = (S(P, CELL + vec2(1,0)).x + S(P, CELL - vec2(1,0)).x) * i.x + (S(P, CELL + vec2(0,1)).x + S(P, CELL - vec2(0,1)).x) * i.y;
       o = vec4((s - texelFetch(D, ivec2(CELL), 0).x) / (2. * (i.x + i.y)), 0, 0, 1); }`,
-  project: `uniform sampler2D U, P; uniform vec2 h, drift;
+  project: `uniform sampler2D U, P; uniform vec2 h, drift; uniform float solid;
     void main() { vec2 g = vec2(S(P, CELL + vec2(1,0)).x - S(P, CELL - vec2(1,0)).x, S(P, CELL + vec2(0,1)).x - S(P, CELL - vec2(0,1)).x) / (2. * h);
-      o = vec4(texelFetch(U, ivec2(CELL), 0).xy - g - drift, 0, 1); }`,
+      vec2 v = texelFetch(U, ivec2(CELL), 0).xy - g - drift;
+      if (solid > .5) {
+        if (CELL.x < .5 || CELL.x > size.x - 1.5) v.x = 0.;
+        if (CELL.y < .5 || CELL.y > size.y - 1.5) v.y = 0.;
+      }
+      o = vec4(v, 0, 1); }`,
   accumulate: `uniform sampler2D into, change, F; uniform float scale;
     void main() { vec4 s = vec4(0);
       for (int k = 0; k < 5; k++) { vec2 p = CELL + OFF[k]; s += W[k] * S(change, p + S(F, p).xy); }
@@ -252,6 +268,18 @@ export class GridInkGL extends GridInk {
     const s = this._t;
     const { t } = s;
     const g = this._g;
+    // Textures are shared between tanks, so they take this tank's edges whenever that differs.
+    if (t.tiled !== this.tileOn) {
+      const { gl } = this.gpu;
+      const wrap = this.tileOn ? gl.REPEAT : gl.MIRRORED_REPEAT;
+      for (const f of Object.values(t)) {
+        if (!f?.tex) continue;
+        gl.bindTexture(gl.TEXTURE_2D, f.tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+      }
+      t.tiled = this.tileOn;
+    }
     if (s.cpuFlow) {
       this._upload(t.u, g.u, g.v);
       this._upload(t.uNext, g.uNext, g.vNext);
@@ -364,18 +392,21 @@ export class GridInkGL extends GridInk {
     if (!pins.length && !s.pinUsed) return;
     const field = s.pinField ??= new Float32Array(nx * ny * 4);
     if (s.pinUsed) field.fill(0);
-    const mod = (v, n) => ((v % n) + n) % n;
     for (const { x, y, ux, uy, sigma } of pins) {
       const reach = 3 * sigma;
       const cx = (x + this.width / 2) / hx - 0.5;
       const cy = (y + this.height / 2) / hy - 0.5;
       for (let j = Math.floor(cy - reach / hy); j <= cy + reach / hy; j++) {
         const dy = (j - cy) * hy;
-        const row = mod(j, ny) * nx;
+        const jj = this._edge(j, ny);
+        if (jj < 0) continue;
+        const row = jj * nx;
         for (let i = Math.floor(cx - reach / hx); i <= cx + reach / hx; i++) {
+          const ii = this._edge(i, nx);
+          if (ii < 0) continue;
           const dx = (i - cx) * hx;
           const w = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
-          const c = (row + mod(i, nx)) * 4;
+          const c = (row + ii) * 4;
           const had = field[c + 2];
           const both = had + w - had * w;
           if (both > 0) {
@@ -445,7 +476,8 @@ export class GridInkGL extends GridInk {
 
     // Projection. "d" is what it changed.
     this._pass('copy', t.a, { a: t.u });
-    this._pass('div', t.D, { U: t.u, h: [hx, hy] });
+    const solid = this.tileOn ? 0 : 1;
+    this._pass('div', t.D, { U: t.u, h: [hx, hy], solid });
     let P = t.P;
     let Q = t.P2;
     for (let k = 0; k < JACOBI; k++) {
@@ -454,8 +486,10 @@ export class GridInkGL extends GridInk {
     }
     t.P = P;
     t.P2 = Q;
-    const drift = this._measure(t.u);
-    this._pass('project', t.b, { U: t.u, P, h: [hx, hy], drift: [drift.meanX, drift.meanY] });
+    // A repeating bath can slide as a whole, which isn't compressing anything, so that's taken out.
+    // A bath with sides has nowhere to slide, and what's left of a mean is real flow near a tool.
+    const drift = this.tileOn ? this._measure(t.u) : { meanX: 0, meanY: 0 };
+    this._pass('project', t.b, { U: t.u, P, h: [hx, hy], drift: [drift.meanX, drift.meanY], solid });
     this._pass('copy', t.u, { a: t.b });
     this._pass('minus', t.d, { a: t.u, b: t.a });
 

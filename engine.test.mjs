@@ -1095,3 +1095,43 @@ test('a saved state in the middle of a breath carries on the same', () => {
   copy.runUntilIdle();
   assert.deepEqual(Array.from(copy.polys[0].xy.subarray(0, copy.polys[0].n * 2)), Array.from(m.polys[0].xy.subarray(0, m.polys[0].n * 2)));
 });
+
+const dotsAfter = (m, n) => m.log.filter((e) => e.fn === 'drop').slice(n).map((e) => ({ ...e.args, r: maxRadius(e.args.quantity, m.film) * Math.sqrt(m.spreadFactor) }));
+const FILL = { count: 150, min: 1, max: 9, gap: 0.3, colors: ['#111', '#222'] };
+
+test('fillDots goes around a drop still to land, and around one that has landed', () => {
+  for (const settled of [false, true]) {
+    const m = new Marble({ seed: 3 });
+    const api = scriptApi(m);
+    api.drop({ x: 50, y: 50, quantity: 10, color: '#f00' });
+    const R = Math.sqrt(m.queued.concat(m.active)[0].maxArea);
+    if (settled) { m.settle(); while (m.busy) m.step(); }
+    api.fillDots(FILL);
+    const dots = dotsAfter(m, 1);
+    assert.ok(R > 100 && dots.length > 10, `R ${R}, ${dots.length} dots`);
+    for (const d of dots) assert.ok(Math.hypot(d.x, d.y) >= R + d.r - 1, `dot at ${d.x},${d.y} on the drop (settled ${settled})`);
+  }
+});
+
+test('two fills in a row share the room, and over puts dots on top', () => {
+  const m = new Marble({ seed: 3 });
+  const api = scriptApi(m);
+  api.fillDots({ ...FILL, count: 10 });
+  api.fillDots({ ...FILL, count: 40 });
+  const all = dotsAfter(m, 0);
+  for (const [i, a] of all.entries()) for (const b of all.slice(i + 1)) assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= a.r + b.r - 0.01, 'overlap');
+  const o = new Marble({ seed: 3 });
+  const oapi = scriptApi(o);
+  oapi.drop({ x: 50, y: 50, quantity: 40, color: '#f00' });
+  const R = Math.sqrt(o.queued.concat(o.active)[0].maxArea);
+  oapi.fillDots({ ...FILL, over: true });
+  assert.ok(dotsAfter(o, 1).some((d) => Math.hypot(d.x, d.y) < R), 'some dot should land on it');
+});
+
+test('an empty tank fills as it always did', () => {
+  const a = new Marble({ seed: 3 });
+  const b = new Marble({ seed: 3 });
+  scriptApi(a).fillDots(FILL);
+  scriptApi(b).fillDots({ ...FILL, over: true });
+  assert.deepEqual(a.log, b.log);
+});

@@ -38,7 +38,7 @@
     <button id="pull" title="Lay a sheet across the tank and keep the print">Pull paper</button>
   </div>
   <div id="tankBar">
-    <label data-info="viscosity">Viscosity (mm²/s)<input id="visc" type="number" value="200" min="5" max="20000"></label>
+    <label data-info="viscosity">Viscosity (mm²/s)<input id="visc" type="number" value="1000" min="5" max="20000"></label>
     <label data-info="tankSize">Width (mm)<input id="tankW" type="number" value="1000" min="100" max="4000"></label>
     <label>Height (mm)<input id="tankH" type="number" value="700" min="100" max="4000"></label>
     <button id="applyTank">Apply (clears tank)</button>
@@ -60,6 +60,16 @@
   <details class="panel" data-panel="Palette" open>
     <summary data-info="palette">Palette</summary>
     <select id="palette" aria-label="Palette"></select>
+    <details id="paletteEditor">
+      <summary data-info="myPalettes">Edit and save</summary>
+      <div id="paletteInks"></div>
+      <button id="addInk" type="button">Add ink</button>
+      <div class="row">
+        <input id="paletteName" type="text" placeholder="Name" aria-label="Name to save this palette as" spellcheck="false">
+        <button id="savePalette" title="Keep these inks and the Base colour in this browser, under this name">Save palette</button>
+        <button id="deletePalette" title="Delete this saved palette" disabled>Delete</button>
+      </div>
+    </details>
   </details>
 
   <details class="panel" data-panel="Assistant" open>
@@ -80,6 +90,13 @@
     <div class="row">
       <button id="run">Run (clears tank)</button>
       <button id="capture">Copy session to script</button>
+    </div>
+    <div data-info="myScripts" class="scriptsTitle">My scripts</div>
+    <select id="myScripts" aria-label="Open a saved script"></select>
+    <div class="row">
+      <input id="scriptName" type="text" placeholder="Name" aria-label="Name to save this script as" spellcheck="false">
+      <button id="saveScript" title="Keep this script in this browser, under this name">Save script</button>
+      <button id="deleteScript" title="Delete the script chosen above" disabled>Delete</button>
     </div>
     <pre id="error" hidden></pre>
   </details>

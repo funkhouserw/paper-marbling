@@ -117,3 +117,61 @@ test('a drop leaves ink it has not touched exactly where it is, and pushes ink i
   run(close);
   assert.ok(bounds(close, 0x50)[0] < near[0], `${bounds(close, 0x50)} from ${near}`);
 });
+
+// With repeating off, the sides are solid.
+const walled = (extra = {}) => { const m = new GridInk({ ...TANK, viscosity: 50, ...extra }); m.tile({ on: false, at: 0 }); m.settle(); run(m); return m; };
+const inkIn = (m, x0, x1) => { const { data, width, height } = m.toRGBA(); let n = 0; for (let j = 0; j < height; j++) for (let i = Math.floor(x0 * width); i < x1 * width; i++) if (data[(j * width + i) * 4 + 3] > 25) n++; return n; };
+
+test('with solid sides, projecting compresses nothing', () => {
+  const m = walled();
+  const { nx, ny, u, v } = m._g;
+  for (let i = 0; i < nx * ny; i++) { u[i] = Math.sin(i * 0.37) * 50; v[i] = Math.cos(i * 0.11) * 50; }
+  m._project(u, v);
+  const a = Float32Array.from(u);
+  m._project(u, v);
+  let worst = 0;
+  for (let i = 0; i < nx * ny; i++) worst = Math.max(worst, Math.abs(u[i] - a[i]));
+  assert.ok(worst < 1e-2, `changed by ${worst}`);
+});
+
+test('a drop on the right side shows only there with solid sides, and on both sides when repeating', () => {
+  const place = (m) => { m.drop({ x: 195, y: 0, quantity: 0.2, dispersion: Infinity, color: '#ff0000' }); m.settle(); return run(m); };
+  const solid = place(walled());
+  const repeating = place(new GridInk({ ...TANK, viscosity: 50 }));
+  assert.ok(inkIn(solid, 0.9, 1) > 0);
+  assert.equal(inkIn(solid, 0, 0.1), 0);
+  assert.ok(inkIn(repeating, 0, 0.1) > 0);
+});
+
+test('a rake off the right side brings nothing round to the left', () => {
+  const m2 = walled();
+  m2.drop({ x: 150, y: 0, quantity: 0.2, dispersion: Infinity, color: '#ff0000' });
+  m2.settle(); run(m2);
+  m2.rake({ from: [100, 0], to: [230, 0], teeth: 1, speed: 100, D: 10 });
+  m2.settle(); run(m2);
+  assert.equal(inkIn(m2, 0, 0.1), 0);
+});
+
+test('solid sides survive saving and loading, and can be switched on an inked tank', () => {
+  const m = walled();
+  m.drop({ x: 0, y: 0, quantity: 0.2, dispersion: Infinity, color: '#ff0000' });
+  m.settle(); run(m);
+  const copy = new GridInk({ ...TANK, viscosity: 50 });
+  copy.loadState(m.saveState());
+  assert.equal(copy.tileOn, false);
+  copy.tile({ on: true });
+  copy.settle(); run(copy);
+  assert.equal(copy.tileOn, true);
+});
+
+test('fillDots goes around ink on the grid', () => {
+  const m = new GridInk({ ...TANK, viscosity: 50 });
+  m.drop({ x: 0, y: 0, quantity: 3, dispersion: Infinity, color: '#ff0000' });
+  m.settle(); run(m);
+  const R = Math.sqrt(m.sources[0].maxArea);
+  const before = m.log.length;
+  m.fillDots({ count: 40, min: 4, max: 20, gap: 1, colors: ['#000000'] });
+  const dots = m.log.slice(before).filter((e) => e.fn === 'drop');
+  assert.ok(R > 20 && dots.length > 3, `R ${R}, ${dots.length} dots`);
+  for (const { args } of dots) assert.ok(Math.hypot(args.x, args.y) > R, `dot at ${args.x},${args.y}`);
+});

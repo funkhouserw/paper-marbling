@@ -10,8 +10,10 @@
 // checkpoint. Velocity is carried the same way, which is what keeps small vortices alive.
 //
 // Differences from the reference code:
-// - The surface is a torus, with velocity at cell centres and an FFT projection. The reference uses
-//   a staggered grid with walls and multigrid. So this tank always repeats, and has no hard edges.
+// - The surface is a torus by default, with velocity at cell centres and an FFT projection. The
+//   reference uses a staggered grid with walls and multigrid. With repeating off, the tank has solid
+//   sides instead: every read reflects at the edge, and projection runs on the tank joined to its
+//   mirror images, which is exactly no flow through the sides.
 // - One level of checkpoint (their blend_coeff = 1, which every setup in their 2D code uses). The
 //   paper's two levels reduce the slight blur just after a checkpoint, so they're worth trying next.
 // - A checkpoint when the maps disagree by a cell. The paper uses that error over the distance
@@ -43,6 +45,7 @@ const CHECK_EVERY = 10; // ticks between measuring that
 const LEAST_REACH = 1.5; // cells: the narrowest a tine's pin can be
 const FILM_ALPHA = 0.2; // ink thinner than this counts as water when finding films
 const SMALL_PUSH = 0.02; // cells: a drop's push stops being applied below this
+const SIDE_FADE = 4; // cells beside a solid side over which a tool's motion fades out
 const WEIGHTS = [0.125, 0.125, 0.125, 0.125, 0.5];
 const OFFSETS = [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0, 0]];
 
@@ -87,11 +90,21 @@ export class GridInk extends Marble {
   get tileSupported() { return true; }
   get evenWalls() { return false; }
 
-  // The surface is a torus, so these change nothing. They're accepted, not refused, so that a
-  // script or session written for another simulator still runs here.
-  tile() { return this; }
-
+  // The sides are solid whenever the tank isn't repeating, so this changes nothing. It's accepted,
+  // not refused, so that a script or session written for another simulator still runs here.
   walls() { return this; }
+
+  // Which cell of a row an index means: wraps when repeating, and is -1 off the tank otherwise.
+  _edge(i, n) {
+    if (this.tileOn) return ((i % n) + n) % n;
+    return i < 0 || i >= n ? -1 : i;
+  }
+
+  // The nearest cell: as _edge, but off the tank it's the cell at the side.
+  _nearest(i, n) {
+    if (this.tileOn) return ((i % n) + n) % n;
+    return i < 0 ? 0 : i >= n ? n - 1 : i;
+  }
 
   turn() { throw new Error('Grid ink can\'t be turned. Use shift, stir or air instead.'); }
 
@@ -136,7 +149,7 @@ export class GridInk extends Marble {
     const inkSize = g.ix * g.iy;
     const inkField = () => new Float32Array(inkSize);
     this._scratch = {
-      size,
+      size, nx: g.nx, ny: g.ny,
       a: field(), b: field(), c: field(), d: field(), e: field(), f: field(), g: field(), h: field(), i: field(), j: field(),
       px: samples(), py: samples(), qx: samples(), qy: samples(),
       kinX: field(), kinY: field(), advX: field(), advY: field(),
@@ -158,8 +171,29 @@ export class GridInk extends Marble {
 
   // ---- Sampling --------------------------------------------------------------------------------
 
-  // Bilinear, wrapping at the seams. Positions are in cells, with cell centres on the integers.
+  // Bilinear, wrapping at the seams or reflecting at solid sides. Positions are in cells, with cell
+  // centres on the integers, so a side is half a cell past the last centre.
   _sampler(nx = this._g.nx, ny = this._g.ny) {
+    if (!this.tileOn) {
+      const reflect = (p, n) => {
+        let q = (p + 0.5) % (2 * n);
+        if (q < 0) q += 2 * n;
+        return (q > n ? 2 * n - q : q) - 0.5;
+      };
+      return (a, px, py) => {
+        const x = reflect(px, nx);
+        const y = reflect(py, ny);
+        const i = Math.floor(x);
+        const j = Math.floor(y);
+        const s = x - i;
+        const t = y - j;
+        const i0 = i < 0 ? 0 : i;
+        const i1 = i + 1 >= nx ? nx - 1 : i + 1;
+        const r0 = (j < 0 ? 0 : j) * nx;
+        const r1 = (j + 1 >= ny ? ny - 1 : j + 1) * nx;
+        return (a[r0 + i0] * (1 - s) + a[r0 + i1] * s) * (1 - t) + (a[r1 + i0] * (1 - s) + a[r1 + i1] * s) * t;
+      };
+    }
     return (a, x, y) => {
       let i = Math.floor(x);
       let j = Math.floor(y);
@@ -202,13 +236,15 @@ export class GridInk extends Marble {
 
   // Keeps a corrected field within the range of each cell's neighbours, so correcting adds no halos.
   _limit(before, after, nx = this._g.nx, ny = this._g.ny) {
+    const lastX = this.tileOn ? nx - 1 : 0;
+    const lastY = this.tileOn ? ny - 1 : 0;
     for (let j = 0; j < ny; j++) {
-      const down = (j === 0 ? ny - 1 : j - 1) * nx;
+      const down = (j === 0 ? lastY : j - 1) * nx;
       const row = j * nx;
-      const up = (j === ny - 1 ? 0 : j + 1) * nx;
+      const up = (j === ny - 1 ? (this.tileOn ? 0 : j) : j + 1) * nx;
       for (let i = 0; i < nx; i++) {
-        const l = i === 0 ? nx - 1 : i - 1;
-        const r = i === nx - 1 ? 0 : i + 1;
+        const l = i === 0 ? lastX : i - 1;
+        const r = i === nx - 1 ? (this.tileOn ? 0 : i) : i + 1;
         let lo = Infinity;
         let hi = -Infinity;
         for (const base of [down, row, up]) {
@@ -291,9 +327,8 @@ export class GridInk extends Marble {
   // ---- Velocity --------------------------------------------------------------------------------
 
   // Rows then columns of a 2D FFT of (re, im), in place. Inverse has no 1/n.
-  _fft(re, im, inverse) {
-    const { nx, ny } = this._g;
-    const { planX, planY, lineRe: [aRe, bRe], lineIm: [aIm, bIm] } = this._s;
+  _fft(re, im, inverse, plans = this._s) {
+    const { nx, ny, planX, planY, lineRe: [aRe, bRe], lineIm: [aIm, bIm] } = plans;
     const sign = inverse ? -1 : 1;
     for (let j = 0; j < ny; j++) {
       const row = j * nx;
@@ -315,11 +350,52 @@ export class GridInk extends Marble {
   // Removes the part of the flow that would compress the surface, and any drift of the whole bath.
   // u and v go in together as one complex field, which saves a transform.
   _project(u, v) {
+    if (this.tileOn) this._projectOn(u, v, this._s);
+    else this._projectWalled(u, v);
+  }
+
+  // Solid sides: the tank joined to its mirror images is a torus twice the size, in which u is
+  // reversed across a side in x and v across a side in y, so nothing crosses any side.
+  _projectWalled(u, v) {
     const { nx, ny } = this._g;
-    const { re, im, kx, ky } = this._s;
+    const s = this._s;
+    const wide = s.wide ??= (() => {
+      const w = 2 * nx;
+      const h = 2 * ny;
+      const line = () => new Float64Array(Math.max(w, h));
+      return {
+        nx: w, ny: h, re: new Float64Array(w * h), im: new Float64Array(w * h), u: new Float64Array(w * h), v: new Float64Array(w * h),
+        planX: fftPlan(w), planY: fftPlan(h), lineRe: [line(), line()], lineIm: [line(), line()],
+        kx: Float64Array.from({ length: w }, (_, k) => (2 * Math.PI * (k < w / 2 ? k : k - w)) / (2 * this.width)),
+        ky: Float64Array.from({ length: h }, (_, l) => (2 * Math.PI * (l < h / 2 ? l : l - h)) / (2 * this.height)),
+      };
+    })();
+    const w = 2 * nx;
+    const h = 2 * ny;
+    for (let j = 0; j < h; j++) {
+      const flipY = j >= ny;
+      const row = (flipY ? h - 1 - j : j) * nx;
+      for (let i = 0; i < w; i++) {
+        const flipX = i >= nx;
+        const c = row + (flipX ? w - 1 - i : i);
+        wide.u[j * w + i] = flipX ? -u[c] : u[c];
+        wide.v[j * w + i] = flipY ? -v[c] : v[c];
+      }
+    }
+    this._projectOn(wide.u, wide.v, wide);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        u[j * nx + i] = wide.u[j * w + i];
+        v[j * nx + i] = wide.v[j * w + i];
+      }
+    }
+  }
+
+  _projectOn(u, v, plans) {
+    const { nx, ny, re, im, kx, ky } = plans;
     const size = nx * ny;
     for (let i = 0; i < size; i++) { re[i] = u[i]; im[i] = v[i]; }
-    this._fft(re, im, false);
+    this._fft(re, im, false, plans);
     const norm = 1 / size;
     for (let l = 0; l < ny; l++) {
       const lm = l === 0 ? 0 : ny - l;
@@ -351,7 +427,7 @@ export class GridInk extends Marble {
         im[b] = (qRe - pIm) * norm;
       }
     }
-    this._fft(re, im, true);
+    this._fft(re, im, true, plans);
     for (let i = 0; i < size; i++) { u[i] = re[i]; v[i] = im[i]; }
   }
 
@@ -367,11 +443,11 @@ export class GridInk extends Marble {
     for (let s = 0; s < steps; s++) {
       for (let j = 0; j < ny; j++) {
         const row = j * nx;
-        const down = (j === 0 ? ny - 1 : j - 1) * nx;
-        const up = (j === ny - 1 ? 0 : j + 1) * nx;
+        const down = (j === 0 ? (this.tileOn ? ny - 1 : 0) : j - 1) * nx;
+        const up = (j === ny - 1 ? (this.tileOn ? 0 : j) : j + 1) * nx;
         for (let i = 0; i < nx; i++) {
-          const l = i === 0 ? nx - 1 : i - 1;
-          const e = i === nx - 1 ? 0 : i + 1;
+          const l = i === 0 ? (this.tileOn ? nx - 1 : 0) : i - 1;
+          const e = i === nx - 1 ? (this.tileOn ? 0 : i) : i + 1;
           const v = f[row + i];
           t[row + i] = v + rx * (f[row + l] + f[row + e] - 2 * v) + ry * (f[down + i] + f[up + i] - 2 * v);
         }
@@ -384,18 +460,21 @@ export class GridInk extends Marble {
   _applyPins(u, v) {
     const { nx, ny, hx, hy } = this._g;
     const s = this._s;
-    const mod = (i, n) => ((i % n) + n) % n;
     for (const { x, y, ux, uy, sigma } of s.pins) {
       const reach = 3 * sigma;
       const cx = (x + this.width / 2) / hx - 0.5;
       const cy = (y + this.height / 2) / hy - 0.5;
       for (let j = Math.floor(cy - reach / hy); j <= cy + reach / hy; j++) {
         const dy = (j - cy) * hy;
-        const row = mod(j, ny) * nx;
+        const jj = this._edge(j, ny);
+        if (jj < 0) continue;
+        const row = jj * nx;
         for (let i = Math.floor(cx - reach / hx); i <= cx + reach / hx; i++) {
+          const ii = this._edge(i, nx);
+          if (ii < 0) continue;
           const dx = (i - cx) * hx;
           const w = Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
-          const c = row + mod(i, nx);
+          const c = row + ii;
           u[c] += w * (ux - u[c]);
           v[c] += w * (uy - v[c]);
         }
@@ -575,7 +654,6 @@ export class GridInk extends Marble {
     const iy = Math.floor(y);
     const s = x - ix;
     const t = y - iy;
-    const mod = (v, n) => ((v % n) + n) % n;
     const weights = (u) => [
       0.5 * (-u * u * u + 2 * u * u - u), 0.5 * (3 * u * u * u - 5 * u * u + 2),
       0.5 * (-3 * u * u * u + 4 * u * u + u), 0.5 * (u * u * u - u * u),
@@ -586,9 +664,9 @@ export class GridInk extends Marble {
     let lo = Infinity;
     let hi = -Infinity;
     for (let b = 0; b < 4; b++) {
-      const row = mod(iy + b - 1, ny) * nx;
+      const row = this._nearest(iy + b - 1, ny) * nx;
       for (let c = 0; c < 4; c++) {
-        const v = a[row + mod(ix + c - 1, nx)];
+        const v = a[row + this._nearest(ix + c - 1, nx)];
         sum += wx[c] * wy[b] * v;
         if ((b === 1 || b === 2) && (c === 1 || c === 2)) { if (v < lo) lo = v; if (v > hi) hi = v; }
       }
@@ -683,16 +761,18 @@ export class GridInk extends Marble {
       const fine = c % ix;
       inked[Math.floor((c - fine) / ix / detail) * nx + Math.floor(fine / detail)] = 1;
     }
-    const mod = (v, n) => ((v % n) + n) % n;
     const seedOf = new Map();
     for (const [op] of growth) {
       const R = Math.sqrt(op.grown);
       const cx = (op.x + this.width / 2) / hx - 0.5;
       const cy = (op.y + this.height / 2) / hy - 0.5;
-      seedOf.set(op, mod(Math.round(cy), ny) * nx + mod(Math.round(cx), nx));
+      seedOf.set(op, this._nearest(Math.round(cy), ny) * nx + this._nearest(Math.round(cx), nx));
       for (let j = Math.floor(cy - R / hy) - 1; j <= cy + R / hy + 1; j++) {
+        const jj = this._edge(j, ny);
+        if (jj < 0) continue;
         for (let i = Math.floor(cx - R / hx) - 1; i <= cx + R / hx + 1; i++) {
-          if (Math.hypot((i - cx) * hx, (j - cy) * hy) <= R + hx) inked[mod(j, ny) * nx + mod(i, nx)] = 1;
+          const ii = this._edge(i, nx);
+          if (ii >= 0 && Math.hypot((i - cx) * hx, (j - cy) * hy) <= R + hx) inked[jj * nx + ii] = 1;
         }
       }
     }
@@ -707,8 +787,13 @@ export class GridInk extends Marble {
         const c = stack.pop();
         const i = c % nx;
         const j = (c - i) / nx;
-        for (const n of [j * nx + (i + 1) % nx, j * nx + (i + nx - 1) % nx, ((j + 1) % ny) * nx + i, ((j + ny - 1) % ny) * nx + i]) {
-          if (inked[n] && !labels[n]) { labels[n] = next; stack.push(n); }
+        // Films only join across a side when the tank repeats.
+        const e = this._edge(i + 1, nx);
+        const w = this._edge(i - 1, nx);
+        const up = this._edge(j + 1, ny);
+        const down = this._edge(j - 1, ny);
+        for (const n of [e < 0 ? -1 : j * nx + e, w < 0 ? -1 : j * nx + w, up < 0 ? -1 : up * nx + i, down < 0 ? -1 : down * nx + i]) {
+          if (n >= 0 && inked[n] && !labels[n]) { labels[n] = next; stack.push(n); }
         }
       }
     }
@@ -727,10 +812,9 @@ export class GridInk extends Marble {
     const { ix: nx, iy: ny, ihx: hx, ihy: hy, ink, ink0, nx: flowX, ny: flowY, detail } = g;
     const s = this._s;
     const { pushX, pushY, touched } = s;
-    const mod = (v, n) => ((v % n) + n) % n;
     this._checkpointInk();
     const { labels, seedOf } = this._labelFilms(growth);
-    const labelAt = (x, y) => labels[mod(Math.floor(Math.round(y) / detail), flowY) * flowX + mod(Math.floor(Math.round(x) / detail), flowX)];
+    const labelAt = (x, y) => labels[this._nearest(Math.floor(Math.round(y) / detail), flowY) * flowX + this._nearest(Math.floor(Math.round(x) / detail), flowX)];
     const cells = [];
     const halfW = this.width / 2;
     const halfH = this.height / 2;
@@ -741,12 +825,16 @@ export class GridInk extends Marble {
       const cy = (op.y + halfH) / hy - 0.5;
       for (let j = Math.floor(cy - reach / hy); j <= cy + reach / hy; j++) {
         const dy = (j - cy) * hy;
-        const row = mod(j, ny) * nx;
+        const jj = this._edge(j, ny);
+        if (jj < 0) continue;
+        const row = jj * nx;
         for (let i = Math.floor(cx - reach / hx); i <= cx + reach / hx; i++) {
+          const ii = this._edge(i, nx);
+          if (ii < 0) continue;
           const dx = (i - cx) * hx;
           const d2 = dx * dx + dy * dy;
           if (d2 > reach * reach || d2 < 1e-9) continue;
-          const c = row + mod(i, nx);
+          const c = row + ii;
           const shrink = d2 > da ? 1 - Math.sqrt(1 - da / d2) : 1;
           const backX = (dx * shrink) / hx;
           const backY = (dy * shrink) / hy;
@@ -773,16 +861,36 @@ export class GridInk extends Marble {
       const edge = (R + hx) / hx;
       this._layOver(op.color, (put) => {
         for (let j = Math.floor(cy - edge * hx / hy); j <= cy + edge * hx / hy; j++) {
-          const row = mod(j, ny) * nx;
+          const jj = this._edge(j, ny);
+          if (jj < 0) continue;
+          const row = jj * nx;
           for (let i = Math.floor(cx - edge); i <= cx + edge; i++) {
+            const ii = this._edge(i, nx);
+            if (ii < 0) continue;
             const d = Math.hypot((i - cx) * hx, (j - cy) * hy);
             const cover = Math.max(0, Math.min(1, (R - d) / hx + 0.5));
-            if (cover > 0) put(row + mod(i, nx), cover);
+            if (cover > 0) put(row + ii, cover);
           }
         }
       });
     }
     for (let ch = 0; ch < 4; ch++) ink0[ch].set(ink[ch]);
+  }
+
+  // Ink here is on the grid, not in outlines, so that's where to look for it.
+  _markInk(marked, cols, rows, step) {
+    let any = super._markInk(marked, cols, rows, step);
+    const g = this._g;
+    this._refreshInk();
+    const alpha = g.ink[3];
+    for (let row = 0; row < rows; row++) {
+      const j = Math.min(g.iy - 1, Math.floor((row * step) / g.ihy));
+      for (let col = 0; col < cols; col++) {
+        const i = Math.min(g.ix - 1, Math.floor((col * step) / g.ihx));
+        if (alpha[j * g.ix + i] > FILM_ALPHA) { marked[row * cols + col] = 1; any = true; }
+      }
+    }
+    return any;
   }
 
   // ---- Tools -----------------------------------------------------------------------------------
@@ -826,8 +934,11 @@ export class GridInk extends Marble {
       for (let i = 0; i < nx; i++, c++) {
         const x = -this.width / 2 + (i + 0.5) * hx;
         f(x, y, out);
-        s.kinX[c] += (out[0] - x) / dt;
-        s.kinY[c] += (out[1] - y) / dt;
+        // A tool's motion fades out into solid sides, since nothing can move through them.
+        const intoX = this.tileOn ? 1 : Math.min(1, Math.min(i + 0.5, nx - i - 0.5) / SIDE_FADE);
+        const intoY = this.tileOn ? 1 : Math.min(1, Math.min(j + 0.5, ny - j - 0.5) / SIDE_FADE);
+        s.kinX[c] += (intoX * (out[0] - x)) / dt;
+        s.kinY[c] += (intoY * (out[1] - y)) / dt;
       }
     }
     s.haveKin = true;

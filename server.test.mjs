@@ -47,7 +47,7 @@ test('a turn sends the settings, the key and the current script', async () => {
   assert.deepEqual(body.reasoning, { effort: 'medium' });
   assert.equal(body.store, false);
   assert.deepEqual(body.prompt_cache_options, { mode: 'explicit' });
-  assert.deepEqual(body.tools.map((t) => t.name), ['edit_script', 'replace_script']);
+  assert.deepEqual(body.tools.map((t) => t.name), ['edit_script', 'replace_script', 'save_palette', 'use_palette']);
   assert.ok(body.input[0].content.includes('wait(1);') && body.input[0].content.includes('a red stone pattern'));
 });
 
@@ -160,4 +160,35 @@ test('serves the app but not the server source, dotfiles or parent paths', async
   assert.equal((await fetch(`${base}/server.mjs`)).status, 404);
   assert.equal((await fetch(`${base}/.git/config`)).status, 404);
   assert.equal((await fetch(`${base}/%2e%2e/%2e%2e/etc/passwd`)).status, 404);
+});
+
+const inks = [{ color: '#112233', shimmer: 0.5 }];
+const mine = { name: 'Mine', bath: '#000000', inks };
+
+test('the assistant sees palettes, and a saved palette comes back to the browser once the turn succeeds', async () => {
+  replies = [tools(call('save_palette', { ...mine, replace: false }), call('use_palette', { name: 'mine' }, 'c2')), say('Saved it.')];
+  const res = await post({ messages: [{ role: 'user', content: 'keep this' }], script: 'a', palettes: [{ name: 'Old', bath: '#111111', inks }, { name: 'bad' }], currentPalette: mine });
+  const body = await res.json();
+  assert.deepEqual(body.paletteActions, [{ type: 'save', palette: mine }, { type: 'use', name: 'Mine' }]);
+  const asked = seen.at(-2).body.input.at(-1).content ?? JSON.stringify(seen.at(-2).body.input);
+  assert.ok(asked.includes('"Old"') && !asked.includes('"bad"') && asked.includes('Sidebar palette'));
+});
+
+test('a failed turn saves no palette', async () => {
+  replies = [tools(call('save_palette', { ...mine, replace: false })), { status: 500, body: { error: { message: 'boom' } } }];
+  const body = await (await post({ messages: [{ role: 'user', content: 'keep' }], script: '' })).json();
+  assert.equal(body.paletteActions, undefined);
+  assert.ok(body.error);
+});
+
+test('palette tools refuse bad colours, built-in names, unknown palettes, and replacing without being told', async () => {
+  const { applyPaletteTool } = await import('./server.mjs');
+  const fresh = () => ({ saved: [mine], actions: [] });
+  const run = (name, args, s = fresh()) => ({ ...applyPaletteTool(name, JSON.stringify(args), s), s });
+  assert.match(run('save_palette', { ...mine, name: 'New', bath: 'red', replace: false }).result, /bath/);
+  assert.match(run('save_palette', { ...mine, name: 'old dutch', replace: true }).result, /built-in/);
+  assert.match(run('save_palette', { ...mine, name: 'MINE', replace: false }).result, /already saved/);
+  assert.equal(run('save_palette', { ...mine, name: 'MINE', replace: true }).ok, true);
+  assert.match(run('use_palette', { name: 'nope' }).result, /no palette/);
+  assert.equal(run('use_palette', { name: 'old dutch' }).s.actions[0].name, 'Old Dutch');
 });

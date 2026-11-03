@@ -146,7 +146,7 @@ export const TOOLS = {
     hint: 'Click a centre: a swirl spins up around it.',
     choices: { direction: ['Direction', TURNS, 'ccw'] },
     params: {
-      circulation: ['Swirl strength', 3000, 100, 20000, 100],
+      circulation: ['Swirl strength', 105, 10, 1100, 1, { top: 200, value: 20000 }],
       duration: ['Duration (s)', 3, 0.2, 15, 0.1],
     },
   },

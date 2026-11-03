@@ -7,7 +7,7 @@
 const m = (color) => ({ color, shimmer: 0 });
 const s = (color, shimmer = 0.8) => ({ color, shimmer });
 
-export const PALETTES = [
+export const BUILT_IN_PALETTES = [
   { name: 'Dark Academia', bath: '#1e1410', inks: [m('#4b231a'), m('#7a3e2c'), m('#b38a6a'), m('#d9c6b3'), m('#202a27'), s('#a8842c', 0.7)] },
   { name: 'Oxblood & Gilt', bath: '#160b0b', inks: [m('#4a0e12'), m('#6d1a1f'), m('#2a1414'), m('#c09b88'), s('#c9a227', 0.9)] },
   { name: 'Ravenwood Library', bath: '#0d1110', inks: [m('#202a27'), m('#39463b'), m('#6d694b'), m('#b09a6f'), s('#b8912f', 0.75)] },
@@ -23,6 +23,32 @@ export const PALETTES = [
   { name: 'Turkish Ebru', bath: '#f4efe2', inks: [m('#1b4f8a'), m('#b5283a'), m('#e0a526'), m('#1f7a63'), m('#f7f3e8')] },
   { name: 'Suminagashi', bath: '#f5f1e6', inks: [m('#1a1a1a'), m('#4a4a4a'), m('#8a8a8a'), m('#27384a')] },
 ];
+
+// Every palette: the built-in ones, then whatever the user has saved.
+export const PALETTES = [...BUILT_IN_PALETTES];
+
+export function setSavedPalettes(saved) {
+  PALETTES.splice(BUILT_IN_PALETTES.length, Infinity, ...saved);
+}
+
+export const isBuiltInPalette = (name) => BUILT_IN_PALETTES.some((p) => p.name.toLowerCase() === String(name).trim().toLowerCase());
+
+const MAX_NAME = 40;
+export const MAX_INKS = 12;
+const BATH = /^#[0-9a-f]{6}$/i;
+const INK = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i;
+
+// The shape a saved palette has to have, wherever it came from.
+export function validPalette(p) {
+  const name = typeof p?.name === 'string' ? p.name.trim() : '';
+  return name.length > 0 && name.length <= MAX_NAME && typeof p.bath === 'string' && BATH.test(p.bath)
+    && Array.isArray(p.inks) && p.inks.length > 0 && p.inks.length <= MAX_INKS
+    && p.inks.every((i) => typeof i?.color === 'string' && INK.test(i.color) && Number.isFinite(i.shimmer) && i.shimmer >= 0 && i.shimmer <= 1);
+}
+
+export const cleanPalette = (p) => ({
+  name: p.name.trim(), bath: p.bath, inks: p.inks.map(({ color, shimmer }) => ({ color, shimmer })),
+});
 
 // Looks up a palette by name, ignoring case.
 export function palette(name) {

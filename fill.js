@@ -3,15 +3,49 @@
 // sizes fall into a natural hierarchy, and the dots end up evenly spread without looking gridded.
 const STEP = 5; // mm between the points checked
 
-export function planDots({ width, height, minR, maxR, gap, margin, count, tightness, random }) {
-  const cols = Math.ceil(width / STEP) + 1;
-  const rows = Math.ceil(height / STEP) + 1;
+export function dotGrid(width, height) {
+  return { step: STEP, cols: Math.ceil(width / STEP) + 1, rows: Math.ceil(height / STEP) + 1 };
+}
+
+// How far each grid point is from the nearest marked one, by a chamfer sweep: at most about 8% over.
+export function clearanceFrom(marked, cols, rows, step) {
+  const d = new Float64Array(cols * rows);
+  for (let q = 0; q < d.length; q++) d[q] = marked[q] ? 0 : Infinity;
+  const diagonal = step * Math.SQRT2;
+  const relax = (q, col, row, dc, dr, cost) => {
+    const c = col + dc;
+    const r = row + dr;
+    if (c < 0 || c >= cols || r < 0 || r >= rows) return;
+    const v = d[r * cols + c] + cost;
+    if (v < d[q]) d[q] = v;
+  };
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const q = row * cols + col;
+      relax(q, col, row, -1, 0, step); relax(q, col, row, 0, -1, step); relax(q, col, row, -1, -1, diagonal); relax(q, col, row, 1, -1, diagonal);
+    }
+  }
+  for (let row = rows - 1; row >= 0; row--) {
+    for (let col = cols - 1; col >= 0; col--) {
+      const q = row * cols + col;
+      relax(q, col, row, 1, 0, step); relax(q, col, row, 0, 1, step); relax(q, col, row, 1, 1, diagonal); relax(q, col, row, -1, 1, diagonal);
+    }
+  }
+  return d;
+}
+
+// taken lists room already used up: `circles` of { x, y, r } from the tank's centre, and a grid of
+// how far each point is from other ink, `clearance`. Dots keep `gap` from both.
+export function planDots({ width, height, minR, maxR, gap, margin, count, tightness, random, taken }) {
+  const { cols, rows } = dotGrid(width, height);
   const free = new Float64Array(cols * rows);
   for (let row = 0, q = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++, q++) {
       const x = col * STEP;
       const y = row * STEP;
       free[q] = Math.min(x, width - x, y, height - y) - margin;
+      if (taken?.clearance) free[q] = Math.min(free[q], taken.clearance[q] - gap - STEP / 2);
+      for (const c of taken?.circles ?? []) free[q] = Math.min(free[q], Math.hypot(x - width / 2 - c.x, y - height / 2 - c.y) - c.r - gap);
     }
   }
   const dots = [];

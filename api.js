@@ -33,7 +33,7 @@ export const COMMANDS = [
     ['stagger', 'number', 0, 'spreads start times over this many seconds'],
     AT,
   ] },
-  { name: 'fillDots', group: 'Ink', summary: 'Fills the surface with dots of varying size and colour, largest holes first, so sizes form a natural hierarchy. Dots start together. For a pleasing fill, use a wide size range and several colours, and leave out any ink that matches the bath or it will disappear.', params: [
+  { name: 'fillDots', group: 'Ink', summary: 'Fills the surface with dots of varying size and colour, largest holes first, so sizes form a natural hierarchy. Dots start together, and go around ink already there or on its way, so it can place few or none on a full tank; use over: true for dots on top. It can\'t foresee where tools still queued will move ink, so run it before them, or use over. For a pleasing fill, use a wide size range and several colours, and leave out any ink that matches the bath or it will disappear.', params: [
     ['count', 'number', 150, 'most dots to place; it stops sooner if no hole is big enough'],
     size('min', 0.8, 'smallest dot radius'),
     size('max', 6, 'largest dot radius'),
@@ -43,7 +43,9 @@ export const COMMANDS = [
     ['colors', 'color[]', ['#1f4e79'], 'CSS colours or palette inks; neighbours avoid matching'],
     ['rings', 'number', 1, 'colours stacked in each dot, for targets; each layer waits for the last to settle'],
     ['dispersion', 'number', 0.8, '1/s'],
-    SHIMMER, AT,
+    SHIMMER,
+    ['over', 'boolean', false, 'true places dots on top of existing ink instead of around it'],
+    AT,
   ] },
   { name: 'spray', group: 'Ink', summary: 'A spray bottle: many fine dots of varying size around a point, most of them tiny and thickest in the middle. Good for the very fine spatter of traditional marbling. Call it several times for layers or several places. It does not advance the timeline.', params: [
     X, Y,
@@ -131,7 +133,7 @@ export const COMMANDS = [
   ] },
   { name: 'vortex', group: 'Tools', summary: 'A swirl.', params: [
     X, Y,
-    ['circulation', 'number', 3000, 'strength, about 1000 to 5000', 'w2'],
+    ['circulation', 'number', 3000, 'strength; about 100 is gentle and 3000 is very strong', 'w2'],
     ['duration', 'number', 3, 'seconds'],
     AT,
   ] },
@@ -203,14 +205,14 @@ export const COMMANDS = [
   { name: 'settle', group: 'Timeline', summary: 'Everything after this waits until every drop has stopped growing and every tool has finished. Use it before raking.' },
   // Helpers
   { name: 'random', group: 'Helpers', summary: 'Seeded random number from 0 to 1.', returns: 'number' },
-  { name: 'palette', group: 'Helpers', positional: 'name', summary: 'Looks up a palette. Any ink can be passed as color, or inks as colors.', returns: '{ name, bath, inks }' },
+  { name: 'palette', group: 'Helpers', positional: 'name', summary: 'Looks up a palette, built-in or saved. Any ink can be passed as color, or inks as colors.', returns: '{ name, bath, inks }' },
 ];
 
 export const VALUES = [
   { name: 'W', summary: 'page width, always 100' },
   { name: 'H', summary: 'page height, always 100' },
   { name: 'ASPECT', summary: "the tank's height divided by its width. A vertical distance of d % of width is d / ASPECT in y, so use it for equal spacing both ways" },
-  { name: 'PALETTES', summary: 'every palette, as an array of { name, bath, inks }' },
+  { name: 'PALETTES', summary: 'every palette, built-in and saved, as an array of { name, bath, inks }' },
 ];
 
 const byName = new Map(COMMANDS.map((c) => [c.name, c]));

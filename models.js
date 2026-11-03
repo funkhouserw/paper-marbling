@@ -49,9 +49,10 @@ export const MODELS = [
   {
     id: 'gridink',
     label: 'Grid ink (beta)',
-    title: 'Ink is colour on a grid, moved by a full fluid solve (BiMocq2), so it blends softly and flows can run as long as you like. Always repeats. Runs on the GPU where it can.',
+    title: 'Ink is colour on a grid, moved by a full fluid solve (BiMocq2), so it blends softly and flows can run as long as you like. Repeats unless you turn that off, which gives it solid sides. Runs on the GPU where it can.',
     spreading: false,
-    repeats: true,
+    repeatsAtFirst: true,
+    viscosity: 200, // a grid flow wants a thinner bath than outlines do
     engine: GridInkGL,
   },
 ];

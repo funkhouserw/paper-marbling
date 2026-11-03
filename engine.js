@@ -15,7 +15,7 @@ import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
 import { wrap, pushApartTiled, swirlTiled } from './tile.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
-import { planDots, colourDots } from './fill.js';
+import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
 
 const DEG = Math.PI / 180;
@@ -425,10 +425,11 @@ export class Marble {
   // ---- Inks ------------------------------------------------------------
 
   // Fills the surface with dots of varying size, largest holes first. See fill.js. Sizes are
-  // what the dots end up as, so drops are smaller on simulators where ink spreads.
-  fillDots({ count = 150, min = 8, max = 60, gap = 3, margin = 0, tightness = 0.6, colors = ['#1f4e79'], rings = 1, dispersion = 0.8, shimmer = 0, at } = {}) {
+  // what the dots end up as, so drops are smaller on simulators where ink spreads. Dots go around
+  // ink already there or on its way, unless `over` asks for them on top.
+  fillDots({ count = 150, min = 8, max = 60, gap = 3, margin = 0, tightness = 0.6, colors = ['#1f4e79'], rings = 1, dispersion = 0.8, shimmer = 0, over = false, at } = {}) {
     const dots = colourDots(planDots({
-      width: this.width, height: this.height, minR: min, maxR: max, gap, margin, count, tightness, random: () => this.random(),
+      width: this.width, height: this.height, minR: min, maxR: max, gap, margin, count, tightness, random: () => this.random(), taken: over ? null : this._takenRoom(),
     }), colors, () => this.random());
     const growth = this.spreadFactor;
     for (let ring = 0; ring < rings; ring++) {
@@ -440,6 +441,58 @@ export class Marble {
       if (ring < rings - 1) this.settle();
     }
     return dots.length;
+  }
+
+  // The room ink is using: drops still to land or growing, at the size they'll end up, and what's
+  // already on the surface. It can't foresee where tools still in the queue will move anything.
+  _takenRoom() {
+    const circles = [...this.active, ...this.queued]
+      .filter((op) => op.kind === 'drop')
+      .map((op) => ({ x: op.x, y: op.y, r: Math.sqrt(op.maxArea * this.spreadFactor) }));
+    const { step, cols, rows } = dotGrid(this.width, this.height);
+    const marked = new Uint8Array(cols * rows);
+    const any = this._markInk(marked, cols, rows, step);
+    return { circles, clearance: any ? clearanceFrom(marked, cols, rows, step) : null };
+  }
+
+  // Marks the grid points under ink, and any point an outline passes close to, so thin threads
+  // between points count too. Returns whether it marked anything.
+  _markInk(marked, cols, rows, step) {
+    let any = false;
+    const put = (col, row) => {
+      if (col >= 0 && col < cols && row >= 0 && row < rows) { marked[row * cols + col] = 1; any = true; }
+    };
+    for (let p = 0; p < this.polys.length; p++) {
+      const first = this.polys[p];
+      const loops = [first];
+      while (first.group && this.polys[p + 1]?.group === first.group) loops.push(this.polys[++p]);
+      for (const [sx, sy] of this.tileShifts(loops)) {
+        const lines = new Map();
+        for (const { xy, n } of loops) {
+          for (let i = 0, k = n - 1; i < n; k = i++) {
+            const ax = (xy[k * 2] + sx + this.width / 2) / step;
+            const ay = (xy[k * 2 + 1] + sy + this.height / 2) / step;
+            const bx = (xy[i * 2] + sx + this.width / 2) / step;
+            const by = (xy[i * 2 + 1] + sy + this.height / 2) / step;
+            put(Math.round(bx), Math.round(by));
+            const from = Math.max(0, Math.ceil(Math.min(ay, by)));
+            const to = Math.min(rows - 1, Math.ceil(Math.max(ay, by)) - 1);
+            for (let row = from; row <= to; row++) {
+              let list = lines.get(row);
+              if (!list) lines.set(row, list = []);
+              list.push(ax + ((bx - ax) * (row - ay)) / (by - ay));
+            }
+          }
+        }
+        for (const [row, list] of lines) {
+          list.sort((a, b) => a - b);
+          for (let q = 0; q + 1 < list.length; q += 2) {
+            for (let col = Math.max(0, Math.ceil(list[q])); col <= list[q + 1] && col < cols; col++) put(col, row);
+          }
+        }
+      }
+    }
+    return any;
   }
 
   // A spray of many fine dots, most of them tiny, thickest in the middle like a real spray.

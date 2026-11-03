@@ -56,19 +56,27 @@ Scripts work on a 0 to 100 page, the way CSS percentages do, and the engine conv
 
 ## Grid ink (beta)
 
-**Grid ink** is a separate simulator in `gridink.js`, after BiMocq2 (Qu et al. 2019) and Amanda Ghassaei's marbling. Ink is colour on a grid instead of outlines, moved by a full fluid solve, so colours blend softly and a flow never runs out of points. Rakes drive the water instead of dragging the ink directly, and drops only push ink they've touched. It always repeats, has no hard edges, and exports to SVG as an embedded picture. It runs on the GPU through WebGL2 (`gridgl.js`), and falls back to the CPU (`gridink.js`) without float textures. **Grid ink cell** in Detail sets the flow's grid, and ink sits on a grid three times finer.
+**Grid ink** is a separate simulator in `gridink.js`, after BiMocq2 (Qu et al. 2019) and Amanda Ghassaei's marbling. Ink is colour on a grid instead of outlines, moved by a full fluid solve, so colours blend softly and a flow never runs out of points. Rakes drive the water instead of dragging the ink directly, and drops only push ink they've touched. It starts out repeating. Untick **Repeating** and it has solid sides instead, so ink stays in and the water turns back at the edge. It exports to SVG as an embedded picture. It runs on the GPU through WebGL2 (`gridgl.js`), and falls back to the CPU (`gridink.js`) without float textures. **Grid ink cell** in Detail sets the flow's grid, and ink sits on a grid three times finer.
 
 ## Repeating patterns
 
-**Repeating** (`tile()`) makes the tank one tile of a seamless repeat, joined at its edges like a torus. Outlines are never cut at the seam: they stay whole, every motion repeats across it, and they're drawn wherever they show. In Classic, a drop's growth is balanced by a slight contraction of everything else, since a torus has only so much surface. **See it repeat** shows four copies, and exports join up side by side. Classic, Film and Wake repeat; Spreading and Thin film don't yet. In Film, films meet and push across the seams, and in Wake the bath's flow crosses them too. `tile.js` has the Classic maths, and `film.js` and `wake.js` have their own.
+**Repeating** (`tile()`) makes the tank one tile of a seamless repeat, joined at its edges like a torus. Outlines are never cut at the seam: they stay whole, every motion repeats across it, and they're drawn wherever they show. In Classic, a drop's growth is balanced by a slight contraction of everything else, since a torus has only so much surface. **See it repeat** shows four copies, and exports join up side by side. Classic, Film, Wake and Grid ink repeat; Spreading and Thin film don't yet. In Film, films meet and push across the seams, and in Wake the bath's flow crosses them too. `tile.js` has the Classic maths, and `film.js` and `wake.js` have their own.
 
 ## Air
 
 The **Air** tool and `air({ scale, speed, octaves, duration, seed })` blow a smooth random flow across the tank, after curl noise (Bridson et al. 2007). It stretches ink without changing its area, works in every simulator, and in Wake also sets the bath moving. The same seed repeats the same breath.
 
+## Saving scripts
+
+**My scripts**, under the Script box, keeps scripts by name in this browser's local storage (`kept.js`). Choosing one opens it with the simulator it was saved on, and it doesn't run until you press Run.
+
+## Saving palettes
+
+**Edit and save**, in the Palette panel, changes the current inks and saves them with the Base colour under a name, also in local storage. Saved palettes show under **My palettes** and work in scripts with `palette('name')`. The assistant can save them and switch to them through its `save_palette` and `use_palette` tools, which take effect only when its turn succeeds. It has to be told before it replaces a saved palette, and only you can delete one.
+
 ## Dots and spray
 
-- **`fillDots`:** repeatedly finds the largest empty circle and puts a dot in it, an idea from florilegium and Wong, Zongker & Salesin (1998), so big dots land first and small ones fill the gaps. Add `rings` for targets.
+- **`fillDots`:** repeatedly finds the largest empty circle and puts a dot in it, an idea from florilegium and Wong, Zongker & Salesin (1998), so big dots land first and small ones fill the gaps. It goes around ink already there, or `over: true` puts dots on top. Add `rings` for targets.
 - **`spray`:** a burst of fine dots, mostly tiny and thickest in the middle. It's also a sidebar tool.
 
 ## Wake

@@ -47,14 +47,20 @@ Nothing here has been checked by a lawyer. See [Licences](#licences) before publ
 
 **Ghassaei, Amanda. "Digital Marbling." 2022.** https://blog.amandaghassaei.com/2022/10/25/digital-marbling/
 - **Took:** the target look, and the case for BiMocq² over Stable Fluids. Also rakes as forces on the flow, curl noise as air, and the warning that fitting Jaffer's formula to a bounded space breaks strict area preservation, because expansion needs contraction elsewhere. Her stripes-then-comb layering and painterly edges shaped Paint, Stripes and soft edges.
-- **Where:** Wake's whorls were the goal. Grid ink is her approach, written independently. Her repeating patterns partly motivated tiling, which was your idea.
-- **Not taken:** any code. Her simulator is unreleased, and she calls it a "hacky research prototype".
+- **Where:** Wake's whorls were the goal. Grid ink follows the method her post describes (BiMocq² instead of Stable Fluids, rakes as forces on the flow), written independently from the paper and the Bimocq code. Her published code is the older Stable Fluids method, so none of Grid ink came from it. Her repeating patterns partly motivated tiling, which was your idea.
+- **Not taken:** any code. Her BiMocq² simulator is unreleased, and she calls it a "hacky research prototype".
+- **Read:** the whole post, on 2026-11-03. Earlier I'd worked from a summary of it.
+- **Ideas from it not yet used:** combs drawn as vector art (stroke width as tine size, and many tiny tines for a brushed look), editing an earlier comb pass and seeing the result update, ink thickening as drops are added (slower spreading, darker and contracting pattern), Jaffer's comb formulas combined with a fluid solve, vortex streets behind obstacles, designed flow fields instead of combs, and bouquet, birdwing, dovetail and thistle patterns.
 
 **Ghassaei, Amanda. gpu-io. MIT.** https://github.com/amandaghassaei/gpu-io
-- **Took:** nothing in the code. I read its overview (from a summary of the README) to see how she structures GPU layers and ping-pong passes. We wrote our WebGL directly to avoid its four dependencies.
+- **Took:** nothing in the code. When Grid ink was written I had only read a summary of its README. I hand-wrote our WebGL because of a "no new dependencies" rule I made up myself, not one Ilse set.
+- **Read since (2026-11-03):** the README, the fluid example, and the parts that handle devices without full float support. Worth borrowing: emulating smooth texture sampling in the shader when the GPU can't, falling back to half-precision floats, and keeping positions as an anchor plus a small offset so half precision stays accurate. Grid ink currently drops to the CPU on such devices.
+- **Shape:** about 9,000 lines of TypeScript, MIT, four runtime dependencies, WebGL 1 or 2, with WebGPU planned.
 
 **Ghassaei, Amanda. marbling-experiment and fluid examples.** https://apps.amandaghassaei.com/marbling-experiment/, https://github.com/amandaghassaei/marbling-experiment
-- **Took:** a working reference for what an interactive version feels like. Seen in the survey only.
+- **Took:** a working reference for what an interactive version feels like.
+- **Read (2026-11-03):** `marbling-experiment/src/simulation.ts` and `gpu-io/examples/fluid/index.js`, both MIT. Both are Stable Fluids: flow on a grid 8 times coarser than the screen, ink at full resolution, 3 to 5 Jacobi pressure passes reusing the last answer, and tracer particles drawn as trails. Grid ink uses 40 passes and ink only 3 times finer than its flow, so both are worth trying.
+- **VortexShedding:** no licence, so read-only. Flow past obstacles.
 
 **Nervous System. Blog post on marbled puzzles.** https://n-e-r-v-o-u-s.com/blog/?p=9225
 - **Took:** confirmation that others combine a fluid solve with curl noise for marbling. No code or specifics.
@@ -70,9 +76,9 @@ These changed how we think about the models. None are implemented as written, an
 - **Took:** the most direct marbling physics we found. A deposit spreads "until the edges meet a solid boundary or the edges of another deposit", and larger deposits compress others. It backs the idea that big drops can fill a tank.
 - **Where:** the reasoning behind Spreading, Film and "films ignore each other until they touch". An early Monge-Ampère prototype came from it, but wasn't kept (`handoff.md`).
 
-**Physical Review Fluids paper on marbling physics, 2024.** Hosted by Saverio Spagnolie: https://people.math.wisc.edu/~spagnolie/Papers/sbsr24.pdf. I read a summary and didn't record the full citation, so check it before quoting.
+**Sun, Bush, Spagnolie, Rycroft. "Hydrodynamics of marbling art." Physical Review Fluids 9, 110506, 2024 (Gallery of Fluid Motion).** https://people.math.wisc.edu/~spagnolie/Papers/sbsr24.pdf. A three-page gallery piece with no equations; the physics is in chapter 4 of Sun's 2024 Harvard thesis (https://dash.harvard.edu/handle/1/37378811). Citation corrected on 2026-11-03 from marble-fable's survey. I originally worked from a summary.
 - **Took:** paint spreads through a balance of surface tensions, and surfactant makes it spread into thinner layers, so how far a drop goes depends on the ink. New colours shift the balance and move what's there.
-- **Where:** per-drop `spreading`, and my dropping of a single "minimum thickness" rule. It's also why Print's "thin ink looks paler" stays an artistic option: the paper didn't confirm it.
+- **Where:** per-drop `spreading`, and my dropping of a single "minimum thickness" rule. It's also why Print's "thin ink looks paler" stays an artistic option: the paper didn't confirm it. Jaffer's 2019 "Pigment Transport in Paint Marbling" does give a paleness law, I' = 1 − (1 − I)^γ with γ the normalised pigment thickness (read by marble-fable, not yet by me), so Print's option could follow it.
 
 **Kim, I., Požár, N. "Porous medium equation to Hele-Shaw flow with general initial density." 2015.** https://arxiv.org/abs/1509.06287
 
@@ -117,7 +123,7 @@ Surveyed so that we'd know what exists. No code or methods came from these.
 - Ebru: https://apps.apple.com/app/id6758916412
 - Marbling by danybittel: https://danybittel.itch.io/marbling
 - The Coding Train, "Mathematical Marbling": https://thecodingtrain.com/challenges/183-mathematical-marbling
-- "Computer-Generated Marbling Textures: A GPU-Based Design System": https://www.researchgate.net/publication/3210505_Computer-Generated_Marbling_Textures_A_GPU-Based_Design_System
+- Jin, X., Chen, S., Mao, X. "Computer-Generated Marbling Textures: A GPU-Based Design System." IEEE Computer Graphics and Applications 27(2), 2007. https://doi.org/10.1109/MCG.2007.28
 - "Solid Mathematical Marbling": https://www.researchgate.net/publication/327027824_Solid_Mathematical_Marbling
 - Others that came up: PaperMarbling (CableCry), marbellous (T. Erxleben), suminagashi (MarinovM03), marblingpy, tryebru, Ink Marbling, Battal Ebru.
 

@@ -10,7 +10,7 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderReference } from './api.js';
-import { PALETTES } from './palettes.js';
+import { PALETTES, validPalette, cleanPalette, isBuiltInPalette, MAX_INKS } from './palettes.js';
 import { renderSliders } from './tools.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -40,6 +40,8 @@ How to work:
 - Prefer edit_script, with one small call per change, and keep everything the user didn't ask to change, including comments and formatting. old_string must match exactly one place, so include enough surrounding text.
 - Use replace_script only when the script is empty or the user wants to start over.
 - If a tool reports an error, fix it and try again.
+- Each user turn also lists the sidebar's current palette and the user's saved palettes. A saved palette works in scripts with palette('its name').
+- Use save_palette when the user asks to save or keep a palette, and use_palette when they ask to switch the sidebar to one. Only set replace to true when the user clearly wants that saved palette overwritten; otherwise ask them. There is no tool for deleting a palette: the user does that in the sidebar.
 - Your final reply is one or two plain sentences saying what changed. If the user only asks a question, answer it without using tools. Scripts never run until the user presses Run, so don't say you ran it.
 
 Script rules:
@@ -88,7 +90,79 @@ export const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    type: 'function',
+    name: 'save_palette',
+    description: 'Saves a palette in the user\'s browser under a name, so it shows in the sidebar and works in scripts with palette(name). Takes effect when your turn ends.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Up to 40 characters. It can\'t be a built-in palette\'s name.' },
+        bath: { type: 'string', description: 'The bath colour, as #rrggbb.' },
+        inks: {
+          type: 'array',
+          description: `1 to ${MAX_INKS} inks.`,
+          items: {
+            type: 'object',
+            properties: {
+              color: { type: 'string', description: '#rrggbb, or #rrggbbaa for translucent ink.' },
+              shimmer: { type: 'number', description: '0 is matte, 1 is metallic.' },
+            },
+            required: ['color', 'shimmer'],
+            additionalProperties: false,
+          },
+        },
+        replace: { type: 'boolean', description: 'True to overwrite a saved palette of this name. Only when the user clearly wants that.' },
+      },
+      required: ['name', 'bath', 'inks', 'replace'],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function',
+    name: 'use_palette',
+    description: 'Switches the sidebar to a built-in or saved palette. It changes the swatches and bath colour, not the script or ink in the tank. Takes effect when your turn ends.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'The palette\'s name.' } },
+      required: ['name'],
+      additionalProperties: false,
+    },
+  },
 ];
+
+const PALETTE_TOOLS = new Set(['save_palette', 'use_palette']);
+
+// Applies one palette call to this turn's record of what's saved. Nothing reaches the browser until
+// the turn succeeds, so what comes back is a list of things for it to do.
+export function applyPaletteTool(name, rawArgs, state) {
+  let args;
+  try {
+    args = JSON.parse(rawArgs);
+  } catch {
+    return { ok: false, result: 'Error: the arguments were not valid JSON.' };
+  }
+  if (name === 'save_palette') {
+    if (!validPalette(args)) return { ok: false, result: `Error: a palette needs a name up to 40 characters, a bath as #rrggbb, and 1 to ${MAX_INKS} inks with colours as #rrggbb or #rrggbbaa and shimmer from 0 to 1.` };
+    const palette = cleanPalette(args);
+    if (isBuiltInPalette(palette.name)) return { ok: false, result: `Error: "${palette.name}" is a built-in palette. Choose another name.` };
+    const existing = state.saved.find((p) => p.name.toLowerCase() === palette.name.toLowerCase());
+    if (existing && args.replace !== true) return { ok: false, result: `Error: "${existing.name}" is already saved. Ask the user before replacing it, or choose another name.` };
+    state.saved = [...state.saved.filter((p) => p !== existing), palette];
+    state.actions.push({ type: 'save', palette });
+    return { ok: true, result: `Palette "${palette.name}" will be saved.` };
+  }
+  if (name === 'use_palette' && typeof args.name === 'string') {
+    const wanted = args.name.trim().toLowerCase();
+    const found = [...PALETTES, ...state.saved].find((p) => p.name.toLowerCase() === wanted);
+    if (!found) return { ok: false, result: `Error: there is no palette "${args.name}".` };
+    state.actions.push({ type: 'use', name: found.name });
+    return { ok: true, result: `The sidebar will switch to "${found.name}".` };
+  }
+  return { ok: false, result: `Error: bad call to ${name}.` };
+}
 
 // Compiles without running: scripts only ever run in the browser, away from the API key.
 function syntaxNote(script) {
@@ -132,16 +206,17 @@ function replyText(data) {
 }
 
 // Runs the model until it stops calling tools. Nothing reaches the browser unless the whole turn succeeds.
-async function chat(messages, startScript) {
+async function chat(messages, startScript, savedPalettes = [], currentPalette = null) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { status: 503, body: { error: 'No API key: add OPENAI_API_KEY to ../.env.local and restart the server.' } };
   const last = messages[messages.length - 1];
   const input = [
     ...messages.slice(0, -1),
-    { role: 'user', content: `Current script:\n${startScript || '(empty)'}\n\nRequest: ${last.content}` },
+    { role: 'user', content: `Current script:\n${startScript || '(empty)'}\n\nSidebar palette: ${JSON.stringify(currentPalette)}\nSaved palettes: ${JSON.stringify(savedPalettes)}\n\nRequest: ${last.content}` },
   ];
   let script = startScript;
   let edits = 0;
+  const paletteState = { saved: savedPalettes, actions: [] };
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const res = await fetch(`${BASE_URL}/responses`, {
       method: 'POST',
@@ -165,10 +240,16 @@ async function chat(messages, startScript) {
     if (!calls.length) {
       const reply = replyText(data);
       if (!reply && !edits) return { status: 502, body: { error: `${MODEL} returned no text.` } };
-      return { status: 200, body: { script, reply: reply || 'Script updated.', edits, model: MODEL } };
+      return { status: 200, body: { script, reply: reply || (paletteState.actions.length ? 'Palette updated.' : 'Script updated.'), edits, model: MODEL, ...(paletteState.actions.length ? { paletteActions: paletteState.actions } : {}) } };
     }
     input.push(...output);
     for (const call of calls) {
+      if (PALETTE_TOOLS.has(call.name)) {
+        const done = applyPaletteTool(call.name, call.arguments, paletteState);
+        if (done.ok) edits++;
+        input.push({ type: 'function_call_output', call_id: call.call_id, output: done.result });
+        continue;
+      }
       const applied = applyTool(call.name, call.arguments, script);
       script = applied.script;
       if (applied.ok) edits++;
@@ -204,9 +285,11 @@ export const server = createServer(async (req, res) => {
         raw += chunk;
         if (raw.length > MAX_BODY) return json(res, 413, { error: 'Request too large' });
       }
-      const { messages, script } = JSON.parse(raw);
+      const { messages, script, palettes, currentPalette } = JSON.parse(raw);
       if (!validMessages(messages)) return json(res, 400, { error: 'Expected messages ending in a user message' });
-      const { status, body } = await chat(messages, typeof script === 'string' ? script : '');
+      const saved = Array.isArray(palettes) ? palettes.filter(validPalette).map(cleanPalette) : [];
+      const current = validPalette(currentPalette) ? cleanPalette(currentPalette) : null;
+      const { status, body } = await chat(messages, typeof script === 'string' ? script : '', saved, current);
       return json(res, status, body);
     }
     if (url.pathname === '/api/profile') {

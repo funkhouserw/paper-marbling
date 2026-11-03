@@ -5,7 +5,8 @@ import { MODELS } from './models.js';
 import { renderPrint, PRINT_DEFAULTS } from './print.js';
 import { makeProfiler } from './profile.js';
 import { listSaves, addSave, deleteSave } from './saves.js';
-import { PALETTES, palette } from './palettes.js';
+import { keptList } from './kept.js';
+import { PALETTES, palette, setSavedPalettes, isBuiltInPalette, validPalette, cleanPalette, MAX_INKS } from './palettes.js';
 import { addInfo, infoIcon } from './info.js';
 import { FONTS, textContours, moveContours } from './text.js';
 import { TINTS, PULL_SECONDS, LAY_SECONDS, pullPrint, drawSweep, savePull, listPulls, deletePull } from './paper.js';
@@ -15,6 +16,7 @@ const START_PALETTE = 'Dark Academia';
 
 const EXAMPLES = {
   'Lapis bullseyes': `// Drops stacked on one spot in order, each pushing the last outward.
+viscosity({ value: 1000 });
 const inks = palette('Lapis & Gilt').inks;
 const spots = [[16, 25.7], [44, 72.9], [73, 24.3], [93, 74.3], [7, 80]];
 inOrder({ gap: 0.4 });
@@ -31,6 +33,7 @@ settle();
 fullRake({ angle: 180, teeth: 6, offset: 5.8, speed: 22, D: 0.8 });
 `,
   'Blue & gold feather': `// Rows of alternating bullseyes, combed one way and back, then feathered.
+viscosity({ value: 1000 });
 const inks = palette('Lapis & Gilt').inks;
 allAtOnce();
 for (let r = 0; r < 4; r++) {
@@ -64,6 +67,7 @@ settle();
 fullRake({ angle: 0, teeth: 30, speed: 32, D: 0.4 });
 `,
   'Emerald peacock': `// Emerald and gold, combed both ways with a fine weaving rake.
+viscosity({ value: 1000 });
 const inks = palette('Emerald & Gold').inks;
 for (let i = 0; i < 40; i++) {
   drop({ x: 5 + (i % 8) * 12.8, y: 90 - Math.floor(i / 8) * 20,
@@ -77,6 +81,7 @@ settle();
 fullRake({ angle: 0, teeth: 16, speed: 26, D: 0.6, waveAmp: 2.2, waveLength: 9 });
 `,
   'Gilded stone': `// A thick scatter of dark inks, then fine gold spatter over the top.
+viscosity({ value: 1000 });
 const dark = palette('Dark Academia').inks;
 drops({ n: 90, quantity: 1.4, spread: 0.6, stagger: 2.5, dispersion: 1.4, colors: dark.slice(0, 5) });
 settle();
@@ -84,6 +89,7 @@ wait(0.5);
 drops({ n: 70, quantity: 0.07, spread: 0.7, stagger: 2, dispersion: 2, colors: [dark[5]] });
 `,
   'Oxblood whirl': `// Rings poured in order at the centre, then stirred in opposite directions.
+viscosity({ value: 1000 });
 const inks = palette('Oxblood & Gilt').inks;
 inOrder({ gap: 0.35 });
 for (let i = 0; i < 18; i++) {
@@ -96,6 +102,7 @@ settle();
 wriggle({ period: 12, degrees: 12, duration: 2 });
 `,
   'Library endpaper': `// Printed text settled onto a marbled sheet, then gently combed with it.
+viscosity({ value: 1000 });
 const inks = palette('Ravenwood Library').inks;
 for (let i = 0; i < 48; i++) {
   drop({ x: 5 + (i % 8) * 12.8 + (Math.floor(i / 8) % 2) * 6.4, y: 91.4 - Math.floor(i / 8) * 16.6,
@@ -109,21 +116,25 @@ wait(1);
 fullRake({ angle: 90, teeth: 9, speed: 9, D: 0.3 });
 `,
   'Dot garden': `// Big dots first, small ones tucked into the gaps.
+viscosity({ value: 1000 });
 const p = palette('Old Dutch');
 fillDots({ count: 220, min: 0.8, max: 9, colors: p.inks.slice(0, 4) });
 settle();
 `,
   'Bead field': `// Dots of stacked rings, each layer settling before the next.
+viscosity({ value: 1000 });
 fillDots({ count: 60, min: 1.5, max: 10, gap: 0.8, rings: 3, colors: palette('Copper & Verdigris').inks });
 settle();
 `,
   'Chevrons': `// Bands of colour combed one way, then back between the first lines.
+viscosity({ value: 1000 });
 const inks = palette('Old Dutch').inks;
 stripes({ count: 30, colors: inks, slivers: 1 });
 fullRake({ angle: 90, teeth: 8, speed: 24, D: 0.7 });
 fullRake({ angle: 270, teeth: 8, offset: 6.25, speed: 24, D: 0.7 });
 fullRake({ angle: 0, teeth: 40, speed: 30, D: 0.3 });`,
   'Ribbons': `// Stripes combed back and forth with a few wide teeth, until they stretch into ribbons.
+viscosity({ value: 1000 });
 const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
 bath({ color: '#c8d8c0' });
 stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
@@ -132,12 +143,14 @@ for (let i = 0; i < 3; i++) {
   fullRake({ angle: 270, teeth: 4, offset: 12.5, speed: 40, D: 2 });
 }`,
   'Big waves': `// One slow, very wide pass each way bends stripes into broad waves.
+viscosity({ value: 1000 });
 const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
 bath({ color: '#c8d8c0' });
 stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
 fullRake({ angle: 90, teeth: 3, speed: 60, D: 3 });
 fullRake({ angle: 270, teeth: 3, offset: 16.7, speed: 60, D: 3 });`,
   'Flames': `// Wide combing up and down, twice, draws stripes out into flames.
+viscosity({ value: 1000 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
@@ -146,6 +159,7 @@ for (let i = 0; i < 2; i++) {
   fullRake({ angle: 270, teeth: 7, offset: 7.14, speed: 30, D: 1.4 });
 }`,
   'Two-way feathers': `// Combed up and down, across, then up and down again, so the feathers point both ways.
+viscosity({ value: 1000 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
@@ -193,6 +207,7 @@ fullRake({ angle: 90, teeth: 5, speed: 30, D: 1 });
 fullRake({ angle: 270, teeth: 5, offset: 10, speed: 30, D: 1 });
 settle();`,
   'Italian marble': `// One breath of air over stripes, with no comb at all.
+viscosity({ value: 1000 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
@@ -207,6 +222,7 @@ settle();
 air({ scale: 20, speed: 8 });
 settle();`,
   'Seamless wallpaper': `// One tile of a repeating pattern. Press See it repeat to check it joins up.
+viscosity({ value: 1000 });
 tile();
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
@@ -215,6 +231,7 @@ fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
 fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
 air({ scale: 25, speed: 6 });`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
+viscosity({ value: 1000 });
 const p = palette('Lapis & Gilt');
 bath({ color: p.bath });
 fillDots({ count: 40, min: 2, max: 12, gap: 1, colors: p.inks.slice(0, 3) });
@@ -224,6 +241,7 @@ spray({ x: 70, y: 65, radius: 40, n: 300, colors: [p.inks[3], p.inks[4]] });
 settle();
 `,
   'Wave comb': `// A traced surf wave as the rake's path. Try it on any simulator.
+viscosity({ value: 1000 });
 const p = palette('Old Dutch');
 for (let i = 0; i < 8; i++) {
   for (let j = 0; j < 11; j++) drop({ x: 4 + j * 9.2, y: 6 + i * 12.5, quantity: 1.6, color: p.inks[i % 4] });
@@ -232,6 +250,7 @@ settle();
 fullRake({ angle: 0, teeth: 5, speed: 25, D: 1, waveAmp: 5, waveLength: 18, waveShape: 'wave' });
 `,
   'Verdigris waves': `// Copper and verdigris bands, shaken into waves.
+viscosity({ value: 1000 });
 const inks = palette('Copper & Verdigris').inks;
 for (let r = 0; r < 7; r++) {
   for (let c = 0; c < 9; c++) {
@@ -261,6 +280,7 @@ function inMm(name, tank = marble) {
 let marble = new Marble();
 let playing = true;
 let tool = 'drop';
+let tileSimulator = null; // the simulator the Repeating tick was last set for
 let inks = palette(START_PALETTE).inks;
 let color = inks[0].color;
 let shimmer = inks[0].shimmer;
@@ -297,6 +317,17 @@ for (const m of MODELS) {
 $('simulator').value = MODELS.some((m) => m.id === localStorage.getItem('marbler.simulator'))
   ? localStorage.getItem('marbler.simulator') : MODELS[0].id;
 const currentModel = () => MODELS.find((m) => m.id === $('simulator').value);
+// Each simulator has its own starting viscosity. Grid ink's grid flow wants a thinner bath.
+const STANDARD_VISCOSITY = 1000;
+const startingViscosity = (model = currentModel()) => model?.viscosity ?? STANDARD_VISCOSITY;
+let viscositySimulator = currentModel().id; // whose starting viscosity the box was last given
+$('visc').value = startingViscosity();
+// Changing simulator moves the box to the new one's starting value, unless it holds the user's own.
+function syncViscosity() {
+  const was = MODELS.find((m) => m.id === viscositySimulator);
+  if (Number($('visc').value) === startingViscosity(was)) $('visc').value = startingViscosity();
+  viscositySimulator = currentModel().id;
+}
 // A script's openWater() shows here too, so the control always says what's really running.
 function showSpreading(on) {
   $('simulator').value = MODELS.find((m) => m.spreading === on).id;
@@ -602,19 +633,120 @@ function weavePicker(name, label, options) {
 // Swaps the swatches and bath colour straight away, without clearing the tank.
 function applyPalette(name) {
   const p = palette(name);
-  inks = p.inks;
+  // A copy, so changing colours in the editor can't change the palette it started from.
+  inks = p.inks.map((ink) => ({ ...ink }));
   color = inks[0].color;
   shimmer = inks[0].shimmer;
   $('bath').value = p.bath;
   marble.bath = bathColor();
   dirty = true;
   showTool(tool);
+  $('palette').value = p.name;
+  $('paletteName').value = isBuiltInPalette(p.name) ? '' : p.name;
+  renderPaletteEditor();
 }
-for (const { name } of PALETTES) $('palette').add(new Option(name, name));
-$('palette').value = START_PALETTE;
+
+const myPalettes = keptList('marbler.palettes', validPalette);
+
+// The current palette's inks, each with its colour, shimmer and a button to remove it.
+function renderPaletteEditor() {
+  $('paletteInks').replaceChildren(...inks.map((ink, i) => {
+    const row = document.createElement('div');
+    row.className = 'paletteInk';
+    const pick = Object.assign(document.createElement('input'), { type: 'color', value: ink.color.slice(0, 7), title: `Ink ${i + 1}` });
+    pick.setAttribute('aria-label', `Ink ${i + 1} colour`);
+    pick.oninput = () => {
+      const chosen = color === ink.color;
+      ink.color = pick.value + ink.color.slice(7); // keeps any transparency
+      if (chosen) color = ink.color;
+      showTool(tool);
+    };
+    const metal = Object.assign(document.createElement('input'), { type: 'range', min: 0, max: 1, step: 0.05, value: ink.shimmer, title: 'Shimmer: 0 is matte, 1 is metallic' });
+    metal.setAttribute('aria-label', `Ink ${i + 1} shimmer`);
+    metal.oninput = () => {
+      const chosen = color === ink.color;
+      ink.shimmer = Number(metal.value);
+      if (chosen) shimmer = ink.shimmer;
+      showTool(tool);
+    };
+    const remove = Object.assign(document.createElement('button'), { textContent: '✕', title: 'Remove this ink', disabled: inks.length < 2 });
+    remove.onclick = () => {
+      inks.splice(i, 1);
+      if (!inks.some((k) => k.color === color)) { color = inks[0].color; shimmer = inks[0].shimmer; }
+      showTool(tool);
+      renderPaletteEditor();
+    };
+    row.append(pick, metal, remove);
+    return row;
+  }));
+  $('addInk').disabled = inks.length >= MAX_INKS;
+  $('deletePalette').disabled = isBuiltInPalette($('palette').value);
+}
+
+// The dropdown and what scripts can reach both follow what's saved.
+function renderPalettes(chosen) {
+  const saved = myPalettes.list();
+  setSavedPalettes(saved);
+  const group = (label, list) => {
+    const g = Object.assign(document.createElement('optgroup'), { label });
+    g.append(...list.map((p) => new Option(p.name, p.name)));
+    return g;
+  };
+  const builtIn = PALETTES.slice(0, PALETTES.length - saved.length);
+  $('palette').replaceChildren(...(saved.length ? [group('My palettes', saved), group('Built in', builtIn)] : builtIn.map((p) => new Option(p.name, p.name))));
+  $('palette').value = chosen;
+}
+
+renderPalettes(START_PALETTE);
 $('palette').onchange = () => applyPalette($('palette').value);
+$('addInk').onclick = () => {
+  inks.push({ color: '#808080', shimmer: 0 });
+  showTool(tool);
+  renderPaletteEditor();
+};
+$('savePalette').onclick = () => {
+  const name = $('paletteName').value.trim();
+  if (!name) { $('paletteName').focus(); return; }
+  if (isBuiltInPalette(name)) { showError(`"${name}" is a built-in palette, so choose another name.`); return; }
+  const entry = { name, bath: $('bath').value, inks };
+  if (!validPalette(entry)) { showError('A palette name can be up to 40 characters.'); return; }
+  const existing = myPalettes.list().find((p) => p.name.toLowerCase() === name.toLowerCase());
+  if (existing && existing.name !== $('palette').value && !confirm(`Replace the saved palette "${existing.name}"?`)) return;
+  try {
+    if (existing && existing.name !== name) myPalettes.remove(existing.name);
+    myPalettes.save(cleanPalette(entry));
+    showError('');
+  } catch (err) {
+    showError(`Couldn't save the palette: ${err.message}`);
+    return;
+  }
+  renderPalettes(name);
+  renderPaletteEditor();
+};
+$('deletePalette').onclick = () => {
+  const name = $('palette').value;
+  if (isBuiltInPalette(name) || !confirm(`Delete the saved palette "${name}"?`)) return;
+  myPalettes.remove(name);
+  renderPalettes(START_PALETTE);
+  applyPalette(START_PALETTE);
+};
+// What the assistant did to palettes, applied only once its whole turn has succeeded.
+function applyPaletteActions(actions = []) {
+  for (const action of actions) {
+    if (action.type === 'save') {
+      const others = myPalettes.list().filter((p) => p.name.toLowerCase() === action.palette.name.toLowerCase() && p.name !== action.palette.name);
+      for (const other of others) myPalettes.remove(other.name);
+      myPalettes.save(action.palette);
+      renderPalettes($('palette').value);
+    } else if (action.type === 'use') {
+      applyPalette(action.name);
+    }
+  }
+}
 $('bath').value = palette(START_PALETTE).bath;
 marble.bath = bathColor();
+inks = palette(START_PALETTE).inks.map((ink) => ({ ...ink }));
+renderPaletteEditor();
 
 for (const name of Object.keys(TOOLS)) {
   const b = document.createElement('button');
@@ -655,7 +787,7 @@ function syncToggles(entries) {
   const water = entries.filter((e) => e.fn === 'openWater').at(-1);
   if (water) showSpreading(water.args.on);
   $('walls').checked = entries.filter((e) => e.fn === 'walls').at(-1)?.args.on ?? false;
-  $('tile').checked = entries.filter((e) => e.fn === 'tile').at(-1)?.args.on ?? false;
+  $('tile').checked = entries.filter((e) => e.fn === 'tile').at(-1)?.args.on ?? currentModel().repeatsAtFirst === true;
   syncTile();
   // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
   const thickness = entries.filter((e) => e.fn === 'setViscosity').at(-1);
@@ -702,7 +834,7 @@ function updateHistoryButtons() {
 // Rebuilds the tank from log entries, so seeded randomness replays identically.
 function rebuild(entries) {
   $('walls').checked = false;
-  $('tile').checked = false;
+  $('tile').checked = currentModel().repeatsAtFirst === true;
   const m = newTank();
   m.replay(entries);
   syncToggles(entries);
@@ -910,7 +1042,9 @@ function newTank() {
   queueEnd = 0;
   if (currentModel().spreading) marble.openWater({ on: true, at: 0 });
   if ($('walls').checked) marble.walls({ on: true, at: 0 });
-  if ($('tile').checked && !$('tile').disabled) marble.tile({ on: true, at: 0 });
+  syncTile(); // the tick may not have caught up yet, on the first tank after a reload
+  if ($('tile').checked && !$('tile').disabled && !currentModel().repeatsAtFirst) marble.tile({ on: true, at: 0 });
+  if (!$('tile').checked && currentModel().repeatsAtFirst) marble.tile({ on: false, at: 0 });
   resize();
   return marble;
 }
@@ -979,17 +1113,22 @@ for (const id of Object.values(FLOW_FIELDS)) {
 
 // Only some simulators can repeat, so the toggle follows the one chosen.
 function syncTile() {
-  const always = currentModel().repeats === true;
+  const atFirst = currentModel().repeatsAtFirst === true;
   const supported = !currentModel().spreading && (currentModel().engine ?? Marble).prototype.tileSupported;
-  $('tile').disabled = !supported || always;
+  $('tile').disabled = !supported;
   $('tile').closest('label').hidden = !supported;
   if (!supported) $('tile').checked = false;
-  // Grid ink's tick was forced on, so it doesn't count as asking other simulators to repeat.
-  if (always) { $('tile').checked = true; $('tile').dataset.forced = '1'; }
-  else if ($('tile').dataset.forced) { $('tile').checked = false; delete $('tile').dataset.forced; }
-  $('walls').disabled = always;
-  $('walls').closest('label').hidden = always;
-  if (always) $('walls').checked = false;
+  // Grid ink starts out repeating, once on arriving at it, and that doesn't count as asking other
+  // simulators to repeat. After that the tick is the user's.
+  if (tileSimulator !== currentModel().id) {
+    tileSimulator = currentModel().id;
+    if (atFirst) { $('tile').checked = true; $('tile').dataset.forced = '1'; }
+    else if ($('tile').dataset.forced) { $('tile').checked = false; delete $('tile').dataset.forced; }
+  }
+  // Grid ink's sides are solid whenever it isn't repeating, so it has no Hard edges to choose.
+  $('walls').disabled = atFirst;
+  $('walls').closest('label').hidden = atFirst;
+  if (atFirst) $('walls').checked = false;
   $('tilePreview').hidden = !$('tile').checked;
   if ($('tile').checked && $('walls').checked) $('walls').checked = false;
 }
@@ -1007,6 +1146,7 @@ $('tilePreview').onclick = () => {
 };
 $('simulator').onchange = () => {
   localStorage.setItem('marbler.simulator', $('simulator').value);
+  syncViscosity();
   syncTile();
   syncBathPanel();
   // An empty tank can simply become the new simulator. With ink in it, the change waits for a clear.
@@ -1098,7 +1238,12 @@ async function sendChat() {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: sending, script: $('script').value }),
+      body: JSON.stringify({
+        messages: sending,
+        script: $('script').value,
+        palettes: myPalettes.list(),
+        currentPalette: { name: $('palette').value, bath: $('bath').value, inks },
+      }),
     });
     if (res.status === 404 || res.status === 501) {
       showError('The assistant needs the local server. Start with: node server.mjs');
@@ -1110,6 +1255,11 @@ async function sendChat() {
       return;
     }
     $('script').value = data.script;
+    try {
+      applyPaletteActions(data.paletteActions);
+    } catch (err) {
+      showError(`Couldn't save the palette: ${err.message}`);
+    }
     chatMessages.push({ role: 'assistant', content: data.reply });
     failed = false;
   } catch (err) {
@@ -1167,12 +1317,74 @@ $('examples').onchange = () => {
   if (simulator) {
     $('simulator').value = simulator;
     localStorage.setItem('marbler.simulator', simulator);
+    syncViscosity();
     syncTile();
     syncBathPanel();
   }
   $('script').value = EXAMPLES[$('examples').value];
+  $('myScripts').value = '';
+  syncScriptButtons();
   runSource();
 };
+
+// ---- My scripts -----------------------------------------------------------
+
+const myScripts = keptList('marbler.scripts');
+
+function syncScriptButtons() { $('deleteScript').disabled = !$('myScripts').value; }
+
+function renderScripts(chosen = '') {
+  const list = myScripts.list();
+  $('myScripts').replaceChildren(
+    new Option(list.length ? 'Open a saved script…' : 'No saved scripts yet', ''),
+    ...list.map((s) => new Option(s.name, s.name)),
+  );
+  $('myScripts').value = chosen;
+  syncScriptButtons();
+}
+
+// Opening only fills the box, so it can't clear a tank you're working on. Run does that.
+$('myScripts').onchange = () => {
+  const name = $('myScripts').value;
+  syncScriptButtons();
+  if (!name) return;
+  const script = myScripts.list().find((s) => s.name === name);
+  if (!script) return;
+  $('script').value = script.text;
+  $('scriptName').value = script.name;
+  $('examples').value = '';
+  $('error').hidden = true;
+  if (script.simulator && [...$('simulator').options].some((o) => o.value === script.simulator)) {
+    $('simulator').value = script.simulator;
+    $('simulator').onchange();
+  }
+};
+
+$('saveScript').onclick = () => {
+  const name = $('scriptName').value.trim();
+  if (!name) { $('scriptName').focus(); return; }
+  // Saving over the one that's open is the point of saving. Over any other, it asks.
+  if (name !== $('myScripts').value && myScripts.list().some((s) => s.name === name) && !confirm(`Replace the saved script "${name}"?`)) return;
+  try {
+    myScripts.save({ name, text: $('script').value, simulator: $('simulator').value, saved: Date.now() });
+    showError('');
+  } catch (err) {
+    showError(`Couldn't save the script: ${err.message}`);
+    return;
+  }
+  $('scriptName').value = name;
+  renderScripts(name);
+};
+
+$('deleteScript').onclick = () => {
+  const name = $('myScripts').value;
+  if (!name || !confirm(`Delete the saved script "${name}"?`)) return;
+  myScripts.remove(name);
+  $('scriptName').value = '';
+  renderScripts();
+};
+
+renderScripts();
 
 // ---- Saved states ---------------------------------------------------------
 
