@@ -8,7 +8,7 @@
 //
 // One difference: projection is Jacobi iteration, warm-started from the last tick, not an FFT. It's
 // less exact over long distances, so large-scale flow may compress the surface very slightly.
-import { GridInk } from './gridink.js';
+import { GridInk, FILM_ALPHA as FILM_ALPHA_GL, SMALL_PUSH as SMALL_PUSH_GL, parseColor as parseColorGL } from './gridink.js';
 
 const JACOBI = 40;
 const TOOL_GRIP = 0.6;
@@ -130,6 +130,61 @@ const SHADERS = {
     void main() { vec4 v = texelFetch(I, ivec2(CELL), 0) - S(L, CELL + map(B)), lo = vec4(1e20), hi = vec4(-1e20);
       for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec4 n = S(I, CELL + vec2(i, j)); lo = min(lo, n); hi = max(hi, n); }
       o = clamp(v, lo, hi); }`,
+  // Growing drops, as splats. "cover": the most ink in each flow cell's block, for labelling films.
+  cover: `uniform sampler2D I; uniform float detail;
+    void main() { float m = 0.; ivec2 base = ivec2(CELL) * int(detail);
+      for (int j = 0; j < 8; j++) for (int i = 0; i < 8; i++) { if (i >= int(detail) || j >= int(detail)) continue; m = max(m, texelFetch(I, base + ivec2(i, j), 0).a); }
+      o = vec4(m, 0, 0, 1); }`,
+  // Each growing drop pushes its own film outward by Jaffer's formula read backwards; pushes from
+  // all drops add up, then the picture is read once at the pushed position (clamped Catmull-Rom).
+  dropPush: `uniform sampler2D I, labels, drops; uniform int n; uniform vec2 h, flow; uniform float detail, tiled;
+    ivec2 wrapI(ivec2 c) { ivec2 s = ivec2(size); return tiled > .5 ? (c % s + s) % s : clamp(c, ivec2(0), s - 1); }
+    float labelAt(vec2 p) {
+      ivec2 f = ivec2(floor(floor(p + .5) / detail)), fs = ivec2(flow);
+      f = tiled > .5 ? (f % fs + fs) % fs : clamp(f, ivec2(0), fs - 1);
+      return texelFetch(labels, f, 0).r;
+    }
+    vec4 cr(float u) { return .5 * vec4(-u*u*u + 2.*u*u - u, 3.*u*u*u - 5.*u*u + 2., -3.*u*u*u + 4.*u*u + u, u*u*u - u*u); }
+    vec4 sharp(vec2 p) {
+      vec2 b = floor(p), f = p - b; vec4 wx = cr(f.x), wy = cr(f.y), sum = vec4(0), lo = vec4(1e20), hi = vec4(-1e20);
+      for (int j = 0; j < 4; j++) for (int i = 0; i < 4; i++) {
+        vec4 v = texelFetch(I, wrapI(ivec2(b) + ivec2(i - 1, j - 1)), 0);
+        sum += wx[i] * wy[j] * v;
+        if ((i == 1 || i == 2) && (j == 1 || j == 2)) { lo = min(lo, v); hi = max(hi, v); }
+      }
+      return clamp(sum, lo, hi);
+    }
+    void main() {
+      vec2 c = CELL; vec2 push = vec2(0); bool touched = false; float here = labelAt(c);
+      for (int k = 0; k < 256; k++) {
+        if (k >= n) break;
+        vec4 d = texelFetch(drops, ivec2(k, 0), 0); vec4 e = texelFetch(drops, ivec2(k, 2), 0);
+        vec2 dc = c - d.xy;
+        if (tiled > .5) dc -= size * floor(dc / size + .5);
+        vec2 dm = dc * h; float d2 = dot(dm, dm);
+        if (d2 > e.y * e.y || d2 < 1e-9) continue;
+        float shrink = d2 > d.z ? 1. - sqrt(1. - d.z / d2) : 1.;
+        vec2 back = dc * shrink;
+        if (labelAt(c - back) != d.w) continue;
+        if (here != 0. && here != d.w) continue;
+        push -= back; touched = true;
+      }
+      o = touched ? sharp(c + push) : texelFetch(I, ivec2(c), 0);
+    }`,
+  // Then each drop lays its colour over its middle, in the order they grew.
+  dropLay: `uniform sampler2D I, drops; uniform int n; uniform vec2 h; uniform float tiled;
+    void main() {
+      vec2 c = CELL; vec4 v = texelFetch(I, ivec2(c), 0);
+      for (int k = 0; k < 256; k++) {
+        if (k >= n) break;
+        vec4 d = texelFetch(drops, ivec2(k, 0), 0); vec4 col = texelFetch(drops, ivec2(k, 1), 0); vec4 e = texelFetch(drops, ivec2(k, 2), 0);
+        vec2 dc = c - d.xy;
+        if (tiled > .5) dc -= size * floor(dc / size + .5);
+        float cover = clamp((e.x - length(dc * h)) / h.x + .5, 0., 1.);
+        if (cover > 0.) v = v * (1. - cover * col.a) + col * cover;
+      }
+      o = v;
+    }`,
   // To the visible canvas. The first row of the grid is the image's top row, as with putImageData.
   show: `uniform sampler2D I; void main() { o = texelFetch(I, ivec2(gl_FragCoord.x - .5, size.y - gl_FragCoord.y - .5 + 0.), 0); }`,
 };
@@ -173,7 +228,8 @@ function context() {
 }
 
 export class GridInkGL extends GridInk {
-  get gpu() { return this.method === 'bimocq' ? context() : null; }
+  // noGpu forces the CPU path, for comparing the two.
+  get gpu() { return this.method === 'bimocq' && !this.noGpu ? context() : null; }
 
   // The textures, and whether the CPU's copy of each group is newer.
   get _t() {
@@ -584,10 +640,72 @@ export class GridInkGL extends GridInk {
     if (this._gl) { this._gl.cpuInk = true; this._gl.cpuInkMaps = true; this._gl.inkShown = false; }
   }
 
+  // Growing drops on the GPU: the same push and colour as gridink.js, as one pass over the picture
+  // for all drops at once instead of a pass per drop on the CPU. Films are still labelled on the
+  // CPU, from a small read-back of where the ink is.
   _flushGrowth() {
-    const had = this.growth.length;
-    super._flushGrowth();
-    if (had && this._gl) this._gl.cpuInk = true;
+    if (!this.gpu || !this.growth.length) {
+      const had = this.growth.length;
+      super._flushGrowth();
+      if (had && this._gl) this._gl.cpuInk = true;
+      return;
+    }
+    const growth = this.growth;
+    this.growth = [];
+    this.landing = [];
+    const state = this._t;
+    const { t } = state;
+    const g = this._g;
+    const { gl } = this.gpu;
+    this._uploadChanges();
+    this._checkpointInkGL(); // the current picture becomes ink0, with fresh maps
+    // Where the ink is, per flow cell.
+    this._pass('cover', t.c, { I: t.ink0, detail: g.detail });
+    const data = this._read(t.c, state.buffer);
+    const inked = new Uint8Array(g.nx * g.ny);
+    for (let i = 0; i < inked.length; i++) inked[i] = data[i * 4] >= FILM_ALPHA_GL ? 1 : 0;
+    const { labels, seedOf } = this._labelFilms(growth, inked);
+    const lab = state.labelData ??= new Float32Array(g.nx * g.ny * 4);
+    for (let i = 0; i < labels.length; i++) { lab[i * 4] = labels[i]; lab[i * 4 + 1] = 0; lab[i * 4 + 2] = 0; lab[i * 4 + 3] = 1; }
+    this._upload(t.d, null, null, lab);
+    // The drops, 256 at a time: (centre in ink cells, area grown, film), colour, (radius, reach).
+    const drops = state.drops ??= this._makeTexture(256, 3);
+    const packed = state.dropData ??= new Float32Array(256 * 3 * 4);
+    const halfW = this.width / 2;
+    const halfH = this.height / 2;
+    for (let start = 0; start < growth.length; start += 256) {
+      const batch = growth.slice(start, start + 256);
+      packed.fill(0);
+      batch.forEach(([op, da], k) => {
+        const [r, gg, b, a] = parseColorGL(op.color);
+        const at = (row) => (row * 256 + k) * 4;
+        packed.set([(op.x + halfW) / g.ihx - 0.5, (op.y + halfH) / g.ihy - 0.5, da, labels[seedOf.get(op)]], at(0));
+        packed.set([r * a, gg * a, b * a, a], at(1));
+        packed.set([Math.sqrt(op.grown), Math.min(da / (2 * SMALL_PUSH_GL * Math.min(g.ihx, g.ihy)), Math.min(halfW, halfH)), 0, 0], at(2));
+      });
+      this._upload(drops, null, null, packed);
+      const common = { drops, n: batch.length, h: [g.ihx, g.ihy], tiled: this.tileOn ? 1 : 0 };
+      this._pass('dropPush', t.plain, { ...common, I: t.ink0, labels: t.d, flow: [g.nx, g.ny], detail: g.detail });
+      this._pass('dropLay', t.ink0, { ...common, I: t.plain });
+    }
+    void gl;
+    state.inkShown = false;
+    state.inkFresh = true;
+    state.cpuInk = false;
+    g.inkStale = true;
+  }
+
+  _makeTexture(w, h) {
+    const { gl } = this.gpu;
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, w, h);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    return { tex, fbo, w, h };
   }
 
   _absorbOutlines() {

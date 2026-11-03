@@ -43,8 +43,8 @@ const INK_MAP_TICKS = 600; // and an ink one
 const MAP_ERROR = 1; // cells: maps that disagree by this much are due a checkpoint
 const CHECK_EVERY = 10; // ticks between measuring that
 const LEAST_REACH = 1.5; // cells: the narrowest a tine's pin can be
-const FILM_ALPHA = 0.2; // ink thinner than this counts as water when finding films
-const SMALL_PUSH = 0.02; // cells: a drop's push stops being applied below this
+export const FILM_ALPHA = 0.2; // ink thinner than this counts as water when finding films
+export const SMALL_PUSH = 0.02; // cells: a drop's push stops being applied below this
 const SIDE_FADE = 4; // cells beside a solid side over which a tool's motion fades out
 const WEIGHTS = [0.125, 0.125, 0.125, 0.125, 0.5];
 const OFFSETS = [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0, 0]];
@@ -60,7 +60,7 @@ const smoothLength = (n) => {
   }
 };
 
-const parseColor = (css) => {
+export const parseColor = (css) => {
   const hex = /^#([0-9a-f]{3,8})$/i.exec(css ?? '')?.[1];
   if (hex) {
     const full = hex.length <= 4 ? [...hex].map((c) => c + c).join('') : hex;
@@ -752,14 +752,17 @@ export class GridInk extends Marble {
 
   // Which film each flow cell belongs to: ink, plus the growing drops, joined where cells touch.
   // Films a cell apart have touched. Label 0 is bare water.
-  _labelFilms(growth) {
+  _labelFilms(growth, known = null) {
     const { nx, ny, ix, detail, hx, hy, ink } = this._g;
-    const inked = new Uint8Array(nx * ny);
-    const alpha = ink[3];
-    for (let c = 0; c < alpha.length; c++) {
-      if (alpha[c] < FILM_ALPHA) continue;
-      const fine = c % ix;
-      inked[Math.floor((c - fine) / ix / detail) * nx + Math.floor(fine / detail)] = 1;
+    // Where the ink is, per flow cell, unless the caller (the GPU path) already knows.
+    const inked = known ?? new Uint8Array(nx * ny);
+    if (!known) {
+      const alpha = ink[3];
+      for (let c = 0; c < alpha.length; c++) {
+        if (alpha[c] < FILM_ALPHA) continue;
+        const fine = c % ix;
+        inked[Math.floor((c - fine) / ix / detail) * nx + Math.floor(fine / detail)] = 1;
+      }
     }
     const seedOf = new Map();
     for (const [op] of growth) {
@@ -797,7 +800,44 @@ export class GridInk extends Marble {
         }
       }
     }
-    return { labels, seedOf };
+    // Each film's extent in flow cells, so a drop only visits its own film. A film that touches
+    // both sides of a repeating tank may wrap, so it counts as spanning the whole way across.
+    const boxes = new Map();
+    for (let c = 0; c < nx * ny; c++) {
+      const l = labels[c];
+      if (!l) continue;
+      const i = c % nx;
+      const j = (c - i) / nx;
+      const b = boxes.get(l);
+      if (!b) boxes.set(l, { i0: i, i1: i, j0: j, j1: j });
+      else {
+        if (i < b.i0) b.i0 = i;
+        if (i > b.i1) b.i1 = i;
+        if (j < b.j0) b.j0 = j;
+        if (j > b.j1) b.j1 = j;
+      }
+    }
+    if (this.tileOn) {
+      for (const b of boxes.values()) {
+        if (b.i0 === 0 && b.i1 === nx - 1) { b.i0 = -Infinity; b.i1 = Infinity; }
+        if (b.j0 === 0 && b.j1 === ny - 1) { b.j0 = -Infinity; b.j1 = Infinity; }
+      }
+    }
+    return { labels, seedOf, boxes };
+  }
+
+  // The stretches of [lo, hi] (cells, unwrapped) that land in [b0, b1] (cells of an n-cell side),
+  // counting every repeat of the tile when it wraps.
+  _spans(lo, hi, b0, b1, n) {
+    if (b0 === -Infinity) return [[lo, hi]];
+    if (!this.tileOn) return [[Math.max(lo, b0), Math.min(hi, b1)]].filter(([a, b]) => a <= b);
+    const out = [];
+    for (let k = Math.floor((lo - b1) / n); k <= Math.ceil((hi - b0) / n); k++) {
+      const a = Math.max(lo, b0 + k * n);
+      const b = Math.min(hi, b1 + k * n);
+      if (a <= b) out.push([a, b]);
+    }
+    return out;
   }
 
   // Growing drops push their own film aside by Jaffer's formula, read backwards, then lay their
@@ -813,7 +853,7 @@ export class GridInk extends Marble {
     const s = this._s;
     const { pushX, pushY, touched } = s;
     this._checkpointInk();
-    const { labels, seedOf } = this._labelFilms(growth);
+    const { labels, seedOf, boxes } = this._labelFilms(growth);
     const labelAt = (x, y) => labels[this._nearest(Math.floor(Math.round(y) / detail), flowY) * flowX + this._nearest(Math.floor(Math.round(x) / detail), flowX)];
     const cells = [];
     const halfW = this.width / 2;
@@ -823,12 +863,19 @@ export class GridInk extends Marble {
       const reach = Math.min(da / (2 * SMALL_PUSH * Math.min(hx, hy)), Math.min(halfW, halfH));
       const cx = (op.x + halfW) / hx - 0.5;
       const cy = (op.y + halfH) / hy - 0.5;
-      for (let j = Math.floor(cy - reach / hy); j <= cy + reach / hy; j++) {
+      // Ink only comes from this film, and is pushed at most sqrt(da) outward, so cells beyond the
+      // film's extent by more than that can't change. Skipping them gives exactly the same result.
+      const box = boxes.get(film);
+      if (!box) continue;
+      const pad = Math.sqrt(da) / Math.min(hx, hy) + detail + 2;
+      const rowSpans = this._spans(Math.floor(cy - reach / hy), Math.floor(cy + reach / hy), box.j0 * detail - pad, (box.j1 + 1) * detail + pad, ny);
+      const colSpans = this._spans(Math.floor(cx - reach / hx), Math.floor(cx + reach / hx), box.i0 * detail - pad, (box.i1 + 1) * detail + pad, nx);
+      for (const [ja, jb] of rowSpans) for (let j = Math.ceil(ja); j <= jb; j++) {
         const dy = (j - cy) * hy;
         const jj = this._edge(j, ny);
         if (jj < 0) continue;
         const row = jj * nx;
-        for (let i = Math.floor(cx - reach / hx); i <= cx + reach / hx; i++) {
+        for (const [ia, ib] of colSpans) for (let i = Math.ceil(ia); i <= ib; i++) {
           const ii = this._edge(i, nx);
           if (ii < 0) continue;
           const dx = (i - cx) * hx;
