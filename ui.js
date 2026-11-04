@@ -947,6 +947,7 @@ function clickAction([x, y]) {
 }
 
 let lastSpray = null;
+let pressCounted = false; // whether this press has already made an undo step
 overlay.addEventListener('pointerdown', (ev) => {
   if (pull) return;
   overlay.setPointerCapture(ev.pointerId);
@@ -954,7 +955,11 @@ overlay.addEventListener('pointerdown', (ev) => {
   stroke = null; // a press that never saw its release must not carry over into this one
   lastSpray = null;
   if (tool === 'rake' || tool === 'stylus' || tool === 'paint') stroke = [p];
-  else if (!TOOLS[tool].whole) act(() => clickAction(p));
+  else if (!TOOLS[tool].whole) {
+    const before = undoMarks.length;
+    act(() => clickAction(p));
+    pressCounted = undoMarks.length > before;
+  }
   if (tool === 'spray' || tool === 'erase') lastSpray = p;
 });
 overlay.addEventListener('pointerup', () => { lastSpray = null; });
@@ -970,7 +975,14 @@ overlay.addEventListener('pointermove', (ev) => {
   // Lifting cuts a hard edge, so it needs closer spots to make a smooth stroke.
   if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > inMm(tool).radius * (values.erase.mode === 'lift' && tool === 'erase' ? 0.3 : 0.75)) {
     lastSpray = p;
-    act(() => (tool === 'erase' ? clickAction(p) : sprayAt(p[0], p[1], 0.25)));
+    // A whole drag is one undo step, so only the first spot of it needs to start one.
+    const more = () => (tool === 'erase' ? clickAction(p) : sprayAt(p[0], p[1], 0.25));
+    if (pressCounted) more();
+    else {
+      const before = undoMarks.length;
+      act(more);
+      pressCounted = undoMarks.length > before;
+    }
   }
   if (!stroke) return;
   if (tool === 'rake') stroke[1] = p;
