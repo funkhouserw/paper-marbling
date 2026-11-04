@@ -821,6 +821,78 @@ export class Marble {
 
   // ---- Simulation ------------------------------------------------------
 
+  // A small tine through the middle of every loop that isn't frozen, which pulls round dots into hearts.
+  // above and below are how far it starts and ends from the middle, as a percentage of the way from
+  // there to the loop's edge, so 100 is the edge. pull is its reach, as a percentage of the loop's radius.
+  // Loops are found when this starts, so it works on ink still to land. Loops sharing a middle, like
+  // the rings of a target, are one shape and get one tine.
+  hearts({ angle = 270, above = 130, below = 130, pull = 25, speed = 200, at } = {}) {
+    if (!this.freezeSupported) throw new Error('This simulator can\'t find loops to rake yet.');
+    const args = { angle, above, below, pull, speed };
+    if (at !== undefined) args.at = at;
+    return this._schedule('hearts', args, { kind: 'hearts', ...args }, 0, true);
+  }
+
+  // The line of each heart's tine, for what's on the tank now: { from, to, L, loops }.
+  heartPaths({ angle = 270, above = 130, below = 130, pull = 25 } = {}) {
+    const c = Math.cos(angle * DEG);
+    const s = Math.sin(angle * DEG);
+    const bodies = [];
+    for (let p = 0; p < this.polys.length; p++) {
+      const first = this.polys[p];
+      const loops = [first];
+      while (first.group && this.polys[p + 1]?.group === first.group) loops.push(this.polys[++p]);
+      if (first.frozen) continue;
+      let twice = 0, cx = 0, cy = 0;
+      for (const { xy, n } of loops) {
+        for (let i = 0, k = n - 1; i < n; k = i++) {
+          const cross = xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+          twice += cross;
+          cx += (xy[k * 2] + xy[i * 2]) * cross;
+          cy += (xy[k * 2 + 1] + xy[i * 2 + 1]) * cross;
+        }
+      }
+      if (Math.abs(twice) < 1e-6) continue;
+      cx /= 3 * twice;
+      cy /= 3 * twice;
+      let back = 0, ahead = 0;
+      for (const { xy, n } of loops) {
+        for (let i = 0; i < n; i++) {
+          const d = (xy[i * 2] - cx) * c + (xy[i * 2 + 1] - cy) * s;
+          if (d < back) back = d;
+          if (d > ahead) ahead = d;
+        }
+      }
+      bodies.push({ cx, cy, back: -back, ahead, r: Math.sqrt(Math.abs(twice) / 2 / Math.PI), loops });
+    }
+    bodies.sort((a, b) => b.r - a.r);
+    const kept = [];
+    for (const b of bodies) {
+      if (kept.some((o) => Math.hypot(o.cx - b.cx, o.cy - b.cy) < 0.2 * o.r)) continue;
+      kept.push(b);
+    }
+    return kept.map(({ cx, cy, back, ahead, r, loops }) => ({
+      from: [cx - c * back * (above / 100), cy - s * back * (above / 100)],
+      to: [cx + c * ahead * (below / 100), cy + s * ahead * (below / 100)],
+      L: Math.max(0.25, (r * pull) / 100),
+      loops,
+    }));
+  }
+
+  // Each tine is an ordinary rake, except that only the hearts command itself is in the log.
+  _startHearts(op) {
+    const log = this.log;
+    const live = this._live;
+    this.log = [];
+    this._live = true;
+    for (const { from, to, L } of this.heartPaths(op)) {
+      const rake = this.rake({ from, to, offsets: [0], speed: op.speed, D: 10, at: this.time });
+      if (rake) rake.L = this.tileOn ? Math.min(L, Math.min(this.width, this.height) / 14) : L;
+    }
+    this.log = log;
+    this._live = live;
+  }
+
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
   fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, at } = {}) {
@@ -1824,6 +1896,10 @@ export class Marble {
       }
       if (op.kind === 'freeze') {
         this._applyFreeze(op);
+        continue;
+      }
+      if (op.kind === 'hearts') {
+        this._startHearts(op);
         continue;
       }
       if (op.kind === 'lift') {

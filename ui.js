@@ -531,6 +531,30 @@ function freezeAt([x, y]) {
   dirty = true;
 }
 
+// Where each heart's tine will run, dashed like the rake previews, in every copy that shows.
+function drawHeartLines() {
+  if (tool !== 'hearts' || !marble.heartPaths || marble.busy) return;
+  const px = devicePixelRatio || 1;
+  octx.save();
+  octx.lineWidth = px;
+  octx.setLineDash([5 * px, 4 * px]);
+  const paths = marble.heartPaths(values.hearts);
+  const line = (from, to, sx, sy) => {
+    const [ax, ay] = toPx([from[0] + sx, from[1] + sy]);
+    const [bx, by] = toPx([to[0] + sx, to[1] + sy]);
+    octx.moveTo(ax, ay);
+    octx.lineTo(bx, by);
+  };
+  for (const [colour, phase] of [['#000c', 0], ['#fffc', 4.5 * px]]) {
+    octx.beginPath();
+    octx.strokeStyle = colour;
+    octx.lineDashOffset = phase;
+    for (const { from, to, loops } of paths) for (const [sx, sy] of marble.tileShifts(loops)) line(from, to, sx, sy);
+    octx.stroke();
+  }
+  octx.restore();
+}
+
 function drawFrozen() {
   if (!marble.polys.some((p) => p.frozen)) return;
   const masked = tool === 'fullRake';
@@ -1127,6 +1151,8 @@ function fillDotsNow() {
 
 $('apply').onclick = () => act(() => (tool === 'fillDots'
   ? fillDotsNow()
+  : tool === 'hearts'
+  ? place(true, (at) => marble.hearts({ ...inMm('hearts'), at }))
   : tool === 'stripes'
   ? place(false, (at) => marble.stripes({ ...inMm('stripes'), colors: inks, at }))
   : place(true, (at) => (tool === 'air' ? marble.air({ ...inMm('air'), at }) : tool === 'fullRake'
@@ -1271,6 +1297,9 @@ function syncTile() {
   const canErase = (currentModel().engine ?? Marble).prototype.eraseSupported;
   $('tools').querySelector('[data-tool="erase"]').hidden = !canErase;
   if (!canErase && tool === 'erase') showTool('drop');
+  const canFindLoops = (currentModel().engine ?? Marble).prototype.freezeSupported;
+  $('tools').querySelector('[data-tool="hearts"]').hidden = !canFindLoops;
+  if (!canFindLoops && tool === 'hearts') showTool('drop');
   const row = $('freezeRow');
   if (row) row.hidden = !(currentModel().engine ?? Marble).prototype.freezeSupported;
   if (row?.hidden) freezeMode = 'off';
@@ -1919,6 +1948,7 @@ function drawOverlay() {
     }
   }
   drawPreviewLayer();
+  drawHeartLines();
   drawFrozen();
   octx.fillStyle = guideColor(0.8);
   for (const p of marble.tinePositions()) {

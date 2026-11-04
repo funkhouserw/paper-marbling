@@ -95,6 +95,19 @@ export const TOOLS = {
       waveLength: ['Weave length', 10, 2, 40, 0.5],
     },
   },
+  hearts: {
+    label: 'Hearts',
+    hint: 'A small tine through the middle of every dot that isn\'t frozen, which pulls them into hearts. Use the button below.',
+    whole: true,
+    directions: true,
+    params: {
+      angle: ['Angle (°)', 270, 0, 360, 1],
+      above: ['Start above (%)', 130, 0, 300, 5],
+      below: ['End below (%)', 130, 0, 300, 5],
+      pull: ['Pull (%)', 25, 5, 100, 1],
+      speed: ['Speed', 20, 1, 80, 1],
+    },
+  },
   fullRake: {
     label: 'Full rake',
     choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'straight'] },

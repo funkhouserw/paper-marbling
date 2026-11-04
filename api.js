@@ -138,6 +138,14 @@ export const COMMANDS = [
     ['mode', 'string', 'drain', 'drain: ink and water go, and the surface closes up. lift: only the ink goes, at once, leaving bare water'],
     AT,
   ] },
+  { name: 'hearts', group: 'Tools', summary: 'Drags a small tine through the middle of every loop that is not frozen, which pulls round dots into hearts. Tines are sized to each loop. Follow it with settle() to wait for the tines. Not available in Grid ink.', params: [
+    ['angle', 'number', 270, 'the way the tines travel, and so the way the points face: 270 is down'],
+    ['above', 'number', 130, 'where each tine starts, as a percentage of the way from the middle to the edge; 100 is the edge'],
+    ['below', 'number', 130, 'where each tine ends, likewise'],
+    ['pull', 'number', 25, 'how widely each tine pulls, as a percentage of its loop\'s radius'],
+    SPEED(20),
+    AT,
+  ] },
   { name: 'freeze', group: 'Tools', summary: 'Freezes the topmost ink at a point: nothing moves it until it is unfrozen, and it draws on top. Not available in Grid ink.', params: [
     X, Y, AT,
   ] },
