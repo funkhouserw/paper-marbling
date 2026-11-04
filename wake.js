@@ -5,6 +5,7 @@
 // side to side at the rate a cylinder sheds vortices, which leaves a wobbling wake.
 import { Film } from './film.js';
 import { fft2, sinePlan } from './dst.js';
+import { doubled, tileCell } from './tile.js';
 
 const CELL = 7; // mm
 const DEPTH = 15; // mm of bath. Friction from the tank floor is about viscosity / depth^2.
@@ -52,30 +53,33 @@ export class Wake extends Film {
       const fy = this.tileOn ? ry : Math.max(0, Math.min(old.ny - 1.000001, ry));
       const j = Math.floor(fy);
       const c = fy - j;
-      const row0 = mod(j, old.ny) * old.nx;
-      const row1 = mod(j + 1, old.ny) * old.nx;
+      const off = this.tileOn ? this.tileOffset : null;
       for (let x = 0; x < g.nx; x++) {
         const rx = (x + 0.5) * g.hx / old.hx - 0.5;
         const fx = this.tileOn ? rx : Math.max(0, Math.min(old.nx - 1.000001, rx));
         const i = Math.floor(fx);
         const a = fx - i;
-        const i0 = mod(i, old.nx);
-        const i1 = mod(i + 1, old.nx);
-        out[y * g.nx + x] = (w[row0 + i0] * (1 - a) + w[row0 + i1] * a) * (1 - c) + (w[row1 + i0] * (1 - a) + w[row1 + i1] * a) * c;
+        const p = tileCell(j, i, old.nx, old.ny, off), q = tileCell(j, i + 1, old.nx, old.ny, off);
+        const r = tileCell(j + 1, i, old.nx, old.ny, off), t = tileCell(j + 1, i + 1, old.nx, old.ny, off);
+        out[y * g.nx + x] = (w[p] * (1 - a) + w[q] * a) * (1 - c) + (w[r] * (1 - a) + w[t] * a) * c;
       }
     }
     return out;
   }
 
   _gridFor(cell) {
-    const nx = Math.max(2, Math.round(this.width / cell));
-    const ny = Math.max(2, Math.round(this.height / cell));
+    let nx = Math.max(2, Math.round(this.width / cell));
+    let ny = Math.max(2, Math.round(this.height / cell));
+    // A half-tile shift has to land on whole cells.
+    if (this.tileOn && this.tileOffset === 'brick') nx = 2 * Math.round(nx / 2);
+    if (this.tileOn && this.tileOffset === 'halfDrop') ny = 2 * Math.round(ny / 2);
     return { nx, ny, hx: this.width / nx, hy: this.height / ny };
   }
 
   get _flowGrid() {
     const tiled = this.tileOn;
-    if (this._fg?.tiled === tiled) return this._fg;
+    const offset = tiled ? this.tileOffset : null;
+    if (this._fg?.tiled === tiled && this._fg.offset === offset) return this._fg;
     const { nx, ny } = this._gridFor(this.flowCell);
     const hx = this.width / nx;
     const hy = this.height / ny;
@@ -89,7 +93,7 @@ export class Wake extends Film {
       }
     }
     const size = nx * ny;
-    this._fg = { tiled, nx, ny, hx, hy, lambda, px: sinePlan(nx), py: sinePlan(ny), a: new Float64Array(size), b: new Float64Array(size),
+    this._fg = { tiled, offset, nx, ny, hx, hy, lambda, px: sinePlan(nx), py: sinePlan(ny), a: new Float64Array(size), b: new Float64Array(size),
                  psi: new Float64Array(size), ux: new Float64Array(size), uy: new Float64Array(size), next: new Float64Array(size) };
     return this._fg;
   }
@@ -321,6 +325,7 @@ export class Wake extends Film {
   // The same solve on a tile: vorticity and stream function come back from one inverse transform,
   // the real part and the imaginary part. Whole-tank spin has no periodic flow, so it's dropped.
   _solveTiled(g, w, friction, dt) {
+    if (g.offset) return this._solveOffset(g, w, friction, dt);
     const { nx, ny, lambda, psi, a, b } = g;
     const size = nx * ny;
     b.set(w);
@@ -339,10 +344,49 @@ export class Wake extends Film {
     psi.set(a);
   }
 
+  // An offset tile is solved on the rectangle of two tiles, which repeats normally. Whatever's in the
+  // second tile is the first shifted by half, so the answer has the same symmetry, and the first is kept.
+  _solveOffset(g, w, friction, dt) {
+    const { nx, ny, psi, offset } = g;
+    const [wide, tall] = doubled(offset);
+    const fx = nx * wide;
+    const fy = ny * tall;
+    const size = fx * fy;
+    if (!g.big) {
+      const lambda = new Float64Array(size);
+      for (let l = 0; l < fy; l++) {
+        for (let k = 0; k < fx; k++) {
+          lambda[l * fx + k] = (2 * Math.PI * (k < fx / 2 ? k : k - fx) / (this.width * wide)) ** 2
+            + (2 * Math.PI * (l < fy / 2 ? l : l - fy) / (this.height * tall)) ** 2;
+        }
+      }
+      g.big = { lambda, re: new Float64Array(size), im: new Float64Array(size) };
+    }
+    const { lambda, re, im } = g.big;
+    for (let l = 0; l < fy; l++) for (let k = 0; k < fx; k++) re[l * fx + k] = w[tileCell(l, k, nx, ny, offset)];
+    im.fill(0);
+    fft2(re, im, fx, fy);
+    for (let i = 0; i < size; i++) {
+      if (lambda[i] === 0) { re[i] = 0; im[i] = 0; continue; }
+      const keep = Math.exp(-(this.viscosity * lambda[i] + friction) * dt) / size;
+      const a = re[i] * keep;
+      const b = im[i] * keep;
+      re[i] = a - b / lambda[i];
+      im[i] = b + a / lambda[i];
+    }
+    fft2(re, im, fx, fy, true);
+    for (let y = 0; y < ny; y++) {
+      for (let x = 0; x < nx; x++) {
+        w[y * nx + x] = re[y * fx + x];
+        psi[y * nx + x] = im[y * fx + x];
+      }
+    }
+  }
+
   _stepFlow(dt) {
     const g = this._flowGrid;
-    const { tiled, nx, ny, hx, hy, lambda, psi, ux, uy, next, b } = g;
-    this.vorticity ??= new Float64Array(nx * ny);
+    const { tiled, offset, nx, ny, hx, hy, lambda, psi, ux, uy, next, b } = g;
+    if (this.vorticity?.length !== nx * ny) this.vorticity = new Float64Array(nx * ny);
     let w = this.vorticity;
     const x0 = -this.width / 2;
     const y0 = -this.height / 2;
@@ -357,7 +401,7 @@ export class Wake extends Film {
         const dy = y0 + (y + 0.5) * hy - py;
         for (let x = tiled ? fromX : Math.max(0, fromX); x <= (tiled ? toX : Math.min(nx - 1, toX)); x++) {
           const dx = x0 + (x + 0.5) * hx - px;
-          w[mod(y, ny) * nx + mod(x, nx)] += c * (fx * dy - fy * dx) * Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+          w[tileCell(y, x, nx, ny, offset)] += c * (fx * dy - fy * dx) * Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
         }
       }
     }
@@ -381,10 +425,10 @@ export class Wake extends Film {
         const i = y * nx + x;
         // Psi is zero at the walls, so flow runs along them and never through.
         // On a tile the row beyond the edge is the far edge's row.
-        const left = x > 0 ? psi[i - 1] : tiled ? psi[i - 1 + nx] : -psi[i];
-        const right = x < nx - 1 ? psi[i + 1] : tiled ? psi[i + 1 - nx] : -psi[i];
-        const down = y > 0 ? psi[i - nx] : tiled ? psi[i + nx * (ny - 1)] : -psi[i];
-        const up = y < ny - 1 ? psi[i + nx] : tiled ? psi[x] : -psi[i];
+        const left = x > 0 ? psi[i - 1] : tiled ? psi[tileCell(y, x - 1, nx, ny, offset)] : -psi[i];
+        const right = x < nx - 1 ? psi[i + 1] : tiled ? psi[tileCell(y, x + 1, nx, ny, offset)] : -psi[i];
+        const down = y > 0 ? psi[i - nx] : tiled ? psi[tileCell(y - 1, x, nx, ny, offset)] : -psi[i];
+        const up = y < ny - 1 ? psi[i + nx] : tiled ? psi[tileCell(y + 1, x, nx, ny, offset)] : -psi[i];
         ux[i] = (up - down) / (2 * hy);
         uy[i] = -(right - left) / (2 * hx);
         top = Math.max(top, Math.hypot(ux[i], uy[i]));
@@ -397,7 +441,16 @@ export class Wake extends Film {
     }
     if (!this.flowing) this.flowAge = 0;
     this.flowing = true;
-    const sample = tiled ? (arr, x, y) => {
+    const sample = offset ? (arr, x, y) => {
+      const fx = (x - x0) / hx - 0.5;
+      const fy = (y - y0) / hy - 0.5;
+      const i0 = Math.floor(fx);
+      const j0 = Math.floor(fy);
+      const a = fx - i0;
+      const c = fy - j0;
+      return (arr[tileCell(j0, i0, nx, ny, offset)] * (1 - a) + arr[tileCell(j0, i0 + 1, nx, ny, offset)] * a) * (1 - c)
+        + (arr[tileCell(j0 + 1, i0, nx, ny, offset)] * (1 - a) + arr[tileCell(j0 + 1, i0 + 1, nx, ny, offset)] * a) * c;
+    } : tiled ? (arr, x, y) => {
       const fx = (x - x0) / hx - 0.5;
       const fy = (y - y0) / hy - 0.5;
       const i0 = Math.floor(fx);
@@ -437,11 +490,11 @@ export class Wake extends Film {
         let hi = -Infinity;
         const rows = [];
         for (let r = -1; r <= 2; r++) {
-          const row = clampI(iy + r, ny) * nx;
-          const a = w[row + clampI(ix - 1, nx)];
-          const c = w[row + clampI(ix, nx)];
-          const d = w[row + clampI(ix + 1, nx)];
-          const e = w[row + clampI(ix + 2, nx)];
+          const at = offset ? (q) => tileCell(iy + r, q, nx, ny, offset) : (q) => clampI(iy + r, ny) * nx + clampI(q, nx);
+          const a = w[at(ix - 1)];
+          const c = w[at(ix)];
+          const d = w[at(ix + 1)];
+          const e = w[at(ix + 2)];
           if (r === 0 || r === 1) { lo = Math.min(lo, c, d); hi = Math.max(hi, c, d); }
           rows.push(cubic(a, c, d, e, fx - ix));
         }

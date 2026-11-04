@@ -89,6 +89,7 @@ export const INFO = {
   'erase.mode': 'Ink and water drains everything inside the circle to its centre, and the surface around slides in to close the hole. Just the ink cuts the ink out at once and leaves bare water, with everything else staying where it is.',
   'erase.radius': 'How much ink it takes away. The area lost is exactly this circle\'s.',
   'erase.duration': 'How long the ink takes to drain and the surface to close. Just the ink happens at once.',
+  'tileOffset': 'How the repeat lines up. None stacks the tiles straight. Brick shifts each row of tiles by half a tile, like a brick wall, and half-drop shifts each column, like a lot of printed wallpaper. See it repeat shows the result. Not in Grid ink yet.',
   'tool.vortex': 'A swirl that spins up around a point and fades with distance.',
   'drop.quantity': 'How much ink, and so how big the drop ends up. In Film and Spreading, a drop on open water grows further than one landing on ink.',
   'drop.dispersion': 'How quickly a drop reaches its full size. It doesn\'t change the final size.',

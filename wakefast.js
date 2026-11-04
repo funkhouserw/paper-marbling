@@ -136,7 +136,7 @@ export class WakeFast extends Wake {
     inFlight = true;
     w.postMessage({
       width: ctx.canvas.width, height: ctx.canvas.height, px: pxPerMm, W: this.width, H: this.height, bath: this.bath ?? 'transparent',
-      tile: this.tileOn, closeGaps: this.closeGaps, polys, xy, total,
+      tile: this.tileOn, offset: this.tileOffset, closeGaps: this.closeGaps, polys, xy, total,
       tolPx: this.busy ? WHILE_MOVING_PX : AT_REST_PX, join: this.busy ? 'bevel' : 'round',
     }, [xy.buffer]);
     return true;

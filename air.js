@@ -57,13 +57,14 @@ const PEAK_SLOPE = 2.0;
 // eddies in mm, `speed` its typical top speed, and each extra octave adds eddies half the size.
 // `scale` may be [sx, sy] for eddies stretched to fit a tile, with `period` the number of
 // lattice cells each way after which the noise repeats; each octave then repeats twice as often.
-export function makeAir({ seed = 1, scale = 200, speed = 50, octaves = 2, period = null } = {}) {
+// With `copy` [dx, dy], the breath also repeats at that shift, for an offset repeat: two copies of the noise added.
+export function makeAir({ seed = 1, scale = 200, speed = 50, octaves = 2, period = null, copy = null } = {}) {
   const [sx, sy] = Array.isArray(scale) ? scale : [scale, scale];
   const noise = gradientNoise(seed);
   const periods = period && Array.from({ length: octaves }, (_, o) => [period[0] << o, period[1] << o]);
   const amp = (speed * Math.sqrt(sx * sy)) / PEAK_SLOPE;
   const eps = 0.25; // mm. The slope of the stream function, taken across a short step.
-  const psi = (x, y) => {
+  const one = (x, y) => {
     let sum = 0;
     let a = amp;
     let kx = 1 / sx;
@@ -78,6 +79,7 @@ export function makeAir({ seed = 1, scale = 200, speed = 50, octaves = 2, period
     }
     return sum / norm;
   };
+  const psi = copy ? (x, y) => (one(x, y) + one(x + copy[0], y + copy[1])) * Math.SQRT1_2 : one;
   const velocity = (x, y, out) => {
     out[0] = (psi(x, y + eps) - psi(x, y - eps)) / (2 * eps);
     out[1] = -(psi(x + eps, y) - psi(x - eps, y)) / (2 * eps);

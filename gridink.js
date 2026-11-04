@@ -88,6 +88,7 @@ export class GridInk extends Marble {
   }
 
   get tileSupported() { return true; }
+  get tileOffsetSupported() { return false; }
   get evenWalls() { return false; }
 
   // The sides are solid whenever the tank isn't repeating, so this changes nothing. It's accepted,

@@ -13,7 +13,7 @@
 
 import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
-import { wrap, pushApartTiled, swirlTiled } from './tile.js';
+import { wrapX, wrapY, doubled, latticeShifts, pushApartTiled, swirlTiled } from './tile.js';
 import { cutDisc } from './erase.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
@@ -186,6 +186,8 @@ export class Marble {
     this._live = false;
     this.wallsOn = false;
     this.tileOn = false;
+    this.tileOffset = null;
+    this.tileOffsetWanted = null;
     this.growth = [];
     this.landing = [];
     this.fieldAbove = 2e6; // point-source pairs per push before switching to the coarse field
@@ -334,13 +336,20 @@ export class Marble {
   // Makes the tank a tile that repeats in both directions, so what leaves one edge comes back in
   // at the other. Outlines are never cut at the seam: they stay whole and are drawn at each place
   // they show. Simulators opt in with tileSupported, because all their motion has to repeat too.
-  tile({ on = true, at } = {}) {
+  // offset 'brick' shifts each row of tiles by half a tile, and 'halfDrop' each column. See tile.js.
+  tile({ on = true, offset = null, at } = {}) {
     if (on && !this.tileSupported) throw new Error('This simulator can\'t repeat yet.');
+    if (offset && offset !== 'brick' && offset !== 'halfDrop') throw new Error(`Offset must be 'brick' or 'halfDrop', not '${offset}'.`);
+    if (on && offset && !this.tileOffsetSupported) throw new Error('This simulator can\'t do an offset repeat yet.');
     const args = { on };
+    if (offset) args.offset = offset;
     if (at !== undefined) args.at = at;
     this.tileWanted = on; // what later commands should expect, ahead of the op running
-    return this._schedule('tile', args, { kind: 'tile', on });
+    this.tileOffsetWanted = on ? offset : null;
+    return this._schedule('tile', args, { kind: 'tile', on, offset });
   }
+
+  get tileOffsetSupported() { return true; }
 
   // Classic repeats: every push and drag here has a periodic form in tile.js.
   get tileSupported() { return !this.openWaterOn; }
@@ -359,11 +368,7 @@ export class Marble {
       }
     }
     const W = this.width, H = this.height;
-    const shifts = [];
-    for (let i = Math.ceil((-W / 2 - right) / W); i <= Math.floor((W / 2 - left) / W); i++) {
-      for (let j = Math.ceil((-H / 2 - high) / H); j <= Math.floor((H / 2 - low) / H); j++) shifts.push([i * W, j * H]);
-    }
-    return shifts;
+    return latticeShifts(-W / 2 - right, W / 2 - left, -H / 2 - high, H / 2 - low, W, H, this.tileOffset);
   }
 
   // Prints a shape as ink that never grows but moves with everything else.
@@ -391,8 +396,14 @@ export class Marble {
 
   // Bands of colour across the whole tank, a starting point for combing.
   stripes({ angle = 0, count = 16, colors = ['#1f4e79'], variation = 0.6, wobble = 0, slivers = 0.5, at } = {}) {
+    // Bands running across an offset meet their own copies half a tile along. So they only span half
+    // the tile, those copies do the rest, and each needs to be twice as long to come back to itself.
+    const off = this.tileOffsetWanted ?? (this.tileOn ? this.tileOffset : null);
+    const upright = Math.round(angle / 90) % 2 !== 0;
+    const across = (off === 'brick' && upright) || (off === 'halfDrop' && !upright);
+    const size = !across ? [this.width, this.height] : upright ? [this.width / 2, this.height * 2] : [this.width * 2, this.height / 2];
     const strokes = planStripes({
-      width: this.width, height: this.height, angle, count, variation, wobble, slivers, colors, tiled: this.tileOn, random: () => this.random(),
+      width: size[0], height: size[1], angle, count: across ? Math.ceil(count / 2) : count, variation, wobble, slivers, colors, tiled: this.tileOn || off !== null, random: () => this.random(),
     });
     for (const stroke of strokes) this.paint({ ...stroke, at });
     return strokes.length;
@@ -432,9 +443,10 @@ export class Marble {
   // ink already there or on its way, unless `over` asks for them on top.
   fillDots({ count = 150, min = 8, max = 60, gap = 3, margin = 0, tightness = 0.6, colors = ['#1f4e79'], rings = 1, dispersion = 0.8, shimmer = 0, over = false, at } = {}) {
     const tiled = (this.tileWanted ?? this.tileOn) === true;
+    const offset = tiled ? this.tileOffsetWanted ?? this.tileOffset : null;
     const dots = colourDots(planDots({
-      width: this.width, height: this.height, minR: min, maxR: max, gap, margin, count, tightness, random: () => this.random(), taken: over ? null : this._takenRoom(tiled), tiled,
-    }), colors, () => this.random(), tiled ? { width: this.width, height: this.height } : null);
+      width: this.width, height: this.height, minR: min, maxR: max, gap, margin, count, tightness, random: () => this.random(), taken: over ? null : this._takenRoom(tiled, offset), tiled, offset,
+    }), colors, () => this.random(), tiled ? { width: this.width, height: this.height, offset } : null);
     const growth = this.spreadFactor;
     for (let ring = 0; ring < rings; ring++) {
       for (const dot of dots) {
@@ -451,14 +463,14 @@ export class Marble {
 
   // The room ink is using: drops still to land or growing, at the size they'll end up, and what's
   // already on the surface. It can't foresee where tools still in the queue will move anything.
-  _takenRoom(tiled = false) {
+  _takenRoom(tiled = false, offset = null) {
     const circles = [...this.active, ...this.queued]
       .filter((op) => op.kind === 'drop')
       .map((op) => ({ x: op.x, y: op.y, r: Math.sqrt(op.maxArea * this.spreadFactor) }));
     const { step, cols, rows } = dotGrid(this.width, this.height);
     const marked = new Uint8Array(cols * rows);
     const any = this._markInk(marked, cols, rows, step);
-    return { circles, clearance: any ? clearanceFrom(marked, cols, rows, step, tiled) : null };
+    return { circles, clearance: any ? clearanceFrom(marked, cols, rows, step, tiled, offset) : null };
   }
 
   // Marks the grid points under ink, and any point an outline passes close to, so thin threads
@@ -611,8 +623,22 @@ export class Marble {
       let mx = Math.round((kx * this.width) / (2 * Math.PI));
       let my = Math.round((ky * this.height) / (2 * Math.PI));
       if (!mx && !my) { if (Math.abs(kx) * this.width >= Math.abs(ky) * this.height) mx = Math.sign(kx) || 1; else my = Math.sign(ky) || 1; }
-      const fx = (2 * Math.PI * mx) / this.width;
-      const fy = (2 * Math.PI * my) / this.height;
+      // An offset allows half waves along the doubled side, as long as mx + my is even.
+      const off = this.tileOffsetWanted ?? this.tileOffset;
+      const [wide, tall] = doubled(off);
+      if (off) {
+        const exactX = (kx * this.width * wide) / (2 * Math.PI);
+        const exactY = (ky * this.height * tall) / (2 * Math.PI);
+        mx = Math.round(exactX);
+        my = Math.round(exactY);
+        if ((mx + my) % 2) {
+          if (Math.abs(exactX - mx) > Math.abs(exactY - my)) mx += exactX > mx ? 1 : -1;
+          else my += exactY > my ? 1 : -1;
+        }
+        if (!mx && !my) { if (off === 'brick') my = 2; else mx = 2; }
+      }
+      const fx = (2 * Math.PI * mx) / (this.width * wide);
+      const fy = (2 * Math.PI * my) / (this.height * tall);
       const k = Math.hypot(fx, fy);
       Object.assign(op, { period: (2 * Math.PI) / k, nx: fx / k, ny: fy / k });
     }
@@ -674,14 +700,18 @@ export class Marble {
   // The breath's velocity field. Ops are copied into saved states, so the field lives apart from them.
   _airField(op) {
     const tiled = this.tileOn;
-    const key = `${op.seed}/${op.scale}/${op.speed}/${op.octaves}/${tiled ? 'tiled' : 'plain'}`;
+    const off = tiled ? this.tileOffset : null;
+    const key = `${op.seed}/${op.scale}/${op.speed}/${op.octaves}/${tiled ? `tiled${off}` : 'plain'}`;
     this._airs ??= new Map();
     let field = this._airs.get(key);
     if (!field) {
       // On a repeating tank the eddies tile the sheet: a whole number of them each way.
-      const period = tiled ? [Math.max(1, Math.round(this.width / op.scale)), Math.max(1, Math.round(this.height / op.scale))] : null;
-      const scale = tiled ? [this.width / period[0], this.height / period[1]] : op.scale;
-      field = makeAir({ seed: op.seed, scale, speed: op.speed, octaves: op.octaves, period });
+      const [wide, tall] = doubled(off);
+      const W = this.width * wide, H = this.height * tall;
+      const period = tiled ? [Math.max(1, Math.round(W / op.scale)), Math.max(1, Math.round(H / op.scale))] : null;
+      const scale = tiled ? [W / period[0], H / period[1]] : op.scale;
+      const copy = off === 'brick' ? [this.width / 2, this.height] : off === 'halfDrop' ? [this.width, this.height / 2] : null;
+      field = makeAir({ seed: op.seed, scale, speed: op.speed, octaves: op.octaves, period, copy });
       this._airs.set(key, field);
     }
     return field;
@@ -1116,6 +1146,7 @@ export class Marble {
     const ny = (ey0 - by0) / len;
     const reach2 = (6 * L + tU) ** 2;
     const tiled = this.tileOn;
+    const off = this.tileOffset;
     const { width: W, height: H } = this;
     for (let k = 0; k < rpts; k++) {
       const bx = bx0 + nx * tU * k;
@@ -1126,8 +1157,8 @@ export class Marble {
         out[0] = px;
         out[1] = py;
         // On a repeating tank the tine pulls from its nearest image.
-        const dxB = tiled ? wrap(bx - px, W) : bx - px;
-        const dyB = tiled ? wrap(by - py, H) : by - py;
+        const dxB = tiled ? wrapX(bx - px, by - py, W, H, off) : bx - px;
+        const dyB = tiled ? wrapY(bx - px, by - py, W, H, off) : by - py;
         const r2 = dxB * dxB + dyB * dyB;
         if (r2 > reach2 || r2 < 1e-18) return;
         const r = Math.sqrt(r2);
@@ -1169,8 +1200,8 @@ export class Marble {
       this._map((px, py, out) => {
         out[0] = px;
         out[1] = py;
-        const rx = tiled ? wrap(px - cx, W) : px - cx;
-        const ry = tiled ? wrap(py - cy, H) : py - cy;
+        const rx = tiled ? wrapX(px - cx, py - cy, W, H, this.tileOffset) : px - cx;
+        const ry = tiled ? wrapY(px - cx, py - cy, W, H, this.tileOffset) : py - cy;
         const r2 = rx * rx + ry * ry;
         if (r2 >= far * far) return;
         const along = nx * rx + ny * ry;
@@ -1605,16 +1636,10 @@ export class Marble {
         y1 = Math.max(y1, poly.xy[i * 2 + 1]);
       }
       let pieces = [poly];
-      const kx = this.tileOn ? [Math.ceil((x0 - radius - x) / W), Math.floor((x1 + radius - x) / W)] : [0, 0];
-      const ky = this.tileOn ? [Math.ceil((y0 - radius - y) / H), Math.floor((y1 + radius - y) / H)] : [0, 0];
-      for (let i = kx[0]; i <= kx[1]; i++) {
-        for (let j = ky[0]; j <= ky[1]; j++) {
-          const cx = x + i * W;
-          const cy = y + j * H;
-          if (x0 > cx + radius || x1 < cx - radius || y0 > cy + radius || y1 < cy - radius) continue;
-          pieces = pieces.flatMap((p) => cutAll(p, cx, cy));
-        }
-      }
+      const images = this.tileOn
+        ? latticeShifts(x0 - radius - x, x1 + radius - x, y0 - radius - y, y1 + radius - y, W, H, this.tileOffset)
+        : [[0, 0]];
+      for (const [sx, sy] of images) pieces = pieces.flatMap((p) => cutAll(p, x + sx, y + sy));
       if (!pieces.length) { gone.add(poly); continue; }
       if (pieces.length === 1 && pieces[0] === poly) { kept.push(poly); continue; }
       // The largest piece carries on as this outline, since drops and prints keep hold of it.
@@ -1695,6 +1720,7 @@ export class Marble {
       }
       if (op.kind === 'tile') {
         this.tileOn = op.on;
+        this.tileOffset = op.on ? op.offset ?? null : null;
         if (op.on) this.wallsOn = false;
         continue;
       }

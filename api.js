@@ -186,7 +186,9 @@ export const COMMANDS = [
     ['on', 'boolean', true, ''], AT,
   ] },
   { name: 'tile', group: 'Tank', summary: 'Makes the tank a tile that repeats in both directions: what leaves one edge comes back in at the other, and exports join seamlessly. Only simulators that support it allow this.', params: [
-    ['on', 'boolean', true, ''], AT,
+    ['on', 'boolean', true, ''],
+    ['offset', 'string', null, "null for a straight repeat, 'brick' to shift each row of tiles by half a tile, or 'halfDrop' to shift each column. Not in Grid ink yet"],
+    AT,
   ] },
   { name: 'openWater', group: 'Tank', summary: 'Picks the physics for this script, overriding the sidebar Simulator: on is Spreading, where ink spreads over bare water until it meets other ink or reaches its spreading limit; off is Classic, with fixed-size drops that push everything, water included. Leave it out to use whatever the user has chosen.', params: [
     ['on', 'boolean', true, ''], AT,

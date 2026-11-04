@@ -13,25 +13,31 @@ const CELLS = 128; // grid points across the wider side of the correction table
 // The smooth part of the torus's Green's function: grad G_torus - grad G_plane, with both delta
 // functions blurred by the same Gaussian so neither side is singular. Sampled on the cell
 // [-W/2, W/2] x [-H/2, H/2] including both edges, since the plane's part jumps across the seam.
-export function makeTileField(W, H) {
-  const nx = W >= H ? CELLS : Math.round((CELLS * W) / H);
-  const ny = W >= H ? Math.round((CELLS * H) / W) : CELLS;
+export function makeTileField(W, H, offset = null) {
+  const halves = offset ? 2 : 1;
+  let nx = W >= H ? CELLS : Math.round((CELLS * W) / H);
+  let ny = W >= H ? Math.round((CELLS * H) / W) : CELLS;
+  if (offset) { nx = 2 * Math.round(nx / 2); ny = 2 * Math.round(ny / 2); }
+  const [wide, tall] = doubled(offset);
+  const fx = nx * wide; // the grid of the rectangle that repeats normally
+  const fy = ny * tall;
   const hx = W / nx;
   const hy = H / ny;
   const sigma = 2 * Math.max(hx, hy);
   const A = W * H;
-  const re = new Float64Array(nx * ny), im = new Float64Array(nx * ny);
+  const re = new Float64Array(fx * fy), im = new Float64Array(fx * fy);
   const parts = [];
   for (const axis of [0, 1]) {
-    for (let l = 0; l < ny; l++) {
-      const ky = l < ny / 2 ? l : l - ny;
-      const ky2 = (2 * Math.PI * ky) / H;
-      for (let k = 0; k < nx; k++) {
-        const kx = k < nx / 2 ? k : k - nx;
-        const kx2 = (2 * Math.PI * kx) / W;
+    for (let l = 0; l < fy; l++) {
+      const ky = l < fy / 2 ? l : l - fy;
+      const ky2 = (2 * Math.PI * ky) / (H * tall);
+      for (let k = 0; k < fx; k++) {
+        const kx = k < fx / 2 ? k : k - fx;
+        const kx2 = (2 * Math.PI * kx) / (W * wide);
         const k2 = kx2 * kx2 + ky2 * ky2;
-        const i = l * nx + k;
-        if (k2 === 0) { re[i] = 0; im[i] = 0; continue; }
+        const i = l * fx + k;
+        // An offset's half shift leaves only the waves with an even kx + ky.
+        if (k2 === 0 || (halves === 2 && (kx + ky) % 2)) { re[i] = 0; im[i] = 0; continue; }
         // c_k = -e^{-sigma^2 k^2 / 2} / (A k^2), times i kappa for the gradient, times (-1)^(kx+ky)
         // because the grid starts at the cell's corner rather than its centre.
         const c = (-Math.exp((-sigma * sigma * k2) / 2) / (A * k2)) * ((kx + ky) % 2 ? -1 : 1);
@@ -40,19 +46,21 @@ export function makeTileField(W, H) {
         im[i] = c * kappa;
       }
     }
-    fft2(re, im, nx, ny, true);
+    fft2(re, im, fx, fy, true);
     parts.push(Float64Array.from(re));
   }
-  // Both edges, so the table is (nx + 1) x (ny + 1).
+  // Both edges, so the table is (nx + 1) x (ny + 1). It covers one tile, centred in the big rectangle.
   const cx = new Float64Array((nx + 1) * (ny + 1));
   const cy = new Float64Array((nx + 1) * (ny + 1));
+  const skipX = ((wide - 1) * nx) / 2;
+  const skipY = ((tall - 1) * ny) / 2;
   for (let l = 0; l <= ny; l++) {
     const y = -H / 2 + l * hy;
     for (let k = 0; k <= nx; k++) {
       const x = -W / 2 + k * hx;
       const r2 = x * x + y * y;
       const plane = r2 > 0 ? (1 - Math.exp(-r2 / (2 * sigma * sigma))) / (2 * Math.PI * r2) : 0;
-      const g = (l % ny) * nx + (k % nx);
+      const g = ((l + skipY) % fy) * fx + ((k + skipX) % fx);
       cx[l * (nx + 1) + k] = parts[0][g] - x * plane;
       cy[l * (nx + 1) + k] = parts[1][g] - y * plane;
     }
@@ -68,24 +76,64 @@ export function makeTileField(W, H) {
     out[1] = (cy[k] * (1 - a) + cy[k + 1] * a) * (1 - b) + (cy[k + nx + 1] * (1 - a) + cy[k + nx + 2] * a) * b;
     return out;
   };
-  return { W, H, nx, ny, correction };
+  return { W, H, offset, nx, ny, correction };
 }
 
 // An offset wrapped to the nearest image, into [-W/2, W/2) x [-H/2, H/2).
 export const wrap = (d, L) => d - L * Math.floor(d / L + 0.5);
 
+// An offset repeat joins the edges with a half-tile shift. Brick: going up one tile also moves half a
+// tile across, so (x, y + H) is (x + W/2, y). Half-drop: going across one tile also moves half a tile
+// up. That's still a torus, and two tiles together make an ordinary rectangle that repeats normally,
+// which is what the FFT solvers run on. Without an offset all of this is plain wrapping.
+export const wrapX = (dx, dy, W, H, offset) => (offset === 'brick' ? wrap(dx - Math.floor(dy / H + 0.5) * (W / 2), W) : wrap(dx, W));
+export const wrapY = (dx, dy, W, H, offset) => (offset === 'halfDrop' ? wrap(dy - Math.floor(dx / W + 0.5) * (H / 2), H) : wrap(dy, H));
+
+// The rectangle that repeats normally, as multiples of the tile.
+export const doubled = (offset) => (offset === 'brick' ? [1, 2] : offset === 'halfDrop' ? [2, 1] : [1, 1]);
+
+// A cell of an nx by ny grid over the tile, from a row and column that may be outside it.
+export function tileCell(row, col, nx, ny, offset) {
+  if (offset === 'brick') col += Math.floor(row / ny) * (nx >> 1);
+  else if (offset === 'halfDrop') row += Math.floor(col / nx) * (ny >> 1);
+  return (((row % ny) + ny) % ny) * nx + ((col % nx) + nx) % nx;
+}
+
+// Every shift between copies of the tile that lands in the box.
+export function latticeShifts(x0, x1, y0, y1, W, H, offset) {
+  const out = [];
+  if (offset === 'brick') {
+    for (let j = Math.ceil(y0 / H); j <= Math.floor(y1 / H); j++) {
+      const o = (j * W) / 2;
+      for (let i = Math.ceil((x0 - o) / W); i <= Math.floor((x1 - o) / W); i++) out.push([i * W + o, j * H]);
+    }
+  } else if (offset === 'halfDrop') {
+    for (let i = Math.ceil(x0 / W); i <= Math.floor(x1 / W); i++) {
+      const o = (i * H) / 2;
+      for (let j = Math.ceil((y0 - o) / H); j <= Math.floor((y1 - o) / H); j++) out.push([i * W, j * H + o]);
+    }
+  } else {
+    for (let i = Math.ceil(x0 / W); i <= Math.floor(x1 / W); i++) {
+      for (let j = Math.ceil(y0 / H); j <= Math.floor(y1 / H); j++) out.push([i * W, j * H]);
+    }
+  }
+  return out;
+}
+
 // Drop growth on the torus: each source [cx, cy, s] pushes as in the plane from its nearest
 // image, plus the torus correction, which also contracts everything by the area that grew.
 export function pushApartTiled(marble, sources) {
   const { width: W, height: H } = marble;
-  const field = marble._tileField ??= makeTileField(W, H);
+  const offset = marble.tileOffset ?? null;
+  if (marble._tileField?.offset !== offset) marble._tileField = null;
+  const field = marble._tileField ??= makeTileField(W, H, offset);
   const c = [0, 0];
   marble._map((x0, y0, out) => {
     let x = x0;
     let y = y0;
     for (const [sx, sy, s] of sources) {
-      const dx = wrap(x0 - sx, W);
-      const dy = wrap(y0 - sy, H);
+      const dx = wrapX(x0 - sx, y0 - sy, W, H, offset);
+      const dy = wrapY(x0 - sx, y0 - sy, W, H, offset);
       const d2 = dx * dx + dy * dy;
       if (d2 >= 1e-12) {
         // An eraser's s is negative, and takes whatever is inside it down to its centre.
@@ -112,14 +160,16 @@ const SWIRL_CELLS = 192;
 
 function swirlGrid(marble) {
   const { width: W, height: H } = marble;
-  if (marble._swirlGrid?.W === W && marble._swirlGrid.H === H) return marble._swirlGrid;
-  const nx = W >= H ? SWIRL_CELLS : Math.round((SWIRL_CELLS * W) / H);
-  const ny = W >= H ? Math.round((SWIRL_CELLS * H) / W) : SWIRL_CELLS;
+  const offset = marble.tileOffset ?? null;
+  if (marble._swirlGrid?.W === W && marble._swirlGrid.H === H && marble._swirlGrid.offset === offset) return marble._swirlGrid;
+  const [wide, tall] = doubled(offset);
+  const nx = (W >= H ? SWIRL_CELLS : Math.round((SWIRL_CELLS * W) / H)) * wide;
+  const ny = (W >= H ? Math.round((SWIRL_CELLS * H) / W) : SWIRL_CELLS) * tall;
   const size = nx * ny;
   const kx = new Float64Array(nx), ky = new Float64Array(ny);
-  for (let k = 0; k < nx; k++) kx[k] = (2 * Math.PI * (k < nx / 2 ? k : k - nx)) / W;
-  for (let l = 0; l < ny; l++) ky[l] = (2 * Math.PI * (l < ny / 2 ? l : l - ny)) / H;
-  marble._swirlGrid = { W, H, nx, ny, hx: W / nx, hy: H / ny, kx, ky,
+  for (let k = 0; k < nx; k++) kx[k] = (2 * Math.PI * (k < nx / 2 ? k : k - nx)) / (W * wide);
+  for (let l = 0; l < ny; l++) ky[l] = (2 * Math.PI * (l < ny / 2 ? l : l - ny)) / (H * tall);
+  marble._swirlGrid = { W, H, offset, nx, ny, hx: (W * wide) / nx, hy: (H * tall) / ny, kx, ky,
     re: new Float64Array(size), im: new Float64Array(size), ux: new Float64Array(size), uy: new Float64Array(size) };
   return marble._swirlGrid;
 }
@@ -127,14 +177,16 @@ function swirlGrid(marble) {
 // theta(rho) returns [angle over this tick, its slope d angle / d rho] for a distance rho in mm.
 export function swirlTiled(marble, cx, cy, theta) {
   const g = swirlGrid(marble);
-  const { W, H, nx, ny, hx, hy, kx, ky, re, im, ux, uy } = g;
+  const { W, H, offset, nx, ny, hx, hy, kx, ky, re, im, ux, uy } = g;
   const out = [0, 0];
   // Vorticity of the swirl about the nearest image of its centre, as a displacement over the tick.
   let mean = 0;
   for (let l = 0; l < ny; l++) {
-    const dy = wrap(-H / 2 + (l + 0.5) * hy - cy, H);
+    const py = -H / 2 + (l + 0.5) * hy - cy;
     for (let k = 0; k < nx; k++) {
-      const dx = wrap(-W / 2 + (k + 0.5) * hx - cx, W);
+      const px = -W / 2 + (k + 0.5) * hx - cx;
+      const dx = wrapX(px, py, W, H, offset);
+      const dy = wrapY(px, py, W, H, offset);
       const rho = Math.hypot(dx, dy);
       const [t, slope] = theta(rho, out);
       const w = 2 * t + rho * slope;

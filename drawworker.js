@@ -1,12 +1,13 @@
 // Draws a tank away from the page, so that the simulation and the page never wait for it. Outlines
 // arrive whole and are thinned first to what the screen can show. See wakefast.js.
 import { thin, underpaintWidth } from './thin.js';
+import { latticeShifts } from './tile.js';
 
 const translucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
 let canvas = null;
 
 // Where to draw an outline so that it covers the tank, as in Marble.tileShifts.
-function shifts(points, W, H) {
+function shifts(points, W, H, offset) {
   let left = Infinity, right = -Infinity, low = Infinity, high = -Infinity;
   for (let i = 0; i < points.length; i += 2) {
     if (points[i] < left) left = points[i];
@@ -14,11 +15,7 @@ function shifts(points, W, H) {
     if (points[i + 1] < low) low = points[i + 1];
     if (points[i + 1] > high) high = points[i + 1];
   }
-  const out = [];
-  for (let i = Math.ceil((-W / 2 - right) / W); i <= Math.floor((W / 2 - left) / W); i++) {
-    for (let j = Math.ceil((-H / 2 - high) / H); j <= Math.floor((H / 2 - low) / H); j++) out.push([i * W, j * H]);
-  }
-  return out;
+  return latticeShifts(-W / 2 - right, W / 2 - left, -H / 2 - high, H / 2 - low, W, H, offset);
 }
 
 function trace(ctx, points, sx, sy) {
@@ -29,7 +26,7 @@ function trace(ctx, points, sx, sy) {
 
 self.onmessage = ({ data: m }) => {
   const start = performance.now();
-  const { width, height, px, W, H, bath, tile, closeGaps, polys, xy, tolPx, join } = m;
+  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join } = m;
   if (!canvas || canvas.width !== width || canvas.height !== height) canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -44,7 +41,7 @@ self.onmessage = ({ data: m }) => {
     kept += points.length / 2;
     return points;
   });
-  const where = (points) => (tile ? shifts(points, W, H) : [[0, 0]]);
+  const where = (points) => (tile ? shifts(points, W, H, offset) : [[0, 0]]);
   // Film's underpaint, which closes thin gaps.
   ctx.lineJoin = join;
   for (let p = 0; p < polys.length; p++) {

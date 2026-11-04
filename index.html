@@ -24,6 +24,13 @@
     <label class="toggle" data-info="simulator">Simulator <select id="simulator"></select></label>
     <label class="toggle" data-info="walls"><input id="walls" type="checkbox"> Hard edges</label>
     <label class="toggle" data-info="tile"><input id="tile" type="checkbox"> Repeating</label>
+    <label class="toggle" data-info="tileOffset" hidden>Offset
+      <select id="tileOffset">
+        <option value="">none</option>
+        <option value="brick">brick</option>
+        <option value="halfDrop">half-drop</option>
+      </select>
+    </label>
     <button id="tilePreview" title="Shows the tank as it looks right now, repeated. It only joins up seamlessly if Repeating is on.">See it repeat</button>
     <label class="toggle" data-info="toolsWait"><input id="toolsWait" type="checkbox" checked> Tools wait for ink to settle</label>
     <label class="toggle" data-info="queueMode">While paused

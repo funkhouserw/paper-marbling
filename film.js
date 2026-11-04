@@ -12,7 +12,7 @@
 // Close to a drop, the exact radial map from pst-marble takes over, so rings stay round below
 // grid size. Tools are unchanged. This is one-phase Hele-Shaw flow with a screened outer region.
 import { Marble, isTranslucent } from './engine.js';
-import { wrap } from './tile.js';
+import { wrapX, wrapY, tileCell } from './tile.js';
 import { underpaintWidth } from './thin.js';
 
 const CELL = 5; // mm. Every setting here was tested together at this size.
@@ -44,16 +44,16 @@ const polygonArea = ({ xy, n }) => {
 };
 
 // Each cell's neighbours in the four directions, or -1 at an edge that isn't joined to anything.
-const linksFor = (nx, ny, joined) => {
+const linksFor = (nx, ny, joined, offset = null) => {
   const size = nx * ny;
   const west = new Int32Array(size), east = new Int32Array(size), south = new Int32Array(size), north = new Int32Array(size);
   for (let y = 0; y < ny; y++) {
     for (let x = 0; x < nx; x++) {
       const i = y * nx + x;
-      west[i] = x > 0 ? i - 1 : joined ? i + nx - 1 : -1;
-      east[i] = x < nx - 1 ? i + 1 : joined ? i - nx + 1 : -1;
-      south[i] = y > 0 ? i - nx : joined ? i + nx * (ny - 1) : -1;
-      north[i] = y < ny - 1 ? i + nx : joined ? i - nx * (ny - 1) : -1;
+      west[i] = x > 0 ? i - 1 : joined ? tileCell(y, x - 1, nx, ny, offset) : -1;
+      east[i] = x < nx - 1 ? i + 1 : joined ? tileCell(y, x + 1, nx, ny, offset) : -1;
+      south[i] = y > 0 ? i - nx : joined ? tileCell(y - 1, x, nx, ny, offset) : -1;
+      north[i] = y < ny - 1 ? i + nx : joined ? tileCell(y + 1, x, nx, ny, offset) : -1;
     }
   }
   return { west, east, south, north };
@@ -73,20 +73,24 @@ export class Film extends Marble {
   _getGrid() {
     const torus = this.tileOn;
     const pad = this.wallsOn || torus ? 0 : MARGIN;
-    const nx = Math.round((this.width + 2 * pad) / CELL);
-    const ny = Math.round((this.height + 2 * pad) / CELL);
-    const key = `${nx}x${ny}${torus ? 'torus' : ''}`;
+    const offset = torus ? this.tileOffset : null;
+    let nx = Math.round((this.width + 2 * pad) / CELL);
+    let ny = Math.round((this.height + 2 * pad) / CELL);
+    // A half-tile shift has to land on whole cells.
+    if (offset === 'brick') nx = 2 * Math.round(nx / 2);
+    if (offset === 'halfDrop') ny = 2 * Math.round(ny / 2);
+    const key = `${nx}x${ny}${torus ? `torus${offset}` : ''}`;
     if (this._grid?.key === key) return this._grid;
     const levels = [];
     for (let a = nx, b = ny, h = CELL; ; a /= 2, b /= 2, h *= 2) {
       const size = a * b;
       levels.push({ nx: a, ny: b, h, p: new Float64Array(size), f: new Float64Array(size),
-                    k: new Float64Array(size), r: new Float64Array(size), t: new Float64Array(size), ...linksFor(a, b, torus) });
+                    k: new Float64Array(size), r: new Float64Array(size), t: new Float64Array(size), ...linksFor(a, b, torus, offset) });
       if (a % 2 || b % 2 || Math.min(a, b) < 12) break;
     }
     const size = nx * ny;
     this._grid = {
-      key, nx, ny, x0: -this.width / 2 - pad, y0: -this.height / 2 - pad, open: pad > 0, torus, levels,
+      key, nx, ny, x0: -this.width / 2 - pad, y0: -this.height / 2 - pad, open: pad > 0, torus, offset, levels,
       coverage: new Float64Array(size), label: new Int32Array(size), ink: new Uint8Array(size), seam: new Uint8Array(size),
       ux: new Float64Array(size), uy: new Float64Array(size), ex: new Float64Array(size), ey: new Float64Array(size),
       crossings: Array.from({ length: ny * SUB_ROWS }, () => []), spans: Array.from({ length: ny * SUB_ROWS }, () => []),
@@ -161,7 +165,7 @@ export class Film extends Marble {
         for (let x = torus ? fromX : Math.max(0, fromX); x <= (torus ? toX : Math.min(nx - 1, toX)); x++) {
           // Fractional, because a stepped set of cells stamps its shape on the growing drop.
           const share = Math.max(0, Math.min(1, reach + 0.5 - Math.hypot(x - cx, y - cy)));
-          const i = mod(y, ny) * nx + mod(x, nx);
+          const i = tileCell(y, x, nx, ny, g.offset);
           if (share > coverage[i]) coverage[i] = share;
         }
       }
@@ -245,7 +249,7 @@ export class Film extends Marble {
         if (!onGridEdge && ink[west[i]] && ink[east[i]] && ink[south[i]] && ink[north[i]]) continue;
         let dx = x0 + (x + 0.5) * CELL - range.op.x;
         let dy = y0 + (y + 0.5) * CELL - range.op.y;
-        if (torus) { dx = wrap(dx, this.width); dy = wrap(dy, this.height); }
+        if (torus) { const ax = dx; dx = wrapX(ax, dy, this.width, this.height, g.offset); dy = wrapY(ax, dy, this.width, this.height, g.offset); }
         const d = Math.hypot(dx, dy);
         range.near = Math.min(range.near, d);
         range.far = Math.max(range.far, d);
@@ -263,7 +267,7 @@ export class Film extends Marble {
     const { nx, ny, x0, y0, torus } = g;
     const col = Math.round((x - x0) / CELL - 0.5);
     const row = Math.round((y - y0) / CELL - 0.5);
-    if (torus) return mod(row, ny) * nx + mod(col, nx);
+    if (torus) return tileCell(row, col, nx, ny, g.offset);
     return Math.max(0, Math.min(ny - 1, row)) * nx + Math.max(0, Math.min(nx - 1, col));
   }
 
@@ -283,7 +287,7 @@ export class Film extends Marble {
       const row = Math.round((xy[i * 2 + 1] + (dy / d) * 1.5 * CELL - y0) / CELL - 0.5);
       samples++;
       if (!torus && (col < 0 || col >= nx || row < 0 || row >= ny)) { if (open) water++; continue; }
-      if (coverage[mod(row, ny) * nx + mod(col, nx)] < EDGE_COVERAGE) water++;
+      if (coverage[tileCell(row, col, nx, ny, g.offset)] < EDGE_COVERAGE) water++;
     }
     return water / samples;
   }
@@ -416,7 +420,7 @@ export class Film extends Marble {
           for (let x = torus ? fx - sourceCells : Math.max(0, fx - sourceCells); x <= (torus ? fx + sourceCells : Math.min(nx - 1, fx + sourceCells)); x++) {
             const w = Math.exp(-(((x - cx) ** 2 + (y - cy) ** 2) * CELL * CELL) / (2 * sourceWidth * sourceWidth));
             if (pass === 0) total += w;
-            else L.f[mod(y, ny) * nx + mod(x, nx)] += (op.feed * w) / total / (CELL * CELL);
+            else L.f[tileCell(y, x, nx, ny, g.offset)] += (op.feed * w) / total / (CELL * CELL);
           }
         }
       }
@@ -500,7 +504,19 @@ export class Film extends Marble {
       }
     }
 
-    const sample = torus ? (x, y, out) => {
+    const off = g.offset;
+    const sample = off ? (x, y, out) => {
+      const fx = (x - x0) / CELL - 0.5;
+      const fy = (y - y0) / CELL - 0.5;
+      const i0 = Math.floor(fx);
+      const j0 = Math.floor(fy);
+      const a = fx - i0;
+      const b = fy - j0;
+      const p = tileCell(j0, i0, nx, ny, off), q = tileCell(j0, i0 + 1, nx, ny, off);
+      const r = tileCell(j0 + 1, i0, nx, ny, off), t = tileCell(j0 + 1, i0 + 1, nx, ny, off);
+      out[0] = (ex[p] * (1 - a) + ex[q] * a) * (1 - b) + (ex[r] * (1 - a) + ex[t] * a) * b;
+      out[1] = (ey[p] * (1 - a) + ey[q] * a) * (1 - b) + (ey[r] * (1 - a) + ey[t] * a) * b;
+    } : torus ? (x, y, out) => {
       const fx = (x - x0) / CELL - 0.5;
       const fy = (y - y0) / CELL - 0.5;
       const i0 = Math.floor(fx);
@@ -548,8 +564,8 @@ export class Film extends Marble {
     const exactOps = [...exact.entries()];
     this._map((x, y, out) => {
       for (const [op, reach] of exactOps) {
-        const dx = torus ? wrap(x - op.x, W) : x - op.x;
-        const dy = torus ? wrap(y - op.y, H) : y - op.y;
+        const dx = torus ? wrapX(x - op.x, y - op.y, W, H, off) : x - op.x;
+        const dy = torus ? wrapY(x - op.x, y - op.y, W, H, off) : y - op.y;
         const r2 = dx * dx + dy * dy;
         if (r2 > reach * reach || r2 < 1e-12) continue;
         const a = Math.sqrt(1 + (op.feed * dt) / Math.PI / r2);
@@ -563,8 +579,8 @@ export class Film extends Marble {
       let nx2 = x + u[0] * dt;
       let ny2 = y + u[1] * dt;
       for (const op of live) {
-        const dx = torus ? wrap(x - op.x, W) : x - op.x;
-        const dy = torus ? wrap(y - op.y, H) : y - op.y;
+        const dx = torus ? wrapX(x - op.x, y - op.y, W, H, off) : x - op.x;
+        const dy = torus ? wrapY(x - op.x, y - op.y, W, H, off) : y - op.y;
         const r2 = dx * dx + dy * dy;
         if (r2 < pinReach) {
           const w = Math.exp(-r2 / (2 * pinWidth * pinWidth)) * dt;

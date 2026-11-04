@@ -788,6 +788,7 @@ function syncToggles(entries) {
   if (water) showSpreading(water.args.on);
   $('walls').checked = entries.filter((e) => e.fn === 'walls').at(-1)?.args.on ?? false;
   $('tile').checked = entries.filter((e) => e.fn === 'tile').at(-1)?.args.on ?? currentModel().repeatsAtFirst === true;
+  $('tileOffset').value = entries.filter((e) => e.fn === 'tile').at(-1)?.args.offset ?? '';
   syncTile();
   // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
   const thickness = entries.filter((e) => e.fn === 'setViscosity').at(-1);
@@ -1059,7 +1060,7 @@ function newTank() {
   if (currentModel().spreading) marble.openWater({ on: true, at: 0 });
   if ($('walls').checked) marble.walls({ on: true, at: 0 });
   syncTile(); // the tick may not have caught up yet, on the first tank after a reload
-  if ($('tile').checked && !$('tile').disabled && !currentModel().repeatsAtFirst) marble.tile({ on: true, at: 0 });
+  if ($('tile').checked && !$('tile').disabled && (!currentModel().repeatsAtFirst || tileOffset())) marble.tile({ on: true, offset: tileOffset(), at: 0 });
   if (!$('tile').checked && currentModel().repeatsAtFirst) marble.tile({ on: false, at: 0 });
   resize();
   return marble;
@@ -1128,6 +1129,8 @@ for (const id of Object.values(FLOW_FIELDS)) {
 }
 
 // Only some simulators can repeat, so the toggle follows the one chosen.
+const tileOffset = () => ($('tile').checked && $('tileOffset').value) || null;
+
 function syncTile() {
   // Only some simulators can erase, and the sidebar shows only what will work.
   const canErase = (currentModel().engine ?? Marble).prototype.eraseSupported;
@@ -1150,10 +1153,16 @@ function syncTile() {
   $('walls').closest('label').hidden = atFirst;
   if (atFirst) $('walls').checked = false;
   if ($('tile').checked && $('walls').checked) $('walls').checked = false;
+  const canOffset = (currentModel().engine ?? Marble).prototype.tileOffsetSupported;
+  $('tileOffset').closest('label').hidden = !$('tile').checked || !canOffset;
+  if (!canOffset) $('tileOffset').value = '';
 }
 $('tile').onchange = () => {
-  act(() => marble.live(() => marble.tile({ on: $('tile').checked, at: marble.time })));
+  act(() => marble.live(() => marble.tile({ on: $('tile').checked, offset: $('tile').checked ? tileOffset() : null, at: marble.time })));
   syncTile();
+};
+$('tileOffset').onchange = () => {
+  act(() => marble.live(() => marble.tile({ on: true, offset: tileOffset(), at: marble.time })));
 };
 $('tilePreview').onclick = () => {
   // Three by three at the tank's own resolution, so the view can zoom out without losing detail.
@@ -1162,8 +1171,14 @@ $('tilePreview').onclick = () => {
   // With no base colour the tank's canvas is see-through, over whatever the page shows behind it.
   ctx.fillStyle = getComputedStyle(tank).backgroundColor;
   ctx.fillRect(0, 0, c.width, c.height);
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 3; j++) ctx.drawImage(tank, i * tank.width, j * tank.height);
+  // An offset shifts each row or column by half a tile. Page rows run down, the tank's y runs up.
+  const offset = marble.tileOn ? marble.tileOffset : null;
+  for (let i = -1; i < 4; i++) {
+    for (let j = -1; j < 4; j++) {
+      const x = (i + (offset === 'brick' ? (((j % 2) + 2) % 2) / 2 : 0)) * tank.width;
+      const y = (j - (offset === 'halfDrop' ? (((i % 2) + 2) % 2) / 2 : 0)) * tank.height;
+      ctx.drawImage(tank, x, y);
+    }
   }
   c.toBlob((blob) => openViewer(blob, null, Date.now()));
 };
