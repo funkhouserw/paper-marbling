@@ -679,11 +679,16 @@ export class GridInk extends Marble {
   }
 
   // Lays a colour over the picture, weighted by a coverage field.
-  _layOver(color, each) {
+  _layOver(color, each, under = false) {
     const { ink } = this._g;
     const [r, g, b, a] = parseColor(color);
     const rgba = [r * a, g * a, b * a, a];
     each((c, cover) => {
+      if (under) {
+        const room = 1 - ink[3][c];
+        for (let ch = 0; ch < 4; ch++) ink[ch][c] += rgba[ch] * cover * room;
+        return;
+      }
       const w = cover * a;
       for (let ch = 0; ch < 4; ch++) ink[ch][c] = ink[ch][c] * (1 - w) + rgba[ch] * cover;
     });
@@ -692,6 +697,10 @@ export class GridInk extends Marble {
   // Filled outlines become ink on the grid, four scanlines to a row and exact across each.
   _absorbOutlines() {
     if (!this.polys.length) return;
+    // Ink going under what's there goes top first, since each lies beneath the one before.
+    if (this.polys.some((p) => p.under)) {
+      this.polys = [...this.polys.filter((p) => p.under).reverse(), ...this.polys.filter((p) => !p.under)];
+    }
     const g = this._g;
     const { ix: nx, iy: ny, ihx: hx, ihy: hy } = g;
     this._checkpointInk();
@@ -735,7 +744,7 @@ export class GridInk extends Marble {
           }
         }
       }
-      this._layOver(first.color, (put) => { for (const c of touched) put(c, cover[c]); });
+      this._layOver(first.color, (put) => { for (const c of touched) put(c, cover[c]); }, first.under);
     }
     this.polys = [];
     for (let ch = 0; ch < 4; ch++) g.ink0[ch].set(g.ink[ch]);

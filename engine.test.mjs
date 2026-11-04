@@ -1332,3 +1332,34 @@ test('a rake pulls dead-straight stripes, whose edges only have points outside t
   }
   assert.ok(tallest > 120, `the tallest band is only ${tallest} mm`);
 });
+
+test('stripes can go around existing ink, and later ones go under what is there', () => {
+  const m = new Marble({ width: 600, height: 400, seed: 3 });
+  m.drop({ x: 0, y: 0, quantity: 0.3, dispersion: Infinity, color: '#ff0000' });
+  m.runUntilIdle();
+  const dot = m.polys[0];
+  const n = m.stripes({ count: 6, colors: ['#111111', '#222222'], variation: 0, slivers: 0, over: false });
+  m.step();
+  assert.equal(m.polys.at(-1), dot, 'the dot stays on top');
+  assert.equal(m.polys.length, n + 1);
+  assert.deepEqual(m.polys.slice(0, n).map((p) => p.color), ['#111111', '#222222', '#111111', '#222222', '#111111', '#222222'], 'the bands stay in order');
+  const first = m.polys[0];
+  m.stripes({ count: 2, colors: ['#333333', '#444444'], variation: 0, slivers: 0, over: false });
+  m.step();
+  assert.equal(m.polys[0].color, '#333333');
+  assert.equal(m.polys[2], first, 'a later batch goes beneath the earlier one');
+  // A rake moves bands and dot alike, and it all replays in the same order.
+  m.fullRake({ angle: 90, teeth: 6, speed: 200, D: 8 });
+  m.runUntilIdle(40);
+  const again = new Marble({ width: 600, height: 400, seed: 3 }).replay(m.log);
+  again.runUntilIdle(40);
+  assert.deepEqual(again.polys.map((p) => p.color), m.polys.map((p) => p.color));
+  // The default is still on top.
+  const top = new Marble({ width: 600, height: 400, seed: 3 });
+  top.drop({ x: 0, y: 0, quantity: 0.3, dispersion: Infinity, color: '#ff0000' });
+  top.runUntilIdle();
+  top.stripes({ count: 6, colors: ['#111111'], slivers: 0 });
+  top.step();
+  assert.equal(top.polys[0].color, '#ff0000');
+  assert.equal(top.log.at(-1).args.under, undefined);
+});

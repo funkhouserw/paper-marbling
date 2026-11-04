@@ -223,3 +223,26 @@ test('a drop still leaves a separate film alone', () => {
   m._refreshInk();
   assert.ok(Math.abs(left(m._g.ink[3]) - was) <= was * 0.002, `${left(m._g.ink[3])} against ${was}`);
 });
+
+test('stripes go around existing ink in Grid ink too', () => {
+  const pixel = (m, x, y) => {
+    const { data, width, height } = m.toRGBA();
+    const i = (Math.round((y / m.height + 0.5) * (height - 1)) * width + Math.round((x / m.width + 0.5) * (width - 1))) * 4;
+    return [data[i], data[i + 1], data[i + 2]];
+  };
+  const make = (over) => {
+    const m = new GridInk({ width: 300, height: 210, seed: 1, viscosity: 200, gridCell: 2 });
+    m.drop({ x: 0, y: 0, quantity: 0.4, dispersion: Infinity, color: '#ff0000' });
+    run(m);
+    m.stripes({ count: 6, colors: ['#0000ff', '#00ff00'], variation: 0, wobble: 0, slivers: 0, over });
+    m.step();
+    return m;
+  };
+  const around = make(false);
+  assert.ok(pixel(around, 0, 0)[0] > 200, 'the dot stays in sight');
+  assert.ok(pixel(around, 130, 90)[0] < 40 && Math.max(...pixel(around, 130, 90).slice(1)) > 200, 'bands fill the rest');
+  // Bands stay even and in order: colours change the same number of times as without a dot.
+  const edges = (m) => { let n = 0, last = null; for (let y = -100; y <= 100; y += 1) { const p = pixel(m, 130, y).join(); if (last && p !== last) n++; last = p; } return n; };
+  assert.ok(Math.abs(edges(around) - edges(make(true))) <= 4);
+  assert.ok(pixel(make(true), 0, 0)[0] < 40, 'on top covers the dot');
+});

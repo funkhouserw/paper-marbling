@@ -77,6 +77,7 @@ export const COMMANDS = [
     ['swell', 'number', 0, 'how much the width varies along the line, 0 to 1'],
     size('period', 0, 'makes the wobble repeat over this distance, for tiling; 0 does not repeat'),
     ['seed', 'number', null, 'fixes the wobble; left out, it is picked for you'],
+    ['under', 'boolean', false, 'true lays it beneath ink already there'],
     AT,
   ] },
   { name: 'stripes', group: 'Ink', summary: 'Fills the tank with hand-laid bands of colour, no water showing between them. A starting point for combing: rake across them for chevrons. Does not advance the timeline.', params: [
@@ -86,6 +87,7 @@ export const COMMANDS = [
     ['variation', 'number', 0.6, 'how uneven the bands are, 0 to 1'],
     size('wobble', null, 'how far the bands wander; 0 is dead straight, and left out it picks a little to suit their width'),
     ['slivers', 'number', 0.5, 'thin tapered streaks of another colour per band'],
+    ['over', 'boolean', true, 'false puts the bands around existing ink instead of on top of it'],
     AT,
   ] },
   // Tools
@@ -143,6 +145,8 @@ export const COMMANDS = [
     ['above', 'number', 130, 'where each tine starts, as a percentage of the way from the middle to the edge; 100 is the edge'],
     ['below', 'number', 130, 'where each tine ends, likewise'],
     ['pull', 'number', 25, 'how widely each tine pulls, as a percentage of its loop\'s radius'],
+    size('min', 0, 'leaves alone loops with a smaller radius than this'),
+    size('max', 1000, 'leaves alone loops with a larger radius than this'),
     SPEED(20),
     AT,
   ] },

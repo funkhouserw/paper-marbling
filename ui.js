@@ -548,7 +548,7 @@ function drawHeartLines() {
   octx.save();
   octx.lineWidth = px;
   octx.setLineDash([5 * px, 4 * px]);
-  const paths = marble.heartPaths(values.hearts);
+  const paths = marble.heartPaths(inMm('hearts'));
   const line = (from, to, sx, sy) => {
     const [ax, ay] = toPx([from[0] + sx, from[1] + sy]);
     const [bx, by] = toPx([to[0] + sx, to[1] + sy]);
@@ -1169,7 +1169,10 @@ $('apply').onclick = () => act(() => (tool === 'fillDots'
   : tool === 'hearts'
   ? place(true, (at) => marble.hearts({ ...inMm('hearts'), at }))
   : tool === 'stripes'
-  ? place(false, (at) => marble.stripes({ ...inMm('stripes'), colors: inks, at }))
+  ? place(false, (at) => {
+    const { over, ...v } = inMm('stripes');
+    return marble.stripes({ ...v, over: over === 'over', colors: inks, at });
+  })
   : place(true, (at) => (tool === 'air' ? marble.air({ ...inMm('air'), at }) : tool === 'fullRake'
   ? marble.fullRake({ ...inMm('fullRake'), at })
   : marble.jiggle({ ...inMm('jiggle'), at })))));

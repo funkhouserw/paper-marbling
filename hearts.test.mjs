@@ -106,3 +106,19 @@ test('Hearts is offered as a tool, and Grid ink says plainly that it has no loop
   assert.ok(TOOLS.hearts.whole);
   assert.throws(() => new GridInk({ width: W, height: H }).hearts(), /can't find loops/);
 });
+
+test('hearts can target only loops within a size range', () => {
+  const m = dots();
+  const [big, small] = m.polys;
+  const radius = (p) => Math.sqrt(area(p) / Math.PI);
+  const between = (radius(big) + radius(small)) / 2;
+  assert.deepEqual(m.heartPaths({ min: between }).map((p) => p.loops[0]), [big]);
+  assert.deepEqual(m.heartPaths({ max: between }).map((p) => p.loops[0]), [small]);
+  assert.equal(m.heartPaths({ min: between, max: between + 0.01 }).length, 0);
+  assert.equal(m.heartPaths().length, 2);
+  const wasSmall = box(small);
+  m.hearts({ min: between });
+  for (let s = 0; s < 300 && m.busy; s++) m.step();
+  assert.ok(Math.abs(box(small).low - wasSmall.low) < 3, 'the small dot only feels the far pull, if anything');
+  assert.ok(big.n > 60, 'the big one was raked');
+});

@@ -72,6 +72,7 @@ export const TOOLS = {
   },
   stripes: {
     label: 'Stripes',
+    choices: { over: ['Existing ink', { over: 'Go on top of it', around: 'Go around it' }, 'over'] },
     hint: 'Fills the tank with bands of the palette\'s inks. Rake across them for chevrons. Use the button below.',
     whole: true,
     directions: true,
@@ -105,6 +106,8 @@ export const TOOLS = {
       above: ['Start above (%)', 130, 0, 300, 5],
       below: ['End below (%)', 130, 0, 300, 5],
       pull: ['Pull (%)', 25, 5, 100, 1],
+      min: ['Smallest dot', 0.02, 0.02, 60, 0.01],
+      max: ['Largest dot', 60, 0.02, 60, 0.01],
       speed: ['Speed', 20, 1, 80, 1],
     },
   },

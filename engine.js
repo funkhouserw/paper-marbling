@@ -472,18 +472,19 @@ export class Marble {
 
   // Lays ink along a path, like a loaded brush. See paint.js. It doesn't spread, and it sits on
   // top of what's there without pushing it, but every later tool moves it. seed fixes the wobble.
-  paint({ path, width = 30, color = '#1f4e79', shimmer = 0, taper = 0, wobble = 0, swell = 0, period = 0, seed, at } = {}) {
+  paint({ path, width = 30, color = '#1f4e79', shimmer = 0, taper = 0, wobble = 0, swell = 0, period = 0, seed, under = false, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
     const fixed = seed ?? Math.floor(this.random() * 2 ** 31);
     const args = { path: path.map((p) => [...p]), width, color, shimmer, taper, wobble, swell, period, seed: fixed };
+    if (under) args.under = under;
     if (at !== undefined) args.at = at;
     const outline = ribbon({ path, width, taper, wobble, swell, period, seed: fixed });
     if (!outline) return null;
-    return this._schedule('paint', args, { kind: 'paint', outline, color, shimmer });
+    return this._schedule('paint', args, { kind: 'paint', outline, color, shimmer, under });
   }
 
   // Bands of colour across the whole tank, a starting point for combing.
-  stripes({ angle = 0, count = 16, colors = ['#1f4e79'], variation = 0.6, wobble = null, slivers = 0.5, at } = {}) {
+  stripes({ angle = 0, count = 16, colors = ['#1f4e79'], variation = 0.6, wobble = null, slivers = 0.5, over = true, at } = {}) {
     // Bands running across an offset meet their own copies half a tile along. So they only span half
     // the tile, those copies do the rest, and each needs to be twice as long to come back to itself.
     const off = this.tileOffsetWanted ?? (this.tileOn ? this.tileOffset : null);
@@ -493,7 +494,9 @@ export class Marble {
     const strokes = planStripes({
       width: size[0], height: size[1], angle, count: across ? Math.ceil(count / 2) : count, variation, wobble, slivers, colors, tiled: this.tileOn || off !== null, random: () => this.random(),
     });
-    for (const stroke of strokes) this.paint({ ...stroke, at });
+    // Going around existing ink means going under it: it stays in sight, and every tool moves both alike.
+    const under = over ? false : this.log.length + 1;
+    for (const stroke of strokes) this.paint({ ...stroke, under, at });
     return strokes.length;
   }
 
@@ -864,16 +867,16 @@ export class Marble {
   // above and below are how far it starts and ends from the middle, as a percentage of the way from
   // there to the loop's edge, so 100 is the edge. pull is its reach, as a percentage of the loop's radius.
   // Loops are found when this starts, so it works on ink still to land. Loops sharing a middle, like
-  // the rings of a target, are one shape and get one tine.
-  hearts({ angle = 270, above = 130, below = 130, pull = 25, speed = 200, at } = {}) {
+  // the rings of a target, are one shape and get one tine. min and max limit it to loops of that radius.
+  hearts({ angle = 270, above = 130, below = 130, pull = 25, min = 0, max = 1e6, speed = 200, at } = {}) {
     if (!this.freezeSupported) throw new Error('This simulator can\'t find loops to rake yet.');
-    const args = { angle, above, below, pull, speed };
+    const args = { angle, above, below, pull, min, max, speed };
     if (at !== undefined) args.at = at;
     return this._schedule('hearts', args, { kind: 'hearts', ...args }, 0, true);
   }
 
   // The line of each heart's tine, for what's on the tank now: { from, to, L, loops }.
-  heartPaths({ angle = 270, above = 130, below = 130, pull = 25 } = {}) {
+  heartPaths({ angle = 270, above = 130, below = 130, pull = 25, min = 0, max = 1e6 } = {}) {
     const c = Math.cos(angle * DEG);
     const s = Math.sin(angle * DEG);
     const bodies = [];
@@ -910,7 +913,7 @@ export class Marble {
       if (kept.some((o) => Math.hypot(o.cx - b.cx, o.cy - b.cy) < 0.2 * o.r)) continue;
       kept.push(b);
     }
-    return kept.map(({ cx, cy, back, ahead, r, loops }) => ({
+    return kept.filter(({ r }) => r >= min && r <= max).map(({ cx, cy, back, ahead, r, loops }) => ({
       from: [cx - c * back * (above / 100), cy - s * back * (above / 100)],
       to: [cx + c * ahead * (below / 100), cy + s * ahead * (below / 100)],
       L: Math.max(0.25, (r * pull) / 100),
@@ -1953,7 +1956,14 @@ export class Marble {
         continue;
       }
       if (op.kind === 'paint') {
-        this.polys.push({ xy: Float64Array.from(op.outline), n: op.outline.length / 2, color: op.color, shimmer: op.shimmer });
+        const poly = { xy: Float64Array.from(op.outline), n: op.outline.length / 2, color: op.color, shimmer: op.shimmer };
+        if (op.under) {
+          // Beneath everything already there, but above the rest of the same batch.
+          poly.under = op.under;
+          let at = 0;
+          this.polys.forEach((p, i) => { if (p.under === op.under) at = i + 1; });
+          this.polys.splice(at, 0, poly);
+        } else this.polys.push(poly);
         continue;
       }
       if (op.kind === 'print') {
