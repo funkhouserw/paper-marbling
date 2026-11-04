@@ -63,7 +63,7 @@ export const INFO = {
   'paint.wobble': 'How far the line wanders from where you drew it, so it looks less mechanical.',
   'stripes.count': 'How many bands. Many thin bands make fine, busy patterns once raked.',
   'stripes.variation': 'How uneven the bands are. At 0 they\'re equal and cycle through the palette in order. Higher mixes wide and narrow bands in random order.',
-  'stripes.wobble': 'How far the bands wander. At 0 each band picks a little to suit its width.',
+  'stripes.wobble': 'How far the bands wander. At 0 they\'re dead straight.',
   'stripes.slivers': 'Thin tapered streaks of another colour added per band, which make bands look hand-laid once combed.',
   'tool.rake': 'A comb you drag by hand. Each tooth pulls ink along its path, which makes feathers and chevrons.',
   'tool.fullRake': 'A comb across the whole page, for exact, repeatable passes. Two passes in opposite directions with an offset give classic combed patterns.',

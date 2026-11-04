@@ -395,7 +395,7 @@ export class Marble {
   }
 
   // Bands of colour across the whole tank, a starting point for combing.
-  stripes({ angle = 0, count = 16, colors = ['#1f4e79'], variation = 0.6, wobble = 0, slivers = 0.5, at } = {}) {
+  stripes({ angle = 0, count = 16, colors = ['#1f4e79'], variation = 0.6, wobble = null, slivers = 0.5, at } = {}) {
     // Bands running across an offset meet their own copies half a tile along. So they only span half
     // the tile, those copies do the rest, and each needs to be twice as long to come back to itself.
     const off = this.tileOffsetWanted ?? (this.tileOn ? this.tileOffset : null);

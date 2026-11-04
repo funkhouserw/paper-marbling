@@ -1267,3 +1267,49 @@ test('filling a tank that does not repeat still keeps dots inside it', () => {
   const R = (o) => Math.sqrt((o.quantity * 1000) / (m.film * Math.PI));
   for (const o of placed) assert.ok(Math.abs(o.x) + R(o) <= 150.01 && Math.abs(o.y) + R(o) <= 105.01);
 });
+
+test('stripes with no unevenness and no wobble are straight bands of equal width', () => {
+  const m = new Marble({ width: 400, height: 400, seed: 3 });
+  const made = [];
+  const paint = m.paint.bind(m);
+  m.paint = (o) => { made.push(o); return paint(o); };
+  m.stripes({ count: 8, colors: ['#111111', '#222222'], variation: 0, wobble: 0, slivers: 0 });
+  m.runUntilIdle();
+  assert.equal(made.length, 8);
+  const ys = made.map((o) => o.path[0][1]).sort((a, b) => a - b);
+  for (let i = 2; i < ys.length; i++) assert.ok(Math.abs(ys[i] - ys[i - 1] - (ys[1] - ys[0])) < 1e-6, `band ${i} is ${ys[i] - ys[i - 1]} from the last`);
+  for (const o of made) assert.equal(o.wobble, 0);
+  for (const { xy, n } of m.polys) {
+    const seen = new Set();
+    for (let i = 0; i < n; i++) if (Math.abs(xy[i * 2]) < 150) seen.add(Math.round(xy[i * 2 + 1] * 100));
+    assert.ok(seen.size <= 2, 'a band has straight edges');
+  }
+});
+
+test('on a repeating tank even stripes are even all the way round, including at the seam', () => {
+  const m = new Marble({ width: 400, height: 400, seed: 3 });
+  m.tile();
+  m.step();
+  const colors = ['#111111', '#555555', '#999999', '#dddddd'];
+  m.stripes({ count: 8, colors, variation: 0, wobble: 0, slivers: 0 });
+  m.runUntilIdle();
+  // Which outline shows at each height: the last drawn wins, in every copy.
+  const top = (y) => {
+    let found = -1;
+    m.polys.forEach((poly, p) => {
+      for (const [, sy] of m.tileShifts([poly])) {
+        const ys = [];
+        for (let i = 0; i < poly.n; i++) ys.push(poly.xy[i * 2 + 1] + sy);
+        if (y > Math.min(...ys) && y < Math.max(...ys)) found = p;
+      }
+    });
+    return found;
+  };
+  const edges = [];
+  for (let y = -199.5; y < 200; y++) if (top(y) !== top(y - 1)) edges.push(y);
+  assert.equal(edges.length, 8, `edges at ${edges}`);
+  for (let i = 0; i < 8; i++) {
+    const gap = (edges[(i + 1) % 8] - edges[i] + 400) % 400;
+    assert.ok(Math.abs(gap - 50) <= 1, `a band is ${gap} wide, in ${edges}`);
+  }
+});

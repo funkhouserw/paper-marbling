@@ -108,7 +108,7 @@ export function ribbon({ path, width = 30, taper = 0, wobble = 0, swell = 0, per
 // Each one overlaps the last, so no water shows between them. Returns strokes to paint in order.
 // On a tiled tank, bands run along an edge and repeat exactly. Each is longer than the tile, so
 // its ends are hidden under its own repeat and there's no seam to see.
-export function planStripes({ width, height, angle = 0, count = 16, variation = 0.6, wobble = 0, slivers = 0.5, colors, tiled = false, random }) {
+export function planStripes({ width, height, angle = 0, count = 16, variation = 0.6, wobble = null, slivers = 0.5, colors, tiled = false, random }) {
   const a = ((tiled ? Math.round(angle / 90) * 90 : angle) * Math.PI) / 180;
   const c = Math.cos(a);
   const s = Math.sin(a);
@@ -137,9 +137,22 @@ export function planStripes({ width, height, angle = 0, count = 16, variation = 
     const color = colors.length > 1 ? (variation > 0 ? pick(last) : colors[i % colors.length]) : colors[0];
     last = color;
     const middle = position + pitch / 2;
-    const wander = wobble || pitch * 0.12;
+    const wander = wobble ?? pitch * 0.12;
     const overlap = Math.max(pitch * 1.5, pitch + wander * 2.5);
-    strokes.push({ path: line(middle, -half, half), width: overlap, wobble: wander, swell: variation * 0.15, period, color, seed: seed() });
+    // Each band paints over the edge of the last. On a tile that's a loop, and the last band would also
+    // paint over the first, leaving one wide and one narrow. So the last stops short at its own share,
+    // and the first, which is under everything, reaches on beneath it to meet that edge.
+    let centre = middle;
+    let breadth = overlap;
+    if (tiled && count > 1 && i === count - 1) {
+      centre = middle - (overlap - pitch) / 2;
+      breadth = pitch;
+    } else if (tiled && count > 1 && i === 0) {
+      const under = (shares[count - 1] / sum) * reach;
+      centre = middle - under / 2;
+      breadth = overlap + under;
+    }
+    strokes.push({ path: line(centre, -half, half), width: breadth, wobble: wander, swell: variation * 0.15, period, color, seed: seed() });
     let extras = slivers;
     while (extras > 0) {
       if (random() < Math.min(1, extras)) {

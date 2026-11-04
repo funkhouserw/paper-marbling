@@ -78,7 +78,7 @@ export const TOOLS = {
     params: {
       count: ['Bands', 16, 2, 80, 1],
       variation: ['Uneven widths', 0.6, 0, 1, 0.05],
-      wobble: ['Wobble', 0, 0, 5, 0.05],
+      wobble: ['Wobble', 0.75, 0, 5, 0.05],
       slivers: ['Slivers', 0.5, 0, 3, 0.1],
     },
   },

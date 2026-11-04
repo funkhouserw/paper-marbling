@@ -84,7 +84,7 @@ export const COMMANDS = [
     ['count', 'number', 16, 'how many bands'],
     ['colors', 'color[]', ['#1f4e79'], 'CSS colours or palette inks; picked so that neighbours differ, or in order when variation is 0'],
     ['variation', 'number', 0.6, 'how uneven the bands are, 0 to 1'],
-    size('wobble', 0, 'how far the bands wander; 0 picks a little to suit their width'),
+    size('wobble', null, 'how far the bands wander; 0 is dead straight, and left out it picks a little to suit their width'),
     ['slivers', 'number', 0.5, 'thin tapered streaks of another colour per band'],
     AT,
   ] },
