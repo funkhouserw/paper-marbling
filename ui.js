@@ -798,7 +798,7 @@ function syncToggles(entries) {
   syncTile();
   // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
   const thickness = entries.filter((e) => e.fn === 'setViscosity').at(-1);
-  if (thickness) $('visc').value = thickness.args.value;
+  $('visc').value = thickness ? thickness.args.value : marble.startViscosity ?? $('visc').value;
   const flow = entries.filter((e) => e.fn === 'setFlow').at(-1);
   if (flow) showFlow(flow.args);
   syncBathPanel();
@@ -840,6 +840,8 @@ function updateHistoryButtons() {
 
 // Rebuilds the tank from log entries, so seeded randomness replays identically.
 function rebuild(entries) {
+  // The tank starts at the viscosity it first had, whatever the box says now.
+  if (marble.startViscosity) $('visc').value = marble.startViscosity;
   $('walls').checked = false;
   $('tile').checked = currentModel().repeatsAtFirst === true;
   const m = newTank();
@@ -1072,6 +1074,7 @@ function newTank() {
     seed: prev.seed,
     gridCell: Number($('gridCell').value) || undefined,
   });
+  marble.startViscosity = marble.viscosity; // for putting the box back when undo reaches the start
   marble.flowTuning = sidebarFlow(); // a sidebar setting like viscosity, so not in the log
   applyDetail(marble);
   queueEnd = 0;
@@ -1129,11 +1132,21 @@ function showFlow(flow) {
   $('flowPreset').value = match ? match[0] : 'custom';
 }
 function syncBathPanel() { $('bathPanel').hidden = !['wake', 'wakefast', 'gridink'].includes(currentModel().id); }
+// Takes effect straight away, on everything from here on, without clearing the tank.
+$('visc').onchange = () => {
+  const value = Number($('visc').value);
+  if (!Number.isFinite(value) || value <= 0) { $('visc').value = marble.viscosity; return; }
+  if (value === marble.viscosity) return;
+  marble.startViscosity ??= marble.viscosity;
+  act(() => marble.setViscosity({ value }));
+  $('visc').value = marble.viscosity; // it may have been held to the allowed range
+};
 $('flowPreset').onchange = () => {
   const preset = FLOW_PRESETS[$('flowPreset').value];
   if (!preset) return;
   showFlow(preset);
   $('visc').value = preset.viscosity;
+  marble.startViscosity ??= marble.viscosity;
   act(() => {
     marble.setViscosity({ value: preset.viscosity });
     marble.setFlow(sidebarFlow());
@@ -1175,13 +1188,17 @@ function syncTile() {
   $('tileOffset').closest('label').hidden = !$('tile').checked || !canOffset;
   if (!canOffset) $('tileOffset').value = '';
 }
+// Both take effect at once, so they show even on a paused tank.
+function setRepeat(on, offset) {
+  act(() => marble.live(() => marble.tile({ on, offset, at: marble.time })));
+  marble.applyTileNow();
+  dirty = true;
+}
 $('tile').onchange = () => {
-  act(() => marble.live(() => marble.tile({ on: $('tile').checked, offset: $('tile').checked ? tileOffset() : null, at: marble.time })));
+  setRepeat($('tile').checked, tileOffset());
   syncTile();
 };
-$('tileOffset').onchange = () => {
-  act(() => marble.live(() => marble.tile({ on: true, offset: tileOffset(), at: marble.time })));
-};
+$('tileOffset').onchange = () => setRepeat(true, tileOffset());
 $('tilePreview').onclick = () => {
   // Three by three at the tank's own resolution, so the view can zoom out without losing detail.
   const c = Object.assign(document.createElement('canvas'), { width: tank.width * 3, height: tank.height * 3 });

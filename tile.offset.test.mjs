@@ -126,3 +126,21 @@ test('filled dots keep apart across an offset seam', () => {
     }
   }
 });
+
+test('a repeat can take effect at once, and replays the same', () => {
+  const m = new Marble({ width: W, height: H, seed: 1 });
+  m.drop({ x: 0, y: H / 2, quantity: 0.1, dispersion: Infinity, color: '#222222' });
+  m.runUntilIdle();
+  const at = m.time;
+  const time = m.time;
+  m.live(() => m.tile({ on: true, offset: 'brick', at }));
+  m.applyTileNow();
+  assert.equal(m.tileOn, true);
+  assert.equal(m.tileOffset, 'brick');
+  assert.equal(m.queued.length, 0, 'nothing is left waiting');
+  assert.equal(m.time, time, 'and the tank has not moved on');
+  const again = new Marble({ width: W, height: H, seed: 1 }).replay(m.log);
+  again.runUntilIdle();
+  assert.equal(again.tileOffset, 'brick');
+  assert.deepEqual([...again.polys[0].xy.subarray(0, again.polys[0].n * 2)], [...m.polys[0].xy.subarray(0, m.polys[0].n * 2)]);
+});

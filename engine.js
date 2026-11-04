@@ -351,6 +351,19 @@ export class Marble {
 
   get tileOffsetSupported() { return true; }
 
+  _applyTile({ on, offset }) {
+    this.tileOn = on;
+    this.tileOffset = on ? offset ?? null : null;
+    if (on) this.wallsOn = false;
+  }
+
+  // Applies a repeat that's waiting, without waiting for the next tick, so it shows on a paused tank.
+  applyTileNow() {
+    for (const op of this.pending.filter((o) => o.kind === 'tile' && o.at <= this.time)) this._applyTile(op);
+    this.pending = this.pending.filter((o) => !(o.kind === 'tile' && o.at <= this.time));
+    return this;
+  }
+
   // Classic repeats: every push and drag here has a periodic form in tile.js.
   get tileSupported() { return !this.openWaterOn; }
 
@@ -1728,9 +1741,7 @@ export class Marble {
         continue;
       }
       if (op.kind === 'tile') {
-        this.tileOn = op.on;
-        this.tileOffset = op.on ? op.offset ?? null : null;
-        if (op.on) this.wallsOn = false;
+        this._applyTile(op);
         continue;
       }
       if (op.kind === 'lift') {
