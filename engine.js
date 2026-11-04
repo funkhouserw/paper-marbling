@@ -14,9 +14,12 @@
 import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
 import { wrap, pushApartTiled, swirlTiled } from './tile.js';
+import { cutDisc } from './erase.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
+
+const MIN_LEFT = 1; // mm²; the least ink an eraser's cut leaves as its own piece
 
 const DEG = Math.PI / 180;
 const GROWTH_DONE = 0.015; // a drop rests when this fraction of its area remains: the rest is too small to watch
@@ -647,9 +650,11 @@ export class Marble {
   // Drains ink away at a point: the opposite of a drop, by the same formula read backwards. Everything
   // inside radius goes to the centre and is gone, and the rest of the surface slides in to fill the
   // space, so the area lost is exactly the disc's.
-  erase({ x = 0, y = 0, radius = 10, duration = 1, at } = {}) {
-    const args = { x, y, radius, duration };
+  // With mode 'lift', only the ink goes: it's cut out at once, and the water and everything else stay put.
+  erase({ x = 0, y = 0, radius = 10, duration = 1, mode = 'drain', at } = {}) {
+    const args = { x, y, radius, duration, mode };
     if (at !== undefined) args.at = at;
+    if (mode === 'lift') return this._schedule('erase', args, { kind: 'lift', x, y, radius }, 0, false);
     return this._schedule('erase', args, { kind: 'erase', x, y, radius, duration, elapsed: 0 }, duration, true);
   }
 
@@ -1568,6 +1573,63 @@ export class Marble {
 
   // Without walls, ink can drift far outside the tank. Past half a tank away it can't
   // realistically return, so it stops costing anything. Printed shapes are kept whole.
+  // Cuts a circle out of the ink. On a repeating tank outlines stay whole across the seams, so each
+  // one is cut wherever an image of the circle reaches it.
+  _liftInk({ x, y, radius }) {
+    const { width: W, height: H } = this;
+    const step = Math.min(1.5, radius / 6);
+    const shoelace = ({ xy, n }) => {
+      let sum = 0;
+      for (let i = 0, k = n - 1; i < n; k = i++) sum += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+      return Math.abs(sum);
+    };
+    const cutAll = (poly, cx, cy) => {
+      const xy = poly.xy;
+      const pieces = cutDisc(xy, poly.n, cx, cy, radius, step);
+      if (!pieces) return [poly];
+      const left = pieces.map((p) => ({ ...poly, xy: p, n: p.length / 2, from: poly.from ?? poly }));
+      // Crumbs where cuts nearly met would otherwise stay as specks and threads.
+      return left.filter((p) => shoelace(p) > 2 * MIN_LEFT);
+    };
+    const kept = [];
+    const gone = new Set();
+    for (const poly of this.polys) {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (let i = 0; i < poly.n; i++) {
+        x0 = Math.min(x0, poly.xy[i * 2]);
+        x1 = Math.max(x1, poly.xy[i * 2]);
+        y0 = Math.min(y0, poly.xy[i * 2 + 1]);
+        y1 = Math.max(y1, poly.xy[i * 2 + 1]);
+      }
+      let pieces = [poly];
+      const kx = this.tileOn ? [Math.ceil((x0 - radius - x) / W), Math.floor((x1 + radius - x) / W)] : [0, 0];
+      const ky = this.tileOn ? [Math.ceil((y0 - radius - y) / H), Math.floor((y1 + radius - y) / H)] : [0, 0];
+      for (let i = kx[0]; i <= kx[1]; i++) {
+        for (let j = ky[0]; j <= ky[1]; j++) {
+          const cx = x + i * W;
+          const cy = y + j * H;
+          if (x0 > cx + radius || x1 < cx - radius || y0 > cy + radius || y1 < cy - radius) continue;
+          pieces = pieces.flatMap((p) => cutAll(p, cx, cy));
+        }
+      }
+      if (!pieces.length) { gone.add(poly); continue; }
+      if (pieces.length === 1 && pieces[0] === poly) { kept.push(poly); continue; }
+      // The largest piece carries on as this outline, since drops and prints keep hold of it.
+      let largest = pieces[0];
+      for (const p of pieces) if (shoelace(p) > shoelace(largest)) largest = p;
+      for (const p of pieces) {
+        if (p === largest) {
+          poly.xy = p.xy;
+          poly.n = p.n;
+          kept.push(poly);
+        } else kept.push(p);
+      }
+    }
+    this.polys = kept;
+    this.sources = this.sources.filter((op) => !gone.has(op.poly));
+    this.active = this.active.filter((op) => !gone.has(op.poly));
+  }
+
   // Forgets ink that an eraser has taken down to a point, and the points an eraser piled up at its
   // centre on outlines that survive.
   _dropCollapsed() {
@@ -1631,6 +1693,10 @@ export class Marble {
       if (op.kind === 'tile') {
         this.tileOn = op.on;
         if (op.on) this.wallsOn = false;
+        continue;
+      }
+      if (op.kind === 'lift') {
+        this._liftInk(op);
         continue;
       }
       if (op.kind === 'paint') {

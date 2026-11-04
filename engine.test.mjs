@@ -1179,3 +1179,53 @@ test('erasing replays exactly, and works on a repeating tank', () => {
   assert.deepEqual([...a.polys[0].xy.subarray(0, a.polys[0].n * 2)], [...b.polys[0].xy.subarray(0, b.polys[0].n * 2)]);
   assert.ok(t.polys[0].xy.every(Number.isFinite));
 });
+
+test('lifting ink cuts out exactly the circle and leaves everything else where it was', () => {
+  const area = ({ xy, n }) => {
+    let sum = 0;
+    for (let i = 0, k = n - 1; i < n; k = i++) sum += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+    return Math.abs(sum) / 2;
+  };
+  const start = () => {
+    const m = new Marble({ width: 300, height: 210 });
+    m.drop({ x: 0, y: 0, quantity: 1, dispersion: Infinity, color: '#123456' });
+    m.step();
+    return m;
+  };
+  const a = start();
+  const R = Math.sqrt(area(a.polys[0]) / Math.PI);
+  // Wholly inside: a hole, whose outline keeps the ink's own points unmoved.
+  const before = a.polys[0].n;
+  a.erase({ x: 5, y: 5, radius: 10, mode: 'lift' });
+  a.step();
+  assert.ok(Math.abs(Math.PI * R * R - area(a.polys[0]) - Math.PI * 100) < 2, 'a hole takes the disc');
+  assert.ok(a.polys[0].n > before);
+  // Over the edge: exactly the lens.
+  const b = start();
+  const r = 12;
+  b.erase({ x: R, y: 0, radius: r, mode: 'lift' });
+  b.step();
+  const lens = r * r * Math.acos(r / (2 * R)) + R * R * Math.acos(1 - (r * r) / (2 * R * R))
+    - 0.5 * Math.sqrt((2 * R - r) * r * r * (2 * R + r));
+  assert.ok(Math.abs(Math.PI * R * R - area(b.polys[0]) - lens) < 0.02 * lens);
+  // Across the middle, a line of cuts splits it in two, and both pieces stay.
+  const c = start();
+  for (let x = -R - 5; x <= R + 5; x += 3) c.erase({ x, y: 0, radius: 4, mode: 'lift' });
+  c.step();
+  assert.equal(c.polys.length, 2);
+  assert.ok(Math.abs(area(c.polys[0]) - area(c.polys[1])) < 0.02 * area(c.polys[0]));
+  // All of it.
+  const d = start();
+  d.erase({ x: 0, y: 0, radius: R + 2, mode: 'lift' });
+  d.step();
+  assert.equal(d.polys.length, 0);
+  // Across a seam of a repeating tank.
+  const t = new Marble({ width: 200, height: 200 });
+  t.tile();
+  t.drop({ x: 95, y: 0, quantity: 0.2, dispersion: Infinity });
+  t.step();
+  const whole = area(t.polys[0]);
+  t.erase({ x: -100, y: 0, radius: 5, mode: 'lift' });
+  t.step();
+  assert.ok(whole - area(t.polys[0]) > 0.9 * Math.PI * 25, 'the image of the circle cuts too');
+});

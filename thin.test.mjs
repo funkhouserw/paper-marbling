@@ -45,8 +45,9 @@ test('a large circle still thins, and no dropped point strays past the tolerance
   }
 });
 
-test('underpaint keeps round shapes at full width, and thins with a hair of ink', () => {
-  const hair = Float64Array.from([0, 0, 200, 0, 200, 0.25, 0, 0.25]);
-  assert.ok(Math.abs(underpaintWidth(hair, 0, 4, 7) - 0.25) < 0.01);
+test('underpaint thins with a hair of ink, but not on round shapes or big raked films', () => {
+  const ribbon = (length, wide) => Float64Array.from([0, 0, length, 0, length, wide, 0, wide]);
+  assert.ok(Math.abs(underpaintWidth(ribbon(200, 0.25), 0, 4, 7) - 0.25) < 0.01, 'a dragged dot');
+  assert.equal(underpaintWidth(ribbon(2000, 2), 0, 4, 7), 7, 'a raked film');
   for (const r of [0.2, 2, 50]) assert.ok(Math.abs(underpaintWidth(circle(r), 0, 48, 7) - 7) < 0.01);
 });

@@ -966,7 +966,8 @@ overlay.addEventListener('pointermove', (ev) => {
   hover = p;
   if (!ev.buttons) dropPress(); // the button is up, whatever we were told
   // Dragging keeps spraying along the way, a little at a time.
-  if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > inMm(tool).radius * 0.75) {
+  // Lifting cuts a hard edge, so it needs closer spots to make a smooth stroke.
+  if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > inMm(tool).radius * (values.erase.mode === 'lift' && tool === 'erase' ? 0.3 : 0.75)) {
     lastSpray = p;
     act(() => (tool === 'erase' ? clickAction(p) : sprayAt(p[0], p[1], 0.25)));
   }
@@ -1661,7 +1662,7 @@ function renderPreviewLayer(showQueued, fullRakeOp) {
     if (op.kind === 'rake') {
       dashedRakeLines(lctx, marble, op);
       previewHasContent = true;
-    } else if (op.kind === 'erase') {
+    } else if (op.kind === 'erase' || op.kind === 'lift') {
       const [x, y] = toPx([op.x, op.y]);
       lctx.beginPath();
       lctx.arc(x, y, op.radius * pxPerMm, 0, 7);

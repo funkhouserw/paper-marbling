@@ -131,10 +131,11 @@ export const COMMANDS = [
     size('D', 3, 'tine size'),
     AT,
   ] },
-  { name: 'erase', group: 'Tools', summary: 'Drains ink away at a point: ink inside the radius is gone and the surface around it slides in to fill the space. Not available in Grid ink.', params: [
+  { name: 'erase', group: 'Tools', summary: 'Removes ink at a point. By default ink inside the radius drains away and the surface around it slides in to fill the space. Not available in Grid ink.', params: [
     X, Y,
     size('radius', 5, 'how much it takes away'),
-    ['duration', 'number', 1, 'seconds'],
+    ['duration', 'number', 1, 'seconds, for drain'],
+    ['mode', 'string', 'drain', 'drain: ink and water go, and the surface closes up. lift: only the ink goes, at once, leaving bare water'],
     AT,
   ] },
   { name: 'vortex', group: 'Tools', summary: 'A swirl.', params: [

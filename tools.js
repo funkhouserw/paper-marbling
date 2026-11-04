@@ -162,7 +162,8 @@ export const TOOLS = {
   },
   erase: {
     label: 'Eraser',
-    hint: 'Click or drag to drain ink away: the ink around it slides in to fill the space. Pause first to mark several spots, then play to watch them close.',
+    hint: 'Click or drag to take ink away. Pause first to mark several spots, then play to watch them go.',
+    choices: { mode: ['Takes away', { drain: 'Ink and water: the surface closes up', lift: 'Just the ink: the water stays' }, 'drain'] },
     params: {
       radius: ['Eraser size', 5, 0.5, 30, 0.1],
       duration: ['Duration (s)', 1, 0.1, 10, 0.1],
