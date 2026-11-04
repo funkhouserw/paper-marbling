@@ -89,6 +89,30 @@ export const wrap = (d, L) => d - L * Math.floor(d / L + 0.5);
 export const wrapX = (dx, dy, W, H, offset) => (offset === 'brick' ? wrap(dx - Math.floor(dy / H + 0.5) * (W / 2), W) : wrap(dx, W));
 export const wrapY = (dx, dy, W, H, offset) => (offset === 'halfDrop' ? wrap(dy - Math.floor(dx / W + 0.5) * (H / 2), H) : wrap(dy, H));
 
+// The direction nearest to an angle in which a straight line on this tank comes back onto itself,
+// and how far it goes before it does. Other directions never close, so tines running that way come
+// back in on new rows and pile up. Short laps are preferred, since a long one wanders over the tank.
+// gap is how far apart the line's own passes lie. Angles are in degrees.
+export function closedDirection(angle, W, H, offset = null) {
+  const a = offset === 'halfDrop' ? [0, H] : [W, 0];
+  const b = offset === 'brick' ? [W / 2, H] : offset === 'halfDrop' ? [W, H / 2] : [0, H];
+  const gcd = (p, q) => (q ? gcd(q, p % q) : p);
+  const wanted = ((angle % 360) + 360) % 360;
+  let best = null;
+  for (let i = -3; i <= 3; i++) {
+    for (let j = -3; j <= 3; j++) {
+      if (gcd(Math.abs(i), Math.abs(j)) !== 1) continue;
+      const x = i * a[0] + j * b[0];
+      const y = i * a[1] + j * b[1];
+      const at = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+      const off = Math.min(Math.abs(at - wanted), 360 - Math.abs(at - wanted));
+      const score = off + 1.5 * (Math.abs(i) + Math.abs(j) - 1);
+      if (!best || score < best.score) best = { score, angle: at, x, y, length: Math.hypot(x, y) };
+    }
+  }
+  return { angle: best.angle, x: best.x, y: best.y, length: best.length, gap: (W * H) / best.length };
+}
+
 // The rectangle that repeats normally, as multiples of the tile.
 export const doubled = (offset) => (offset === 'brick' ? [1, 2] : offset === 'halfDrop' ? [2, 1] : [1, 1]);
 

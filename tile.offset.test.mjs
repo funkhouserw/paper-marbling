@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { Marble } from './engine.js';
 import { Film } from './film.js';
 import { Wake } from './wake.js';
-import { wrapX, wrapY, tileCell, latticeShifts, makeTileField } from './tile.js';
+import { wrapX, wrapY, tileCell, latticeShifts, makeTileField, closedDirection } from './tile.js';
 import { planDots } from './fill.js';
 
 const W = 400, H = 280;
@@ -49,6 +49,7 @@ const tools = {
   drop: (m) => m.drop({ x: 60, y: -50, quantity: 0.2, dispersion: Infinity, color: '#333333' }),
   rake: (m) => m.rake({ from: [-180, 30], to: [170, -20], teeth: 3, spacing: 40, speed: 300, D: 10 }),
   fullRake: (m) => m.fullRake({ angle: 90, teeth: 5, speed: 300, D: 10 }),
+  slantedRake: (m) => m.fullRake({ angle: 40, teeth: 8, speed: 300, D: 10 }),
   stir: (m) => m.stir({ x: 20, y: 40, radii: [50], degrees: 120, rate: 200, D: 15 }),
   vortex: (m) => m.vortex({ x: -30, y: 50, circulation: 3000, duration: 0.4 }),
   wriggle: (m) => m.wriggle({ x: 40, y: 40, period: 80, degrees: 25, duration: 0.5 }),
@@ -59,8 +60,8 @@ const tools = {
 
 for (const [name, Engine, list, tol] of [
   ['Classic', Marble, Object.keys(tools), 0.35],
-  ['Film', Film, ['rake', 'stir', 'jiggle', 'air', 'erase', 'drop'], 1.5],
-  ['Wake', Wake, ['rake', 'stir', 'jiggle'], 3],
+  ['Film', Film, ['rake', 'slantedRake', 'stir', 'jiggle', 'air', 'erase', 'drop'], 1.5],
+  ['Wake', Wake, ['rake', 'slantedRake', 'stir', 'jiggle'], 3],
 ]) {
   for (const offset of ['brick', 'halfDrop']) {
     for (const tool of list) {
@@ -143,4 +144,78 @@ test('a repeat can take effect at once, and replays the same', () => {
   again.runUntilIdle();
   assert.equal(again.tileOffset, 'brick');
   assert.deepEqual([...again.polys[0].xy.subarray(0, again.polys[0].n * 2)], [...m.polys[0].xy.subarray(0, m.polys[0].n * 2)]);
+});
+
+const markers = (m, count = 500) => {
+  let seed = 5;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const list = [];
+  for (let k = 0; k < count; k++) {
+    const x = (random() - 0.5) * m.width, y = (random() - 0.5) * m.height, e = 0.05;
+    const poly = { xy: Float64Array.from([x - e, y - e, x + e, y - e, x + e, y + e, x - e, y + e]), n: 4, color: '#000000' };
+    list.push({ poly, x, y });
+    m.polys.push(poly);
+  }
+  return list;
+};
+const moved = ({ poly, x, y }) => Math.hypot(poly.xy[0] + 0.05 - x, poly.xy[1] + 0.05 - y);
+
+for (const offset of [null, 'brick', 'halfDrop']) {
+  test(`a slanted full rake on ${offset ?? 'a straight'} repeat closes up, starts at a seam, and leaves the middle alone at first`, () => {
+    const big = { width: 1000, height: 700, seed: 1, viscosity: 400 };
+    const m = new Marble(big);
+    m.tile({ offset });
+    m.step();
+    const list = markers(m);
+    const op = m.fullRake({ angle: 40, teeth: 16, speed: 200, D: 8 });
+    assert.ok(op.together.length > 1);
+    for (const tooth of op.together) {
+      const [s] = tooth.segs;
+      const dx = s.bx - s.ax, dy = s.by - s.ay;
+      // It ends on a copy of where it began.
+      assert.ok(Math.hypot(wrapX(dx, dy, 1000, 700, offset), wrapY(dx, dy, 1000, 700, offset)) < 1e-6);
+      // It begins on the edge of the tile.
+      assert.ok(Math.abs(Math.abs(s.ax) - 500) < 4 || Math.abs(Math.abs(s.ay) - 350) < 4, `starts at ${s.ax}, ${s.ay}`);
+    }
+    for (let k = 0; k < 8; k++) m.step();
+    const middle = list.filter(({ x, y }) => Math.abs(x) < 100 && Math.abs(y) < 70);
+    assert.ok(Math.max(...middle.map(moved)) < 1, `the middle moved ${Math.max(...middle.map(moved))} before the tines arrived`);
+    m.runUntilIdle(120);
+    const far = list.map(moved).sort((a, b) => a - b);
+    assert.ok(far[far.length >> 1] < 19, `typical move ${far[far.length >> 1]}`); // about 20 without laps
+    assert.ok(far.at(-1) < 150, `largest move ${far.at(-1)}`);
+  });
+}
+
+test('rakes that already join up are unchanged, and tanks that do not repeat keep every angle', () => {
+  const plain = new Marble({ width: W, height: H });
+  assert.equal(plain.fullRake({ angle: 40, teeth: 8 }).together, undefined);
+  const straight = new Marble({ width: W, height: H });
+  straight.tile();
+  assert.equal(straight.fullRake({ angle: 0, teeth: 8 }).together, undefined);
+  assert.equal(straight.fullRake({ angle: 90, teeth: 8 }).together, undefined);
+  const brick = new Marble({ width: W, height: H });
+  brick.tile({ offset: 'brick' });
+  assert.equal(brick.fullRake({ angle: 0, teeth: 8 }).together, undefined);
+  assert.ok(brick.fullRake({ angle: 90, teeth: 8 }).together, 'going up on brick only comes back after two rows');
+  // Across on half-drop only comes back after two columns.
+  assert.equal(closedDirection(0, W, H, 'halfDrop').length, 2 * W);
+});
+
+test('slanted laps replay the same', () => {
+  const build = () => {
+    const m = new Marble({ width: W, height: H, seed: 1 });
+    m.tile({ offset: 'halfDrop' });
+    m.drop({ x: 0, y: 0, quantity: 0.3, dispersion: Infinity, color: '#111111' });
+    m.settle();
+    m.fullRake({ angle: 40, teeth: 8, speed: 300, D: 8 });
+    m.fullRake({ angle: 120, teeth: 8, speed: 300, D: 8 });
+    return m.runUntilIdle(60);
+  };
+  const a = build();
+  const b = new Marble({ width: W, height: H, seed: 1 }).replay(a.log);
+  b.runUntilIdle(60);
+  const box = ({ xy, n }) => { let lo = Infinity, hi = -Infinity; for (let i = 0; i < n; i++) { lo = Math.min(lo, xy[i * 2]); hi = Math.max(hi, xy[i * 2]); } return [lo, hi]; };
+  box(a.polys[0]).forEach((v, i) => assert.ok(Math.abs(v - box(b.polys[0])[i]) < 0.1));
+  assert.ok(Math.abs(a.time - b.time) < 0.1, `${a.time} and ${b.time}`);
 });

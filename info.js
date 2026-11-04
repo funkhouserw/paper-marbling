@@ -111,7 +111,7 @@ export const INFO = {
   'rake.waveAmp': WEAVE_HEIGHT,
   'rake.waveLength': WEAVE_LENGTH,
   'fullRake.waveShape': WEAVE_SHAPE,
-  'fullRake.angle': 'The direction the rake travels: 0 is right, 90 up, 180 left, 270 down, and anything between runs at a slant. The arrows above jump to those four.',
+  'fullRake.angle': 'The direction the rake travels: 0 is right, 90 up, 180 left, 270 down, and anything between runs at a slant. The arrows above jump to those four. On a repeating tank it runs at the nearest angle where the teeth join back up with themselves, and says so.',
   'tool.hearts': 'Drags one small tine through the middle of every loop, the classic way to turn dots into hearts. It leaves frozen ink alone, and the rings of a target count as one dot. The dashed lines show where each tine will run. Not available in Grid ink.',
   'hearts.angle': 'The way the tines travel, which is the way the points face. 270 is down.',
   'hearts.above': 'Where each tine starts, measured from the middle of its dot: 0 is the middle, 100 is the edge, and more is outside the dot.',

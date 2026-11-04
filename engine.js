@@ -13,7 +13,7 @@
 
 import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
-import { wrapX, wrapY, doubled, latticeShifts, pushApartTiled, swirlTiled } from './tile.js';
+import { wrapX, wrapY, doubled, closedDirection, latticeShifts, pushApartTiled, swirlTiled } from './tile.js';
 import { cutDisc } from './erase.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
@@ -821,6 +821,45 @@ export class Marble {
 
   // ---- Simulation ------------------------------------------------------
 
+  // A straight full rake starts past the tank's corners. On a repeating tank there's no such place: those
+  // tines' copies are already inside, in the middle of the page, and come back in on new rows. So here
+  // each tooth starts where its path crosses a seam, and travels one lap, ending where it began. Teeth
+  // run as far apart as they would on a tank that doesn't repeat.
+  _fullRakeLaps(lap, { teeth, offset, speed, D, waveAmp, waveLength, waveShape, width, at }) {
+    const { width: W, height: H } = this;
+    const off = this.tileOffsetWanted ?? this.tileOffset;
+    const c = lap.x / lap.length;
+    const s = lap.y / lap.length;
+    const across = Math.abs(s) * W + Math.abs(c) * H;
+    const count = Math.max(1, Math.round((lap.gap * teeth) / across));
+    const firstAt = at ?? this._now;
+    const ops = [];
+    const wrapped = (t, sideways) => {
+      const x = c * t - s * sideways;
+      const y = s * t + c * sideways;
+      return [wrapX(x, y, W, H, off), wrapY(x, y, W, H, off)];
+    };
+    for (let k = 0; k < count; k++) {
+      const sideways = ((((k + 0.5) * lap.gap) / count + offset) % lap.gap + lap.gap) % lap.gap - lap.gap / 2;
+      // Walk along the path until it jumps across the seam it mostly runs at.
+      const axis = Math.abs(c) >= Math.abs(s) ? 0 : 1;
+      const size = axis ? H : W;
+      let from = null;
+      let last = wrapped(0, sideways);
+      for (let t = 1; t <= lap.length && !from; t++) {
+        const here = wrapped(t, sideways);
+        if (Math.abs(here[axis] - last[axis]) > size / 2) from = here;
+        last = here;
+      }
+      from ??= wrapped(0, sideways);
+      const to = [from[0] + lap.x, from[1] + lap.y];
+      ops.push(this.rake({ from, to, offsets: [0], speed, D, waveAmp, waveLength, waveShape, width, at: k ? firstAt : at }));
+    }
+    const op = ops.at(-1);
+    op.together = ops;
+    return op;
+  }
+
   // A small tine through the middle of every loop that isn't frozen, which pulls round dots into hearts.
   // above and below are how far it starts and ends from the middle, as a percentage of the way from
   // there to the loop's edge, so 100 is the edge. pull is its reach, as a percentage of the loop's radius.
@@ -896,6 +935,13 @@ export class Marble {
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
   fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, at } = {}) {
+    // On a repeating tank a slanted rake goes round in laps. See _fullRakeLaps.
+    if (this.tileWanted ?? this.tileOn) {
+      const lap = closedDirection(angle, this.width, this.height, this.tileOffsetWanted ?? this.tileOffset);
+      const clean = Math.abs(lap.y) < 1e-9 ? lap.length === this.width : Math.abs(lap.x) < 1e-9 && lap.length === this.height;
+      if (!clean) return this._fullRakeLaps(lap, { teeth, offset, speed, D, waveAmp, waveLength, waveShape, width, at });
+      angle = lap.angle;
+    }
     const c = Math.cos(angle * DEG);
     const s = Math.sin(angle * DEG);
     const along = (Math.abs(c) * this.width + Math.abs(s) * this.height) / 2 + 20;

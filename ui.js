@@ -1,6 +1,7 @@
 import { Marble, runScript, maxRadius, WEAVE_POINTS, WEAVE_SHAPES } from './engine.js';
 import { toMm, dialToValue, valueToDial } from './api.js';
 import { TOOLS, TURNS, PAGE_UNITS, isDial } from './tools.js';
+import { closedDirection, latticeShifts } from './tile.js';
 import { MODELS } from './models.js';
 import { renderPrint, PRINT_DEFAULTS } from './print.js';
 import { makeProfiler } from './profile.js';
@@ -485,6 +486,15 @@ function colorPicker() {
   return box;
 }
 
+// On a repeating tank a slanted full rake runs at the nearest angle that joins up, so this says which.
+let angleHint = null;
+function showAngleHint() {
+  if (!angleHint) return;
+  const wanted = values.fullRake.angle;
+  const runs = $('tile').checked ? Math.round(closedDirection(wanted, marble.width, marble.height, tileOffset()).angle) : wanted;
+  angleHint.textContent = runs % 360 === wanted % 360 ? '' : `On this repeating tank it runs at ${runs}°, the nearest angle that joins up.`;
+}
+
 // Full rake's clicks on the tank are free, so they can pick ink to freeze. off, 'freeze' or 'unfreeze'.
 let freezeMode = 'off';
 function freezeRow(box) {
@@ -677,6 +687,11 @@ function showTool(name) {
     const hint = document.createElement('small');
     hint.className = 'hint';
     const describe = () => {
+      if (name === 'fullRake' && key === 'angle') {
+        angleHint = hint;
+        showAngleHint();
+        return;
+      }
       if (name !== 'drop' || key !== 'quantity') return;
       const mL = toMm('drop', { quantity: values[name][key] }, marble).quantity;
       hint.textContent = `${Math.round((200 * maxRadius(mL, marble.film)) / marble.width)}% of the tank's width across`;
@@ -702,7 +717,7 @@ function showTool(name) {
     };
     describe();
     wrap.append(label, infoIcon(`${name}.${key}`), typed, input);
-    if (hint.textContent) wrap.append(hint);
+    if (hint.textContent || angleHint === hint) wrap.append(hint);
     box.append(wrap);
   }
 }
@@ -1293,6 +1308,7 @@ for (const id of Object.values(FLOW_FIELDS)) {
 const tileOffset = () => ($('tile').checked && $('tileOffset').value) || null;
 
 function syncTile() {
+  showAngleHint();
   // Only some simulators can erase, and the sidebar shows only what will work.
   const canErase = (currentModel().engine ?? Marble).prototype.eraseSupported;
   $('tools').querySelector('[data-tool="erase"]').hidden = !canErase;
@@ -1334,7 +1350,10 @@ $('tile').onchange = () => {
   setRepeat($('tile').checked, tileOffset());
   syncTile();
 };
-$('tileOffset').onchange = () => setRepeat(true, tileOffset());
+$('tileOffset').onchange = () => {
+  setRepeat(true, tileOffset());
+  showAngleHint();
+};
 $('tilePreview').onclick = () => {
   // Three by three at the tank's own resolution, so the view can zoom out without losing detail.
   const c = Object.assign(document.createElement('canvas'), { width: tank.width * 3, height: tank.height * 3 });
@@ -1823,13 +1842,30 @@ const lctx = previewLayer.getContext('2d');
 let previewKey = '';
 let previewHasContent = false;
 
-function dashedRakeLines(ctx, m, op) {
-  const steps = op.waveAmp ? Math.ceil((op.total * WEAVE_POINTS) / op.waveLength) : 1;
+function dashedRakeLines(ctx, m, planned) {
   ctx.beginPath();
-  for (const off of op.offs) {
-    for (let k = 0; k <= steps; k++) {
-      const [x, y] = toPx(m._rakePoint(op, (op.total * k) / steps, off));
-      k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  for (const op of planned.together ?? [planned]) {
+    const steps = op.waveAmp ? Math.ceil((op.total * WEAVE_POINTS) / op.waveLength) : 1;
+    for (const off of op.offs) {
+      const points = [];
+      let left = Infinity, right = -Infinity, low = Infinity, high = -Infinity;
+      for (let k = 0; k <= steps; k++) {
+        const p = m._rakePoint(op, (op.total * k) / steps, off);
+        points.push(p);
+        left = Math.min(left, p[0]); right = Math.max(right, p[0]);
+        low = Math.min(low, p[1]); high = Math.max(high, p[1]);
+      }
+      // A tine past a repeating tank's edge is really at its copy here, so that's what shows.
+      const { width: W, height: H } = marble;
+      const shifts = (marble.tileWanted ?? marble.tileOn)
+        ? latticeShifts(-W / 2 - right, W / 2 - left, -H / 2 - high, H / 2 - low, W, H, marble.tileOffsetWanted ?? marble.tileOffset)
+        : [[0, 0]];
+      for (const [sx, sy] of shifts) {
+        points.forEach(([px, py], k) => {
+          const [x, y] = toPx([px + sx, py + sy]);
+          k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+      }
     }
   }
   // Alternating dark and light dashes show up on any bath or ink.
@@ -1896,9 +1932,11 @@ function plannedFullRake() {
   const along = marble.width / 2 + 20;
   const y = hover ? hover[1] : 0;
   const line = tool === 'rake' ? (stroke?.length > 1 ? stroke : [[-along, y], [along, y]]) : null;
-  const key = JSON.stringify([tool, values[tool], line, marble.width, marble.height]);
+  const key = JSON.stringify([tool, values[tool], line, marble.width, marble.height, marble.tileWanted ?? marble.tileOn, marble.tileOffsetWanted ?? marble.tileOffset]);
   if (key !== plannedRake.key) {
     const m = new Marble({ width: marble.width, height: marble.height });
+    m.tileWanted = marble.tileWanted ?? marble.tileOn;
+    m.tileOffsetWanted = marble.tileOffsetWanted ?? marble.tileOffset;
     const op = tool === 'rake'
       ? m.rake({ from: line[0], to: line[1], ...inMm('rake', m), at: 0 })
       : m.fullRake({ ...inMm('fullRake', m), at: 0 });
