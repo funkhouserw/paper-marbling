@@ -1135,3 +1135,47 @@ test('an empty tank fills as it always did', () => {
   scriptApi(b).fillDots({ ...FILL, over: true });
   assert.deepEqual(a.log, b.log);
 });
+
+test('an eraser removes exactly its share of ink, and the surface closes up around it', () => {
+  const m = new Marble({ width: 300, height: 210 });
+  m.drop({ x: 0, y: 0, quantity: 1, dispersion: Infinity, color: '#123456' });
+  m.drop({ x: 110, y: 0, quantity: 0.02, dispersion: Infinity, color: '#654321' });
+  m.step();
+  const area = ({ xy, n }) => {
+    let sum = 0;
+    for (let i = 0, k = n - 1; i < n; k = i++) sum += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+    return Math.abs(sum) / 2;
+  };
+  const big = m.polys[0];
+  const R = Math.sqrt(area(big) / Math.PI);
+  const r = 12;
+  // The big drop pushed this one aside as it landed, so find where it is now.
+  const small = m.polys[1];
+  let sx = 0, sy = 0;
+  for (let i = 0; i < small.n; i++) { sx += small.xy[i * 2] / small.n; sy += small.xy[i * 2 + 1] / small.n; }
+  m.erase({ x: sx, y: sy, radius: Math.sqrt(area(small) / Math.PI) + 1, duration: 0.5 });
+  m.runUntilIdle();
+  assert.equal(m.polys.length, 1, 'the swallowed drop is gone');
+  const remaining = area(big);
+  m.erase({ x: R, y: 0, radius: r, duration: 0.5 });
+  m.runUntilIdle();
+  // Exactly the lens where the eraser's disc overlapped the drop.
+  const lens = r * r * Math.acos(r / (2 * R)) + R * R * Math.acos(1 - (r * r) / (2 * R * R))
+    - 0.5 * Math.sqrt((2 * R - r) * r * r * (2 * R + r));
+  const lost = remaining - area(big);
+  assert.ok(Math.abs(lost - lens) < 0.05 * lens, `lost ${lost}, expected ${lens}`);
+  assert.ok(big.xy.subarray(0, big.n * 2).every(Number.isFinite));
+});
+
+test('erasing replays exactly, and works on a repeating tank', () => {
+  const build = (tiled) => {
+    const m = new Marble({ width: 200, height: 200 });
+    if (tiled) m.tile();
+    m.drop({ x: 0, y: 0, quantity: 40 * 40 * m.film / 1000, dispersion: Infinity });
+    m.erase({ x: 30, y: 0, radius: 15, duration: 0.4 });
+    return m.runUntilIdle();
+  };
+  const a = build(false), b = build(false), t = build(true);
+  assert.deepEqual([...a.polys[0].xy.subarray(0, a.polys[0].n * 2)], [...b.polys[0].xy.subarray(0, b.polys[0].n * 2)]);
+  assert.ok(t.polys[0].xy.every(Number.isFinite));
+});

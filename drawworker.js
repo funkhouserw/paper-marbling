@@ -1,6 +1,6 @@
 // Draws a tank away from the page, so that the simulation and the page never wait for it. Outlines
 // arrive whole and are thinned first to what the screen can show. See wakefast.js.
-import { thin } from './thin.js';
+import { thin, underpaintWidth } from './thin.js';
 
 const translucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
 let canvas = null;
@@ -46,11 +46,11 @@ self.onmessage = ({ data: m }) => {
   });
   const where = (points) => (tile ? shifts(points, W, H) : [[0, 0]]);
   // Film's underpaint, which closes thin gaps.
-  ctx.lineWidth = closeGaps * 2;
   ctx.lineJoin = join;
   for (let p = 0; p < polys.length; p++) {
-    const { group, color } = polys[p];
+    const { group, color, off, n } = polys[p];
     if (group || translucent(color)) continue;
+    ctx.lineWidth = underpaintWidth(xy, off, n, closeGaps * 2);
     ctx.beginPath();
     for (const [sx, sy] of where(thinned[p])) trace(ctx, thinned[p], sx, sy);
     ctx.strokeStyle = color;

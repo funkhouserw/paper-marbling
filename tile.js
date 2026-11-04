@@ -88,7 +88,8 @@ export function pushApartTiled(marble, sources) {
       const dy = wrap(y0 - sy, H);
       const d2 = dx * dx + dy * dy;
       if (d2 >= 1e-12) {
-        const a = Math.sqrt(1 + s / d2) - 1;
+        // An eraser's s is negative, and takes whatever is inside it down to its centre.
+        const a = d2 + s > 0 ? Math.sqrt(1 + s / d2) - 1 : -1;
         x += dx * a;
         y += dy * a;
       }

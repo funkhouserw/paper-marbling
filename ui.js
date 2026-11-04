@@ -929,6 +929,8 @@ function clickAction([x, y]) {
     }
   } else if (tool === 'spray') {
     sprayAt(x, y);
+  } else if (tool === 'erase') {
+    if (marble.eraseSupported) place(false, (at) => marble.erase({ x, y, ...v, at }));
   } else if (tool === 'wriggle') {
     const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
     place(true, (at) => marble.wriggle({ x, y, period: v.period, degrees, duration: v.duration, at }));
@@ -952,7 +954,7 @@ overlay.addEventListener('pointerdown', (ev) => {
   lastSpray = null;
   if (tool === 'rake' || tool === 'stylus' || tool === 'paint') stroke = [p];
   else if (!TOOLS[tool].whole) act(() => clickAction(p));
-  if (tool === 'spray') lastSpray = p;
+  if (tool === 'spray' || tool === 'erase') lastSpray = p;
 });
 overlay.addEventListener('pointerup', () => { lastSpray = null; });
 // The system can take the pointer away mid-press, with no pointerup, so a press also ends here.
@@ -964,9 +966,9 @@ overlay.addEventListener('pointermove', (ev) => {
   hover = p;
   if (!ev.buttons) dropPress(); // the button is up, whatever we were told
   // Dragging keeps spraying along the way, a little at a time.
-  if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > inMm('spray').radius * 0.75) {
+  if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > inMm(tool).radius * 0.75) {
     lastSpray = p;
-    act(() => sprayAt(p[0], p[1], 0.25));
+    act(() => (tool === 'erase' ? clickAction(p) : sprayAt(p[0], p[1], 0.25)));
   }
   if (!stroke) return;
   if (tool === 'rake') stroke[1] = p;
@@ -986,7 +988,12 @@ overlay.addEventListener('pointerup', () => {
     : marble.stylus({ path, ...inMm('stylus'), at }))));
 });
 
-$('apply').onclick = () => act(() => (tool === 'stripes'
+$('apply').onclick = () => act(() => (tool === 'fillDots'
+  ? place(false, (at) => {
+    const { sprayColors, over, ...v } = inMm('fillDots');
+    return marble.fillDots({ ...v, over: over === 'over', colors: sprayColors === 'one' ? [{ color, shimmer }] : inks, at });
+  })
+  : tool === 'stripes'
   ? place(false, (at) => marble.stripes({ ...inMm('stripes'), colors: inks, at }))
   : place(true, (at) => (tool === 'air' ? marble.air({ ...inMm('air'), at }) : tool === 'fullRake'
   ? marble.fullRake({ ...inMm('fullRake'), at })
@@ -1113,6 +1120,10 @@ for (const id of Object.values(FLOW_FIELDS)) {
 
 // Only some simulators can repeat, so the toggle follows the one chosen.
 function syncTile() {
+  // Only some simulators can erase, and the sidebar shows only what will work.
+  const canErase = (currentModel().engine ?? Marble).prototype.eraseSupported;
+  $('tools').querySelector('[data-tool="erase"]').hidden = !canErase;
+  if (!canErase && tool === 'erase') showTool('drop');
   const atFirst = currentModel().repeatsAtFirst === true;
   const supported = !currentModel().spreading && (currentModel().engine ?? Marble).prototype.tileSupported;
   $('tile').disabled = !supported;
@@ -1129,7 +1140,6 @@ function syncTile() {
   $('walls').disabled = atFirst;
   $('walls').closest('label').hidden = atFirst;
   if (atFirst) $('walls').checked = false;
-  $('tilePreview').hidden = !$('tile').checked;
   if ($('tile').checked && $('walls').checked) $('walls').checked = false;
 }
 $('tile').onchange = () => {
@@ -1137,10 +1147,14 @@ $('tile').onchange = () => {
   syncTile();
 };
 $('tilePreview').onclick = () => {
-  const c = Object.assign(document.createElement('canvas'), { width: tank.width, height: tank.height });
+  // Three by three at the tank's own resolution, so the view can zoom out without losing detail.
+  const c = Object.assign(document.createElement('canvas'), { width: tank.width * 3, height: tank.height * 3 });
   const ctx = c.getContext('2d');
-  for (let i = 0; i < 2; i++) {
-    for (let j = 0; j < 2; j++) ctx.drawImage(tank, (i * c.width) / 2, (j * c.height) / 2, c.width / 2, c.height / 2);
+  // With no base colour the tank's canvas is see-through, over whatever the page shows behind it.
+  ctx.fillStyle = getComputedStyle(tank).backgroundColor;
+  ctx.fillRect(0, 0, c.width, c.height);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) ctx.drawImage(tank, i * tank.width, j * tank.height);
   }
   c.toBlob((blob) => openViewer(blob, null, Date.now()));
 };
@@ -1646,6 +1660,18 @@ function renderPreviewLayer(showQueued, fullRakeOp) {
   for (const op of showQueued ? marble.queued : []) {
     if (op.kind === 'rake') {
       dashedRakeLines(lctx, marble, op);
+      previewHasContent = true;
+    } else if (op.kind === 'erase') {
+      const [x, y] = toPx([op.x, op.y]);
+      lctx.beginPath();
+      lctx.arc(x, y, op.radius * pxPerMm, 0, 7);
+      lctx.strokeStyle = '#000c';
+      lctx.lineDashOffset = 0;
+      lctx.stroke();
+      lctx.strokeStyle = '#fffc';
+      lctx.lineDashOffset = 4.5;
+      lctx.stroke();
+      lctx.lineDashOffset = 0;
       previewHasContent = true;
     } else if (op.kind === 'drop') {
       const [x, y] = toPx([op.x, op.y]);

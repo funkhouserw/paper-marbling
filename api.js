@@ -131,6 +131,12 @@ export const COMMANDS = [
     size('D', 3, 'tine size'),
     AT,
   ] },
+  { name: 'erase', group: 'Tools', summary: 'Drains ink away at a point: ink inside the radius is gone and the surface around it slides in to fill the space. Not available in Grid ink.', params: [
+    X, Y,
+    size('radius', 5, 'how much it takes away'),
+    ['duration', 'number', 1, 'seconds'],
+    AT,
+  ] },
   { name: 'vortex', group: 'Tools', summary: 'A swirl.', params: [
     X, Y,
     ['circulation', 'number', 3000, 'strength; about 100 is gentle and 3000 is very strong', 'w2'],

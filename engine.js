@@ -642,6 +642,17 @@ export class Marble {
     return this._schedule('vortex', args, op, duration, true);
   }
 
+  get eraseSupported() { return true; }
+
+  // Drains ink away at a point: the opposite of a drop, by the same formula read backwards. Everything
+  // inside radius goes to the centre and is gone, and the rest of the surface slides in to fill the
+  // space, so the area lost is exactly the disc's.
+  erase({ x = 0, y = 0, radius = 10, duration = 1, at } = {}) {
+    const args = { x, y, radius, duration };
+    if (at !== undefined) args.at = at;
+    return this._schedule('erase', args, { kind: 'erase', x, y, radius, duration, elapsed: 0 }, duration, true);
+  }
+
   // A breath of air: a smooth random flow over the whole bath that stretches ink without
   // changing its area. The same seed gives the same breath, and a fresh one is drawn otherwise.
   air({ scale = 200, speed = 50, octaves = 2, duration = 2, seed, at } = {}) {
@@ -1348,6 +1359,22 @@ export class Marble {
         }, { slowNearWalls: false, clamp: false });
         break;
       }
+      case 'erase': {
+        const s = -op.radius * op.radius * dp;
+        if (this.tileOn) pushApartTiled(this, [[op.x, op.y, s]]);
+        else {
+          this._map((x, y, out) => {
+            const dx = x - op.x;
+            const dy = y - op.y;
+            const d2 = dx * dx + dy * dy;
+            const a = d2 + s > 0 ? Math.sqrt(1 + s / d2) : 0;
+            out[0] = op.x + dx * a;
+            out[1] = op.y + dy * a;
+          }, { slowNearWalls: false, clamp: false });
+        }
+        if (op.elapsed >= op.duration) this._dropCollapsed();
+        break;
+      }
       case 'shift': {
         const dx = op.dx * dp;
         const dy = op.dy * dp;
@@ -1541,6 +1568,31 @@ export class Marble {
 
   // Without walls, ink can drift far outside the tank. Past half a tank away it can't
   // realistically return, so it stops costing anything. Printed shapes are kept whole.
+  // Forgets ink that an eraser has taken down to a point, and the points an eraser piled up at its
+  // centre on outlines that survive.
+  _dropCollapsed() {
+    const gone = new Set();
+    for (const poly of this.polys) {
+      const { xy, n } = poly;
+      let w = 0;
+      for (let i = 0; i < n; i++) {
+        const x = xy[i * 2], y = xy[i * 2 + 1];
+        if (w && Math.abs(x - xy[w * 2 - 2]) < 1e-9 && Math.abs(y - xy[w * 2 - 1]) < 1e-9) continue;
+        xy[w * 2] = x;
+        xy[w * 2 + 1] = y;
+        w++;
+      }
+      poly.n = w;
+      let sum = 0;
+      for (let i = 0, k = w - 1; i < w; k = i++) sum += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+      if (w < 3 || Math.abs(sum) < 0.02) gone.add(poly); // less than a hundredth of a square millimetre
+    }
+    if (!gone.size) return;
+    this.polys = this.polys.filter((p) => !gone.has(p));
+    this.sources = this.sources.filter((op) => !gone.has(op.poly));
+    this.active = this.active.filter((op) => !gone.has(op.poly));
+  }
+
   _cullOutside() {
     if (this.wallsOn || this.tileOn) return;
     const mx = this.width;

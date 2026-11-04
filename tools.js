@@ -35,6 +35,24 @@ export const TOOLS = {
       max: ['Largest dot', 0.6, 0.05, 5, 0.01],
     },
   },
+  fillDots: {
+    label: 'Fill dots',
+    hint: 'Fills the open space with dots, largest holes first. Use the button below.',
+    whole: true,
+    color: true,
+    choices: {
+      sprayColors: ['Dot colours', { palette: 'All inks in the palette', one: 'Just the chosen ink' }, 'palette'],
+      over: ['Existing ink', { around: 'Go around it', over: 'Go on top of it' }, 'around'],
+    },
+    params: {
+      count: ['Most dots', 150, 10, 800, 10],
+      min: ['Smallest dot', 0.8, 0.1, 5, 0.05],
+      max: ['Largest dot', 6, 0.5, 30, 0.1],
+      gap: ['Space between dots', 0.3, 0, 5, 0.05],
+      tightness: ['Tightness', 0.6, 0, 1, 0.05],
+      rings: ['Rings in each dot', 1, 1, 5, 1],
+    },
+  },
   text: {
     hint: 'Click to print the text as ink. It never grows, but rakes and drops move it.',
     color: true,
@@ -142,6 +160,14 @@ export const TOOLS = {
       duration: ['Duration (s)', 2, 0.2, 10, 0.1],
     },
   },
+  erase: {
+    label: 'Eraser',
+    hint: 'Click or drag to drain ink away: the ink around it slides in to fill the space. Pause first to mark several spots, then play to watch them close.',
+    params: {
+      radius: ['Eraser size', 5, 0.5, 30, 0.1],
+      duration: ['Duration (s)', 1, 0.1, 10, 0.1],
+    },
+  },
   vortex: {
     hint: 'Click a centre: a swirl spins up around it.',
     choices: { direction: ['Direction', TURNS, 'ccw'] },
@@ -154,7 +180,7 @@ export const TOOLS = {
 
 export const PAGE_UNITS = {
   quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
-  width: 'w', wobble: 'w', scale: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
+  gap: 'w', width: 'w', wobble: 'w', scale: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
 };
 
 // Size-like sliders run 0 to 100 across their useful range, and past that with a param's sixth entry; counts, degrees and seconds

@@ -1,11 +1,54 @@
+const SMALL_SPAN = 8; // tolerances; below this, a circle's outline would thin to a square or an octagon
+const SMALL_ANCHORS = 12;
+
+function spanOf(xy, off, n) {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = off * 2, end = (off + n) * 2; i < end; i += 2) {
+    if (xy[i] < x0) x0 = xy[i];
+    if (xy[i] > x1) x1 = xy[i];
+    if (xy[i + 1] < y0) y0 = xy[i + 1];
+    if (xy[i + 1] > y1) y1 = xy[i + 1];
+  }
+  return Math.max(x1 - x0, y1 - y0);
+}
+
+// How wide an outline's gap-closing underpaint should be. Round shapes get all of it, which is how
+// dots have always looked, but a hair of ink would print as a bar, so the longer and thinner an
+// outline gets, the closer this comes to the ink's own width: twice area over perimeter is a ribbon's width.
+const LANKY = 0.1; // roundness (1 for a circle) at and below which an outline gets only its own width
+const ROUND = 0.5; // roundness at and above which it gets the full width
+
+export function underpaintWidth(xy, off, n, full) {
+  let area = 0, length = 0;
+  let px = xy[(off + n - 1) * 2], py = xy[(off + n - 1) * 2 + 1];
+  for (let i = off * 2, end = (off + n) * 2; i < end; i += 2) {
+    const x = xy[i], y = xy[i + 1];
+    area += px * y - x * py;
+    length += Math.hypot(x - px, y - py);
+    px = x;
+    py = y;
+  }
+  if (length <= 0) return 0;
+  area = Math.abs(area) / 2;
+  const own = Math.min(full, (2 * area) / length);
+  const u = Math.max(0, Math.min(1, ((4 * Math.PI * area) / (length * length) - LANKY) / (ROUND - LANKY)));
+  return own + (full - own) * u * u * (3 - 2 * u);
+}
+
 // Thins one closed outline to what a given tolerance can show, by Douglas-Peucker: no dropped point
 // is further than tol from the outline that's left. Reads n points of xy from offset off (in points).
 export function thin(xy, off, n, tol) {
   if (n < 16) return xy.slice(off * 2, (off + n) * 2);
   const keep = new Uint8Array(n);
-  const half = n >> 1;
-  keep[0] = keep[half] = 1;
-  const stack = [0, half, half, n];
+  const stack = [];
+  // A dot that's only a few tolerances across would otherwise come out as a square, since all of it
+  // lies close to the chords between four of its points. So small shapes start from a ring of anchors.
+  const anchors = spanOf(xy, off, n) < SMALL_SPAN * tol ? SMALL_ANCHORS : 2;
+  for (let a = 0; a < anchors; a++) {
+    const from = Math.floor((a * n) / anchors);
+    keep[from] = 1;
+    stack.push(from, Math.floor(((a + 1) * n) / anchors));
+  }
   const tol2 = tol * tol;
   while (stack.length) {
     const to = stack.pop();

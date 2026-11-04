@@ -13,6 +13,7 @@
 // grid size. Tools are unchanged. This is one-phase Hele-Shaw flow with a screened outer region.
 import { Marble, isTranslucent } from './engine.js';
 import { wrap } from './tile.js';
+import { underpaintWidth } from './thin.js';
 
 const CELL = 5; // mm. Every setting here was tested together at this size.
 const MARGIN = 250; // mm of surface beyond the tank, for when there are no walls
@@ -597,11 +598,11 @@ export class Film extends Marble {
 
   // Under everything, so it only ever shows over bare bath.
   _beforeInk(ctx) {
-    ctx.lineWidth = CLOSE_GAPS * 2;
     ctx.lineJoin = 'round';
     for (const poly of this.polys) {
       const { xy, n, color, group } = poly;
       if (group || isTranslucent(color)) continue;
+      ctx.lineWidth = underpaintWidth(xy, 0, n, CLOSE_GAPS * 2);
       ctx.beginPath();
       for (const [sx, sy] of this.tileShifts([poly])) {
         ctx.moveTo(xy[0] + sx, xy[1] + sy);
@@ -622,7 +623,7 @@ export class Film extends Marble {
         for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
         d += `M${pts.join('L')}Z`;
       }
-      return `<path fill="none" stroke="${color}" stroke-width="${CLOSE_GAPS * 2}" stroke-linejoin="round" d="${d}"/>`;
+      return `<path fill="none" stroke="${color}" stroke-width="${underpaintWidth(xy, 0, n, CLOSE_GAPS * 2).toFixed(3)}" stroke-linejoin="round" d="${d}"/>`;
     }).join('');
   }
 }
