@@ -1564,7 +1564,7 @@ function startPull() {
   pull = {
     start: performance.now(),
     ...pullPrint(marble, {
-      tint,
+      tint: $('pullBase').checked && $('useBath').checked ? $('bath').value : tint,
       imperfection: Number($('imperfection').value) / 100,
       mirror: $('mirror').checked,
       seed: pullSeed++,

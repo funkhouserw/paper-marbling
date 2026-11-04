@@ -42,6 +42,7 @@ export const INFO = {
   baseColour: 'A background colour under the ink. Off, an empty tank shows a faint grid, and exports have a transparent background. Print uses it as the paper colour.',
   imperfection: 'How imperfect a pull is: uneven pickup, grain, air bubbles and a hesitation line.',
   mirror: 'A real print is the tank\'s mirror image, so text reads backwards. Off, prints read the same way round as the tank.',
+  pullBase: 'Pulls on paper in the tank\'s base colour, instead of the paper colour chosen here, so the print looks like the tank. It does nothing while Base colour is off.',
   clearAfter: 'Empties the tank once the paper has covered it.',
   autoSave: 'Downloads a PNG of each pull as well as keeping it in this browser.',
   exportButtons: 'PNG: exactly what the tank shows. SVG: scalable shapes in flat colour, without shimmer. Print: a slow 3000 pixel picture on paper with smooth curves. None of these change the tank.',
