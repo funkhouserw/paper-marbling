@@ -357,11 +357,86 @@ export class Marble {
     if (on) this.wallsOn = false;
   }
 
-  // Applies a repeat that's waiting, without waiting for the next tick, so it shows on a paused tank.
-  applyTileNow() {
-    for (const op of this.pending.filter((o) => o.kind === 'tile' && o.at <= this.time)) this._applyTile(op);
-    this.pending = this.pending.filter((o) => !(o.kind === 'tile' && o.at <= this.time));
+  // Applies a change of setting that's waiting, without waiting for the next tick, so it shows on a
+  // paused tank. Replaying the log gets to the same place, a tick later.
+  applyNow() {
+    const now = (o) => (o.kind === 'tile' || o.kind === 'freeze') && o.at <= this.time;
+    for (const op of this.pending.filter(now)) {
+      if (op.kind === 'tile') this._applyTile(op);
+      else this._applyFreeze(op);
+    }
+    this.pending = this.pending.filter((o) => !now(o));
     return this;
+  }
+
+  // ---- Freezing --------------------------------------------------------
+
+  // Frozen ink stays exactly where it is: no tool, drop or flow moves it, and erasers leave it alone.
+  // Other ink can then cross it, so frozen ink goes to the top of the pile, and stays there.
+  freeze({ x = 0, y = 0, at } = {}) {
+    if (!this.freezeSupported) throw new Error('This simulator can\'t freeze ink yet.');
+    const args = { x, y };
+    if (at !== undefined) args.at = at;
+    return this._schedule('freeze', args, { kind: 'freeze', action: 'freeze', x, y });
+  }
+
+  unfreeze({ x = 0, y = 0, at } = {}) {
+    const args = { x, y };
+    if (at !== undefined) args.at = at;
+    return this._schedule('unfreeze', args, { kind: 'freeze', action: 'unfreeze', x, y });
+  }
+
+  unfreezeAll({ at } = {}) {
+    const args = {};
+    if (at !== undefined) args.at = at;
+    return this._schedule('unfreezeAll', args, { kind: 'freeze', action: 'all' });
+  }
+
+  get freezeSupported() { return true; }
+
+  // All the outlines of the topmost shape at a point: one, or all of a printed shape's loops. It
+  // can look only at frozen ink. A repeating tank's copies count, wherever they show.
+  shapeAt(x, y, { frozen = false } = {}) {
+    for (let p = this.polys.length - 1; p >= 0; p--) {
+      const first = this.polys[p];
+      const loops = [first];
+      if (first.group) while (this.polys[p - 1]?.group === first.group) loops.unshift(this.polys[--p]);
+      if (frozen && !first.frozen) continue;
+      for (const [sx, sy] of this.tileShifts(loops)) {
+        let winding = 0;
+        let crossings = 0;
+        for (const { xy, n } of loops) {
+          for (let i = 0, k = n - 1; i < n; k = i++) {
+            const ay = xy[k * 2 + 1] + sy, by = xy[i * 2 + 1] + sy;
+            if ((ay > y) === (by > y)) continue;
+            const ax = xy[k * 2] + sx, bx = xy[i * 2] + sx;
+            if (x < ax + ((bx - ax) * (y - ay)) / (by - ay)) {
+              crossings++;
+              winding += by > ay ? 1 : -1;
+            }
+          }
+        }
+        if (first.group ? crossings % 2 : winding) return loops;
+      }
+    }
+    return null;
+  }
+
+  _applyFreeze({ action, x, y }) {
+    if (action === 'all') {
+      for (const poly of this.polys) delete poly.frozen;
+      return;
+    }
+    const loops = this.shapeAt(x, y, { frozen: action === 'unfreeze' });
+    if (!loops) return;
+    for (const poly of loops) {
+      if (action === 'unfreeze') delete poly.frozen;
+      else poly.frozen = true;
+    }
+    if (action === 'freeze') {
+      const moved = new Set(loops);
+      this.polys = [...this.polys.filter((p) => !moved.has(p)), ...loops];
+    }
   }
 
   // Classic repeats: every push and drag here has a periodic form in tile.js.
@@ -797,6 +872,7 @@ export class Marble {
       }
     };
     for (const poly of this.polys) {
+      if (poly.frozen) continue;
       const { xy, n } = poly;
       for (let i = 0; i < n * 2; i += 2) {
         apply(xy[i], xy[i + 1]);
@@ -805,6 +881,7 @@ export class Marble {
       }
     }
     for (const op of this.sources) {
+      if (op.poly?.frozen) continue;
       apply(op.x, op.y);
       op.x = out[0];
       op.y = out[1];
@@ -1650,6 +1727,7 @@ export class Marble {
     const kept = [];
     const gone = new Set();
     for (const poly of this.polys) {
+      if (poly.frozen) { kept.push(poly); continue; }
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (let i = 0; i < poly.n; i++) {
         x0 = Math.min(x0, poly.xy[i * 2]);
@@ -1742,6 +1820,10 @@ export class Marble {
       }
       if (op.kind === 'tile') {
         this._applyTile(op);
+        continue;
+      }
+      if (op.kind === 'freeze') {
+        this._applyFreeze(op);
         continue;
       }
       if (op.kind === 'lift') {

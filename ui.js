@@ -485,7 +485,106 @@ function colorPicker() {
   return box;
 }
 
+// Full rake's clicks on the tank are free, so they can pick ink to freeze. off, 'freeze' or 'unfreeze'.
+let freezeMode = 'off';
+function freezeRow(box) {
+  const row = document.createElement('div');
+  row.id = 'freezeRow';
+  row.className = 'row freezes';
+  row.hidden = !(currentModel().engine ?? Marble).prototype.freezeSupported;
+  const label = document.createElement('span');
+  label.append('Freeze ink', infoIcon('freeze'));
+  row.append(label);
+  const pick = (mode, text) => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.classList.toggle('on', freezeMode === mode);
+    b.onclick = () => {
+      freezeMode = freezeMode === mode ? 'off' : mode;
+      for (const s of row.querySelectorAll('button')) s.classList.remove('on');
+      b.classList.toggle('on', freezeMode === mode);
+      overlay.style.cursor = freezeMode === 'off' ? '' : 'crosshair';
+    };
+    return b;
+  };
+  const clear = document.createElement('button');
+  clear.textContent = 'Clear all';
+  clear.onclick = () => {
+    if (!marble.polys.some((p) => p.frozen)) return;
+    act(() => {
+      marble.live(() => marble.unfreezeAll({ at: marble.time }));
+      marble.applyNow();
+    });
+    dirty = true;
+  };
+  row.append(pick('freeze', 'Freeze'), pick('unfreeze', 'Unfreeze'), clear);
+  box.append(row);
+}
+
+function freezeAt([x, y]) {
+  const unfreezing = freezeMode === 'unfreeze';
+  if (!marble.shapeAt(x, y, { frozen: unfreezing })) return;
+  act(() => {
+    marble.live(() => (unfreezing ? marble.unfreeze({ x, y, at: marble.time }) : marble.freeze({ x, y, at: marble.time })));
+    marble.applyNow();
+  });
+  dirty = true;
+}
+
+function drawFrozen() {
+  if (!marble.polys.some((p) => p.frozen)) return;
+  const masked = tool === 'fullRake';
+  const px = devicePixelRatio || 1;
+  const pathFor = (loops) => {
+    const path = new Path2D();
+    for (const poly of loops) {
+      for (const [sx, sy] of marble.tileShifts([poly])) {
+        for (let i = 0; i < poly.n; i++) {
+          const [x, y] = toPx([poly.xy[i * 2] + sx, poly.xy[i * 2 + 1] + sy]);
+          if (i) path.lineTo(x, y);
+          else path.moveTo(x, y);
+        }
+        path.closePath();
+      }
+    }
+    return path;
+  };
+  octx.save();
+  octx.lineWidth = px;
+  octx.setLineDash([5 * px, 4 * px]);
+  for (const poly of marble.polys) {
+    if (!poly.frozen) continue;
+    const path = pathFor([poly]);
+    if (masked) {
+      octx.fillStyle = '#ff305866';
+      octx.fill(path, poly.group ? 'evenodd' : 'nonzero');
+    }
+    octx.strokeStyle = '#000c';
+    octx.lineDashOffset = 0;
+    octx.stroke(path);
+    octx.strokeStyle = '#fffc';
+    octx.lineDashOffset = 4.5 * px;
+    octx.stroke(path);
+  }
+  octx.restore();
+  // What a click would pick.
+  if (tool === 'fullRake' && freezeMode !== 'off' && hover) {
+    const loops = marble.shapeAt(hover[0], hover[1], { frozen: freezeMode === 'unfreeze' });
+    if (loops) {
+      octx.save();
+      octx.lineWidth = 2 * px;
+      octx.strokeStyle = freezeMode === 'freeze' ? '#ff3058' : '#fff';
+      octx.stroke(pathFor(loops));
+      octx.restore();
+    }
+  }
+}
+
 function showTool(name) {
+  if (name !== tool) {
+    freezeMode = 'off';
+    overlay.style.cursor = '';
+  }
   tool = name;
   stroke = null;
   const def = TOOLS[name];
@@ -533,6 +632,7 @@ function showTool(name) {
     }
     box.append(row);
   }
+  if (name === 'fullRake') freezeRow(box);
   for (const [key, [label, options]] of Object.entries(def.choices ?? {})) {
     if (key === 'waveShape') {
       box.append(weavePicker(name, label, options));
@@ -960,6 +1060,10 @@ overlay.addEventListener('pointerdown', (ev) => {
   if (pull) return;
   overlay.setPointerCapture(ev.pointerId);
   const p = toTank(ev);
+  if (tool === 'fullRake' && freezeMode !== 'off') {
+    freezeAt(p);
+    return;
+  }
   stroke = null; // a press that never saw its release must not carry over into this one
   lastSpray = null;
   if (tool === 'rake' || tool === 'stylus' || tool === 'paint') stroke = [p];
@@ -1167,6 +1271,9 @@ function syncTile() {
   const canErase = (currentModel().engine ?? Marble).prototype.eraseSupported;
   $('tools').querySelector('[data-tool="erase"]').hidden = !canErase;
   if (!canErase && tool === 'erase') showTool('drop');
+  const row = $('freezeRow');
+  if (row) row.hidden = !(currentModel().engine ?? Marble).prototype.freezeSupported;
+  if (row?.hidden) freezeMode = 'off';
   const atFirst = currentModel().repeatsAtFirst === true;
   const supported = !currentModel().spreading && (currentModel().engine ?? Marble).prototype.tileSupported;
   $('tile').disabled = !supported;
@@ -1191,7 +1298,7 @@ function syncTile() {
 // Both take effect at once, so they show even on a paused tank.
 function setRepeat(on, offset) {
   act(() => marble.live(() => marble.tile({ on, offset, at: marble.time })));
-  marble.applyTileNow();
+  marble.applyNow();
   dirty = true;
 }
 $('tile').onchange = () => {
@@ -1812,6 +1919,7 @@ function drawOverlay() {
     }
   }
   drawPreviewLayer();
+  drawFrozen();
   octx.fillStyle = guideColor(0.8);
   for (const p of marble.tinePositions()) {
     const [x, y] = toPx(p);

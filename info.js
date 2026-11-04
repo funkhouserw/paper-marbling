@@ -112,6 +112,7 @@ export const INFO = {
   'rake.waveLength': WEAVE_LENGTH,
   'fullRake.waveShape': WEAVE_SHAPE,
   'fullRake.angle': 'The direction the rake travels: 0 is right, 90 up, 180 left, 270 down, and anything between runs at a slant. The arrows above jump to those four.',
+  freeze: 'Holds chosen ink still, like a mask. Choose Freeze and click any ink, or Unfreeze and click it to let it go, and Clear all to let everything go. Frozen ink shows in red while Full rake is open, and with a dashed outline in other tools. Nothing moves it, whichever tool you use, and raked ink passes underneath it. Not available in Grid ink.',
   'fullRake.teeth': `${TEETH} They spread evenly across the page.`,
   'fullRake.offset': 'Slides all the teeth sideways, wrapping at the edges. A second pass with half a tooth\'s offset lands between the first pass\'s lines.',
   'fullRake.speed': SPEED,

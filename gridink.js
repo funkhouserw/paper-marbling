@@ -108,6 +108,7 @@ export class GridInk extends Marble {
   }
 
   turn() { throw new Error('Grid ink can\'t be turned. Use shift, stir or air instead.'); }
+  get freezeSupported() { return false; }
   get eraseSupported() { return false; }
   erase() { throw new Error('Grid ink can\'t erase yet. Try it on another simulator.'); }
 

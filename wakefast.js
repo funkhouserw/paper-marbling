@@ -83,6 +83,7 @@ export class WakeFast extends Wake {
     const out = [0, 0];
     const [x0, x1, y0, y1] = region;
     for (const poly of this.polys) {
+      if (poly.frozen) continue;
       const { xy, n } = poly;
       const boxes = this._boxes(poly);
       for (let c = 0, count = boxes.length / 4; c < count; c++) {
@@ -96,6 +97,7 @@ export class WakeFast extends Wake {
       }
     }
     for (const op of this.sources) {
+      if (op.poly?.frozen) continue;
       f(op.x, op.y, out);
       op.x = out[0];
       op.y = out[1];

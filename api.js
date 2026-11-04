@@ -138,6 +138,15 @@ export const COMMANDS = [
     ['mode', 'string', 'drain', 'drain: ink and water go, and the surface closes up. lift: only the ink goes, at once, leaving bare water'],
     AT,
   ] },
+  { name: 'freeze', group: 'Tools', summary: 'Freezes the topmost ink at a point: nothing moves it until it is unfrozen, and it draws on top. Not available in Grid ink.', params: [
+    X, Y, AT,
+  ] },
+  { name: 'unfreeze', group: 'Tools', summary: 'Unfreezes the topmost frozen ink at a point.', params: [
+    X, Y, AT,
+  ] },
+  { name: 'unfreezeAll', group: 'Tools', summary: 'Unfreezes all ink.', params: [
+    AT,
+  ] },
   { name: 'vortex', group: 'Tools', summary: 'A swirl.', params: [
     X, Y,
     ['circulation', 'number', 3000, 'strength; about 100 is gentle and 3000 is very strong', 'w2'],

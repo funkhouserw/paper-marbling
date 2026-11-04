@@ -134,7 +134,7 @@ test('a repeat can take effect at once, and replays the same', () => {
   const at = m.time;
   const time = m.time;
   m.live(() => m.tile({ on: true, offset: 'brick', at }));
-  m.applyTileNow();
+  m.applyNow();
   assert.equal(m.tileOn, true);
   assert.equal(m.tileOffset, 'brick');
   assert.equal(m.queued.length, 0, 'nothing is left waiting');
