@@ -1313,3 +1313,22 @@ test('on a repeating tank even stripes are even all the way round, including at 
     assert.ok(Math.abs(gap - 50) <= 1, `a band is ${gap} wide, in ${edges}`);
   }
 });
+
+test('a rake pulls dead-straight stripes, whose edges only have points outside the tank', () => {
+  const m = new Marble({ width: 1000, height: 700, seed: 3, viscosity: 1000 });
+  m.stripes({ count: 16, colors: ['#111111', '#555555', '#999999', '#dddddd'], variation: 0, wobble: 0, slivers: 0 });
+  m.runUntilIdle();
+  m.fullRake({ angle: 90, teeth: 12, speed: 200, D: 8 });
+  m.runUntilIdle(60);
+  let tallest = 0;
+  for (const { xy, n } of m.polys) {
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < n; i++) {
+      if (Math.abs(xy[i * 2]) > 450) continue;
+      lo = Math.min(lo, xy[i * 2 + 1]);
+      hi = Math.max(hi, xy[i * 2 + 1]);
+    }
+    if (hi > lo) tallest = Math.max(tallest, hi - lo);
+  }
+  assert.ok(tallest > 120, `the tallest band is only ${tallest} mm`);
+});

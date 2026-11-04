@@ -110,6 +110,7 @@ export const INFO = {
   'rake.waveAmp': WEAVE_HEIGHT,
   'rake.waveLength': WEAVE_LENGTH,
   'fullRake.waveShape': WEAVE_SHAPE,
+  'fullRake.angle': 'The direction the rake travels: 0 is right, 90 up, 180 left, 270 down, and anything between runs at a slant. The arrows above jump to those four.',
   'fullRake.teeth': `${TEETH} They spread evenly across the page.`,
   'fullRake.offset': 'Slides all the teeth sideways, wrapping at the edges. A second pass with half a tooth\'s offset lands between the first pass\'s lines.',
   'fullRake.speed': SPEED,

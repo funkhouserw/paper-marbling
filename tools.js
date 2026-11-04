@@ -102,6 +102,7 @@ export const TOOLS = {
     whole: true,
     directions: true,
     params: {
+      angle: ['Angle (°)', 0, 0, 360, 1],
       teeth: ['Teeth', 12, 1, 80, 1],
       offset: ['Slide sideways', 0, 0, 20, 0.1],
       speed: ['Speed', 20, 1, 80, 1],

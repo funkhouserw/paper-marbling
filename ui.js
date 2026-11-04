@@ -521,10 +521,13 @@ function showTool(name) {
       b.textContent = arrow;
       b.title = title;
       b.setAttribute('aria-label', title);
+      b.dataset.angle = angle;
       b.classList.toggle('on', values[name].angle === angle);
       b.onclick = () => {
         values[name].angle = angle;
         for (const s of row.children) s.classList.toggle('on', s === b);
+        const slider = box.querySelector('input[data-key="angle"]');
+        if (slider) { slider.value = angle; slider.oninput(); }
       };
       row.append(b);
     }
@@ -564,6 +567,9 @@ function showTool(name) {
       values[name][key] = dial ? dialToValue(Number(input.value), min, max, over) : Number(input.value);
       typed.refresh();
       describe();
+      if (key === 'angle' && def.directions) {
+        for (const b of box.querySelectorAll('.directions button')) b.classList.toggle('on', Number(b.dataset.angle) === values[name].angle);
+      }
       // Adding height to a straight rake means wanting a weave.
       if (key === 'waveAmp' && values[name][key] > 0 && values[name].waveShape === 'straight') {
         values[name].waveShape = 'sine';
@@ -1732,11 +1738,18 @@ function renderPreviewLayer(showQueued, fullRakeOp) {
 // The planned tines come from a throwaway tank, so the preview uses the engine's geometry.
 let plannedRake = { key: null, op: null };
 function plannedFullRake() {
-  if (tool !== 'fullRake') return null;
-  const key = JSON.stringify([values.fullRake, marble.width, marble.height]);
+  if (tool !== 'fullRake' && tool !== 'rake') return null;
+  // Rake has no line until it's dragged, so until then it shows one straight across, at the pointer.
+  const along = marble.width / 2 + 20;
+  const y = hover ? hover[1] : 0;
+  const line = tool === 'rake' ? (stroke?.length > 1 ? stroke : [[-along, y], [along, y]]) : null;
+  const key = JSON.stringify([tool, values[tool], line, marble.width, marble.height]);
   if (key !== plannedRake.key) {
     const m = new Marble({ width: marble.width, height: marble.height });
-    plannedRake = { key, op: { m, op: m.fullRake({ ...inMm('fullRake', m), at: 0 }) } };
+    const op = tool === 'rake'
+      ? m.rake({ from: line[0], to: line[1], ...inMm('rake', m), at: 0 })
+      : m.fullRake({ ...inMm('fullRake', m), at: 0 });
+    plannedRake = { key, op: op && { m, op } };
   }
   return plannedRake.op;
 }

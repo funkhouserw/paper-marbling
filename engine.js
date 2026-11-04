@@ -1429,6 +1429,15 @@ export class Marble {
     return op.elapsed >= op.duration;
   }
 
+  // Whether any of an edge might show. Both its ends can be outside with its middle across the tank,
+  // as on a long straight band, so this goes by the box around it.
+  _edgeInView(ax, ay, bx, by) {
+    if (this.tileOn) return true; // every point shows somewhere
+    const mx = this.width / 2 + this.width * 0.1;
+    const my = this.height / 2 + this.height * 0.1;
+    return Math.max(ax, bx) > -mx && Math.min(ax, bx) < mx && Math.max(ay, by) > -my && Math.min(ay, by) < my;
+  }
+
   _inView(x, y) {
     if (this.tileOn) return true; // every point shows somewhere
     const mx = this.width / 2 + this.width * 0.1;
@@ -1445,7 +1454,7 @@ export class Marble {
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         const ax = xy[i * 2], ay = xy[i * 2 + 1], bx = xy[j * 2], by = xy[j * 2 + 1];
-        if (!this._inView(ax, ay) && !this._inView(bx, by)) continue;
+        if (!this._edgeInView(ax, ay, bx, by)) continue;
         const len = Math.hypot(bx - ax, by - ay);
         if (len > lim) extra += Math.ceil(len / lim) - 1;
       }
@@ -1486,7 +1495,7 @@ export class Marble {
         const ax = xy[i * 2], ay = xy[i * 2 + 1], bx = xy[j * 2], by = xy[j * 2 + 1];
         out[w++] = ax;
         out[w++] = ay;
-        if (!this._inView(ax, ay) && !this._inView(bx, by)) continue;
+        if (!this._edgeInView(ax, ay, bx, by)) continue;
         const len = Math.hypot(bx - ax, by - ay);
         if (len > lim) {
           const parts = Math.ceil(len / lim);
