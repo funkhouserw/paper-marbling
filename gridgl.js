@@ -144,6 +144,11 @@ const SHADERS = {
       f = tiled > .5 ? (f % fs + fs) % fs : clamp(f, ivec2(0), fs - 1);
       return texelFetch(labels, f, 0).r;
     }
+    // Any of the four a pixel reads from: see the note in gridink.js.
+    bool reads(vec2 p, float film) {
+      vec2 b = floor(p);
+      return labelAt(b) == film || labelAt(b + vec2(1, 0)) == film || labelAt(b + vec2(0, 1)) == film || labelAt(b + vec2(1, 1)) == film;
+    }
     vec4 cr(float u) { return .5 * vec4(-u*u*u + 2.*u*u - u, 3.*u*u*u - 5.*u*u + 2., -3.*u*u*u + 4.*u*u + u, u*u*u - u*u); }
     vec4 sharp(vec2 p) {
       vec2 b = floor(p), f = p - b; vec4 wx = cr(f.x), wy = cr(f.y), sum = vec4(0), lo = vec4(1e20), hi = vec4(-1e20);
@@ -165,7 +170,7 @@ const SHADERS = {
         if (d2 > e.y * e.y || d2 < 1e-9) continue;
         float shrink = d2 > d.z ? 1. - sqrt(1. - d.z / d2) : 1.;
         vec2 back = dc * shrink;
-        if (labelAt(c - back) != d.w) continue;
+        if (!reads(c - back, d.w)) continue;
         if (here != 0. && here != d.w) continue;
         push -= back; touched = true;
       }

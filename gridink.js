@@ -857,6 +857,14 @@ export class GridInk extends Marble {
     this._checkpointInk();
     const { labels, seedOf, boxes } = this._labelFilms(growth);
     const labelAt = (x, y) => labels[this._nearest(Math.floor(Math.round(y) / detail), flowY) * flowX + this._nearest(Math.floor(Math.round(x) / detail), flowX)];
+    // A pixel reads from the four around its source, so it takes this film's ink if any of them can
+    // hold some. Going by the nearest alone, a push of under half a pixel can't carry an edge over
+    // into the next flow cell, and edges stick to the grid while the ink behind them is overrun.
+    const reads = (x, y, film) => {
+      const x0 = Math.floor(x);
+      const y0 = Math.floor(y);
+      return labelAt(x0, y0) === film || labelAt(x0 + 1, y0) === film || labelAt(x0, y0 + 1) === film || labelAt(x0 + 1, y0 + 1) === film;
+    };
     const cells = [];
     const halfW = this.width / 2;
     const halfH = this.height / 2;
@@ -888,7 +896,7 @@ export class GridInk extends Marble {
           const backX = (dx * shrink) / hx;
           const backY = (dy * shrink) / hy;
           // Only this film's ink moves, and only into water or more of this film.
-          if (labelAt(i - backX, j - backY) !== film) continue;
+          if (!reads(i - backX, j - backY, film)) continue;
           const here = labelAt(i, j);
           if (here && here !== film) continue;
           if (!touched[c]) { touched[c] = 1; cells.push(c); }

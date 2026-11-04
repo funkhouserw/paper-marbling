@@ -34,7 +34,7 @@ export const COMMANDS = [
     AT,
   ] },
   { name: 'fillDots', group: 'Ink', summary: 'Fills the surface with dots of varying size and colour, largest holes first, so sizes form a natural hierarchy. Dots start together, and go around ink already there or on its way, so it can place few or none on a full tank; use over: true for dots on top. It can\'t foresee where tools still queued will move ink, so run it before them, or use over. For a pleasing fill, use a wide size range and several colours, and leave out any ink that matches the bath or it will disappear.', params: [
-    ['count', 'number', 150, 'most dots to place; it stops sooner if no hole is big enough'],
+    ['count', 'number', 150, 'most dots to place; it stops sooner if no hole is big enough. On a repeating tank dots can sit across the edges'],
     size('min', 0.8, 'smallest dot radius'),
     size('max', 6, 'largest dot radius'),
     size('gap', 0.3, 'clear space kept between dots'),

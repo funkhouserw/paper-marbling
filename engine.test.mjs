@@ -1229,3 +1229,41 @@ test('lifting ink cuts out exactly the circle and leaves everything else where i
   t.step();
   assert.ok(whole - area(t.polys[0]) > 0.9 * Math.PI * 25, 'the image of the circle cuts too');
 });
+
+test('rings in filled dots land one at a time, even with a start time', () => {
+  const m = new Marble({ width: 300, height: 210, seed: 1 });
+  const dots = m.fillDots({ count: 6, min: 5, max: 15, rings: 2, colors: ['#111111', '#222222', '#333333'], at: 0 });
+  m.step();
+  assert.equal(m.sources.length, dots, 'only the first ring has started');
+  m.runUntilIdle();
+  assert.equal(m.sources.length, dots * 2);
+});
+
+test('filling a repeating tank uses its edges, and keeps dots apart across them', () => {
+  const wrap = (d, L) => d - L * Math.floor(d / L + 0.5);
+  const m = new Marble({ width: 300, height: 210, seed: 2 });
+  m.tile();
+  const placed = [];
+  const drop = m.drop.bind(m);
+  m.drop = (o) => { placed.push(o); return drop(o); };
+  m.fillDots({ count: 80, min: 4, max: 18, gap: 1, colors: ['#111111', '#222222'] });
+  const R = (o) => Math.sqrt((o.quantity * 1000) / (m.film * Math.PI));
+  const across = placed.filter((o) => Math.abs(o.x) + R(o) > 150 || Math.abs(o.y) + R(o) > 105);
+  assert.ok(across.length >= 3, `only ${across.length} of ${placed.length} sit across an edge`);
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const d = Math.hypot(wrap(placed[i].x - placed[j].x, 300), wrap(placed[i].y - placed[j].y, 210));
+      assert.ok(d >= R(placed[i]) + R(placed[j]), `dots ${i} and ${j} overlap across a seam`);
+    }
+  }
+});
+
+test('filling a tank that does not repeat still keeps dots inside it', () => {
+  const m = new Marble({ width: 300, height: 210, seed: 2 });
+  const placed = [];
+  const drop = m.drop.bind(m);
+  m.drop = (o) => { placed.push(o); return drop(o); };
+  m.fillDots({ count: 40, min: 4, max: 18, colors: ['#111111'] });
+  const R = (o) => Math.sqrt((o.quantity * 1000) / (m.film * Math.PI));
+  for (const o of placed) assert.ok(Math.abs(o.x) + R(o) <= 150.01 && Math.abs(o.y) + R(o) <= 105.01);
+});

@@ -175,3 +175,51 @@ test('fillDots goes around ink on the grid', () => {
   assert.ok(R > 20 && dots.length > 3, `R ${R}, ${dots.length} dots`);
   for (const { args } of dots) assert.ok(Math.hypot(args.x, args.y) > R, `dot at ${args.x},${args.y}`);
 });
+
+test('drops stacked on one spot stay round, and keep all their ink', () => {
+  const colors = ['#d9485f', '#f2a65a', '#3d5a80', '#7fb7be'];
+  const m = new GridInk({ width: 300, height: 210, seed: 1, viscosity: 200, gridCell: 2 });
+  colors.forEach((color, k) => m.drop({ x: 0, y: 0, quantity: 0.3, color, dispersion: 0.8, at: k * 6 }));
+  run(m);
+  const { data, width, height } = m.toRGBA();
+  const mm2 = (300 / width) ** 2;
+  const cx = width / 2 - 0.5;
+  const cy = height / 2 - 0.5;
+  const along = (dx, dy) => {
+    let r = 0;
+    for (;;) {
+      const x = Math.round(cx + dx * r);
+      const y = Math.round(cy + dy * r);
+      if (x < 0 || y < 0 || x >= width || y >= height || data[(y * width + x) * 4 + 3] < 128) return r;
+      r += 0.25;
+    }
+  };
+  const S = Math.SQRT1_2;
+  const axis = (along(1, 0) + along(-1, 0) + along(0, 1) + along(0, -1)) / 4;
+  const diagonal = (along(S, S) + along(-S, S) + along(S, -S) + along(-S, -S)) / 4;
+  assert.ok(axis / diagonal > 0.98 && axis / diagonal < 1.02, `axis / diagonal is ${axis / diagonal}`);
+  // Every ink keeps a share of the tank near a drop's own, including the first, now the thinnest ring.
+  const share = colors.map((c) => {
+    const v = parseInt(c.slice(1), 16);
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] >= 128 && Math.abs((v >> 16) - data[i]) + Math.abs(((v >> 8) & 255) - data[i + 1]) + Math.abs((v & 255) - data[i + 2]) < 40) n++;
+    }
+    return n * mm2;
+  });
+  for (const a of share) assert.ok(a > 2400 && a < 3400, `inks cover ${share.map(Math.round)}`);
+});
+
+test('a drop still leaves a separate film alone', () => {
+  const m = new GridInk({ width: 300, height: 210, seed: 1, viscosity: 200, gridCell: 2 });
+  m.drop({ x: -40, y: 0, quantity: 0.3, color: '#d9485f', dispersion: Infinity });
+  run(m);
+  m.drop({ x: 90, y: 0, quantity: 0.05, color: '#3d5a80', dispersion: 0.8 });
+  const before = Float32Array.from(m._g.ink[3]);
+  const { ix } = m._g;
+  const left = (a) => { let n = 0; for (let i = 0; i < a.length; i++) if (i % ix < ix * 0.55 && a[i] > 0.5) n++; return n; };
+  const was = left(before);
+  run(m);
+  m._refreshInk();
+  assert.ok(Math.abs(left(m._g.ink[3]) - was) <= was * 0.002, `${left(m._g.ink[3])} against ${was}`);
+});

@@ -3,22 +3,30 @@
 // sizes fall into a natural hierarchy, and the dots end up evenly spread without looking gridded.
 const STEP = 5; // mm between the points checked
 
+const wrapped = (d, L) => d - L * Math.floor(d / L + 0.5);
+
 export function dotGrid(width, height) {
   return { step: STEP, cols: Math.ceil(width / STEP) + 1, rows: Math.ceil(height / STEP) + 1 };
 }
 
 // How far each grid point is from the nearest marked one, by a chamfer sweep: at most about 8% over.
-export function clearanceFrom(marked, cols, rows, step) {
+// On a repeating tank the grid's last row and column are its first again, so distance carries across
+// the seams, and it takes a second round of sweeps to come all the way back round.
+export function clearanceFrom(marked, cols, rows, step, tiled = false) {
   const d = new Float64Array(cols * rows);
   for (let q = 0; q < d.length; q++) d[q] = marked[q] ? 0 : Infinity;
   const diagonal = step * Math.SQRT2;
   const relax = (q, col, row, dc, dr, cost) => {
-    const c = col + dc;
-    const r = row + dr;
-    if (c < 0 || c >= cols || r < 0 || r >= rows) return;
+    let c = col + dc;
+    let r = row + dr;
+    if (tiled) {
+      c = (c + cols - 1) % (cols - 1);
+      r = (r + rows - 1) % (rows - 1);
+    } else if (c < 0 || c >= cols || r < 0 || r >= rows) return;
     const v = d[r * cols + c] + cost;
     if (v < d[q]) d[q] = v;
   };
+  for (let round = tiled ? 2 : 1; round > 0; round--) {
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const q = row * cols + col;
@@ -31,21 +39,28 @@ export function clearanceFrom(marked, cols, rows, step) {
       relax(q, col, row, 1, 0, step); relax(q, col, row, 0, 1, step); relax(q, col, row, 1, 1, diagonal); relax(q, col, row, -1, 1, diagonal);
     }
   }
+  }
+  if (tiled) {
+    for (let row = 0; row < rows; row++) d[row * cols + cols - 1] = d[row * cols];
+    for (let col = 0; col < cols; col++) d[(rows - 1) * cols + col] = d[col];
+  }
   return d;
 }
 
 // taken lists room already used up: `circles` of { x, y, r } from the tank's centre, and a grid of
 // how far each point is from other ink, `clearance`. Dots keep `gap` from both.
-export function planDots({ width, height, minR, maxR, gap, margin, count, tightness, random, taken }) {
+// On a repeating tank (tiled) there are no edges: a dot can sit across one, and distance wraps.
+export function planDots({ width, height, minR, maxR, gap, margin, count, tightness, random, taken, tiled = false }) {
+  const apart = (dx, dy) => (tiled ? Math.hypot(wrapped(dx, width), wrapped(dy, height)) : Math.hypot(dx, dy));
   const { cols, rows } = dotGrid(width, height);
   const free = new Float64Array(cols * rows);
   for (let row = 0, q = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++, q++) {
       const x = col * STEP;
       const y = row * STEP;
-      free[q] = Math.min(x, width - x, y, height - y) - margin;
+      free[q] = tiled ? Math.max(width, height) : Math.min(x, width - x, y, height - y) - margin;
       if (taken?.clearance) free[q] = Math.min(free[q], taken.clearance[q] - gap - STEP / 2);
-      for (const c of taken?.circles ?? []) free[q] = Math.min(free[q], Math.hypot(x - width / 2 - c.x, y - height / 2 - c.y) - c.r - gap);
+      for (const c of taken?.circles ?? []) free[q] = Math.min(free[q], apart(x - width / 2 - c.x, y - height / 2 - c.y) - c.r - gap);
     }
   }
   const dots = [];
@@ -64,7 +79,7 @@ export function planDots({ width, height, minR, maxR, gap, margin, count, tightn
     dots.push({ x: x - width / 2, y: y - height / 2, r });
     for (let row = 0, k = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++, k++) {
-        const clear = Math.hypot(col * STEP - x, row * STEP - y) - r - gap;
+        const clear = apart(col * STEP - x, row * STEP - y) - r - gap;
         if (clear < free[k]) free[k] = clear;
       }
     }
@@ -74,11 +89,12 @@ export function planDots({ width, height, minR, maxR, gap, margin, count, tightn
 
 // Picks each dot's colour from those its nearest neighbours aren't using, weighted towards
 // whichever colour has been used least, so that the mix stays balanced everywhere.
-export function colourDots(dots, colors, random) {
+export function colourDots(dots, colors, random, tile = null) {
+  const apart = (a, b) => (tile ? Math.hypot(wrapped(a.x - b.x, tile.width), wrapped(a.y - b.y, tile.height)) : Math.hypot(a.x - b.x, a.y - b.y));
   const used = colors.map(() => 0);
   dots.forEach((dot, i) => {
     const near = dots.slice(0, i)
-      .map((o) => [Math.hypot(o.x - dot.x, o.y - dot.y) - o.r - dot.r, o.colorIndex])
+      .map((o) => [apart(o, dot) - o.r - dot.r, o.colorIndex])
       .sort((a, b) => a[0] - b[0])
       .slice(0, Math.min(3, colors.length - 1))
       .map((n) => n[1]);

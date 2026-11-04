@@ -989,11 +989,19 @@ overlay.addEventListener('pointerup', () => {
     : marble.stylus({ path, ...inMm('stylus'), at }))));
 });
 
+function fillDotsNow() {
+  const { sprayColors, over, ...v } = inMm('fillDots');
+  const options = { ...v, over: over === 'over', colors: sprayColors === 'one' ? [{ color, shimmer }] : inks };
+  // Rings go on one at a time, each waiting for the last to settle, and that needs the script's timeline.
+  if (v.rings > 1) {
+    marble.settle();
+    return marble.fillDots(options);
+  }
+  return place(false, (at) => marble.fillDots({ ...options, at }));
+}
+
 $('apply').onclick = () => act(() => (tool === 'fillDots'
-  ? place(false, (at) => {
-    const { sprayColors, over, ...v } = inMm('fillDots');
-    return marble.fillDots({ ...v, over: over === 'over', colors: sprayColors === 'one' ? [{ color, shimmer }] : inks, at });
-  })
+  ? fillDotsNow()
   : tool === 'stripes'
   ? place(false, (at) => marble.stripes({ ...inMm('stripes'), colors: inks, at }))
   : place(true, (at) => (tool === 'air' ? marble.air({ ...inMm('air'), at }) : tool === 'fullRake'

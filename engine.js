@@ -431,15 +431,18 @@ export class Marble {
   // what the dots end up as, so drops are smaller on simulators where ink spreads. Dots go around
   // ink already there or on its way, unless `over` asks for them on top.
   fillDots({ count = 150, min = 8, max = 60, gap = 3, margin = 0, tightness = 0.6, colors = ['#1f4e79'], rings = 1, dispersion = 0.8, shimmer = 0, over = false, at } = {}) {
+    const tiled = (this.tileWanted ?? this.tileOn) === true;
     const dots = colourDots(planDots({
-      width: this.width, height: this.height, minR: min, maxR: max, gap, margin, count, tightness, random: () => this.random(), taken: over ? null : this._takenRoom(),
-    }), colors, () => this.random());
+      width: this.width, height: this.height, minR: min, maxR: max, gap, margin, count, tightness, random: () => this.random(), taken: over ? null : this._takenRoom(tiled), tiled,
+    }), colors, () => this.random(), tiled ? { width: this.width, height: this.height } : null);
     const growth = this.spreadFactor;
     for (let ring = 0; ring < rings; ring++) {
       for (const dot of dots) {
         const c = colors[(dot.colorIndex + ring) % colors.length];
         const quantity = ((Math.PI * dot.r * dot.r) / growth / rings) * this.film / 1000;
-        this.drop({ x: dot.x, y: dot.y, quantity, dispersion, color: c, shimmer: typeof c === 'object' ? c.shimmer : shimmer, at });
+        // Only the first layer can have a set time. Later ones wait for the last to settle, since
+        // two inks spreading from one spot at once push each other into halves, not rings.
+        this.drop({ x: dot.x, y: dot.y, quantity, dispersion, color: c, shimmer: typeof c === 'object' ? c.shimmer : shimmer, at: ring ? undefined : at });
       }
       if (ring < rings - 1) this.settle();
     }
@@ -448,14 +451,14 @@ export class Marble {
 
   // The room ink is using: drops still to land or growing, at the size they'll end up, and what's
   // already on the surface. It can't foresee where tools still in the queue will move anything.
-  _takenRoom() {
+  _takenRoom(tiled = false) {
     const circles = [...this.active, ...this.queued]
       .filter((op) => op.kind === 'drop')
       .map((op) => ({ x: op.x, y: op.y, r: Math.sqrt(op.maxArea * this.spreadFactor) }));
     const { step, cols, rows } = dotGrid(this.width, this.height);
     const marked = new Uint8Array(cols * rows);
     const any = this._markInk(marked, cols, rows, step);
-    return { circles, clearance: any ? clearanceFrom(marked, cols, rows, step) : null };
+    return { circles, clearance: any ? clearanceFrom(marked, cols, rows, step, tiled) : null };
   }
 
   // Marks the grid points under ink, and any point an outline passes close to, so thin threads
