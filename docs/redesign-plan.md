@@ -11,7 +11,8 @@ A nicer interface for people to experiment and play with. It should work on a de
 - **Desktop layout:** Photoshop's structure with a modern look: menus, a tool rail, a settings bar, the tank, panels and a transport bar.
 - **Simple and Advanced views:** Simple is the default. Switching only hides controls, and never changes the tank or its settings.
 - **Default simulator:** Wake. Viscosity stays visible in Simple.
-- **Assistant:** becomes a small pop-up creature that also answers questions, replacing the sidebar panel.
+- **Assistant:** becomes a small pop-up creature that also answers questions, replacing the sidebar panel. On the public demo, the AI is simply absent, and the interface doesn't depend on it.
+- **Scripts:** an Advanced feature that gets its own drawer instead of a sidebar panel.
 - **Mobile:** we want real phone support.
 
 ## What has to fit
@@ -26,7 +27,7 @@ A nicer interface for people to experiment and play with. It should work on a de
 ├────┬──────────────────────────────────────┬────────────┤
 │Ink │                                      │ Palette    │
 │Comb│                                      │ History    │
-│Move│               the tank               │ Script     │
+│Move│               the tank               │ Saved      │
 │Lift│                                      │ Prints     │
 ├────┴──────────────────────────────────────┴────────────┤
 │ ▶ Pause  Speed 1×  Viscosity [===]   t 12 s · 80 shapes│
@@ -38,6 +39,13 @@ Tool groups:
 - **Comb:** Rake, Full rake, Hearts, Stylus
 - **Move:** Jiggle, Wriggle, Stir, Vortex, Air
 - **Lift:** Eraser, plus Freeze as a mode
+
+## Script drawer
+- **Opening it:** a Script button or a keyboard shortcut, from anywhere, in Advanced view. No scrolling.
+- **Desktop:** slides in from the right and can be resized. The tank shrinks to fit beside it, so you can watch a script run while you edit it.
+- **Inside:** a large editor, Run with Clear tank first, Examples, My scripts, Copy session to script, and errors shown where you can see them.
+- **Phone:** a sheet that stops at half height, with the tank still showing, or goes full height for editing.
+- **Local assistant:** script-writing replies land here.
 
 ## Phone
 The pattern is Lightroom and CapCut: the canvas stays on top, a thumb-reach strip sits at the bottom, and tapping it raises settings without covering the canvas.
@@ -71,7 +79,7 @@ These are unmeasured so far, so they get checked first.
 ## The creature
 - **Shape:** a small animated ink drop in a corner. Tapping it opens a chat panel on desktop or a sheet on a phone, which gives chat real room and frees up the sidebar.
 - **Answering questions:** an FAQ written from How it works, searched in the browser. This costs nothing, needs no key and works on the public demo.
-- **Writing scripts:** still needs the local server and your own API key. On the public demo it says so and links to the instructions.
+- **Writing scripts:** only appears when running locally with your own API key. The public demo doesn't show it at all.
 - **Later, if wanted:** AI answers on the demo need a hosted key, login or rate limits, and a budget.
 - **Respect "reduce motion":** it stays still for people who've asked for that.
 
@@ -87,6 +95,7 @@ These are unmeasured so far, so they get checked first.
 9. **Check against the old interface.** Every control still has a home, and all tests pass. **Then Ilse decides whether to merge.**
 
 ## Open questions
+- Should the script editor be a plain text box, or add a code editor library such as CodeMirror for line numbers and colouring?
 - Should Simple use Wake (fast) underneath on phones?
 - Which settings make the 2–3 shown for each tool in Simple?
 - What's the creature's name and look?
