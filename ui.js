@@ -2030,7 +2030,14 @@ const profiler = makeProfiler(() => ({
   flowing: Boolean(marble.flowing), detail: marble.detail, capped: Boolean(marble.capped), gpuInUse: Boolean(marble.gpu), viscosity: marble.viscosity,
   tank: [marble.width, marble.height], canvas: [tank.width, tank.height], lowFramerate: snapshotting(), speed: Number($('speed').value),
 }));
-$('profiling').checked = localStorage.getItem('marbler.profiling') === '1';
+// A hosted build has no server behind it, so the features that need one go. See scripts/build.mjs.
+const hostedDemo = Boolean(document.querySelector('meta[name="marbler-demo"]'));
+if (hostedDemo) {
+  $('profiling').closest('label').hidden = true;
+  $('prompt').closest('.row').style.display = 'none'; // .row sets its own display, which beats hidden
+  $('assistantLocal').hidden = false;
+}
+$('profiling').checked = !hostedDemo && localStorage.getItem('marbler.profiling') === '1';
 profiler.on = $('profiling').checked;
 $('profiling').onchange = () => {
   profiler.on = $('profiling').checked;

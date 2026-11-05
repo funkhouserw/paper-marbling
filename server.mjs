@@ -1,4 +1,5 @@
 // Local server for Marbler: serves the app and runs the assistant that edits marbling scripts.
+// It's for your own computer only. It has no login or rate limit, so don't host it publicly.
 //
 //   node server.mjs     then open http://127.0.0.1:8000
 //
@@ -268,9 +269,21 @@ const json = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
+// A web page can make its own domain point at this computer (DNS rebinding), and the Origin check
+// alone would pass, because Origin and Host then agree. Its Host still names that domain.
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+const fromThisComputer = (req) => {
+  try {
+    return LOCAL_HOSTS.has(new URL(`http://${req.headers.host}`).hostname);
+  } catch {
+    return false;
+  }
+};
+
 export const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
+    if (url.pathname.startsWith('/api/') && !fromThisComputer(req)) return json(res, 403, { error: 'Forbidden' });
     if (url.pathname === '/api/chat') {
       // Other websites open in the browser must not be able to spend the key.
       const origin = req.headers.origin;

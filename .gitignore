@@ -1,3 +1,9 @@
 .DS_Store
 node_modules/
 __pycache__/
+.env*
+dist/
+PLAN.md
+handoff.md
+roadmap/
+bench/

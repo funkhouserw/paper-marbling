@@ -6,10 +6,10 @@
 // (a growing drop, a moving rake, ...) deforms all outlines by a small amount.
 // Because deformations are incremental, processes can overlap in time.
 //
-// The deformation formulas (drop spread, stylus, stir, jiggle, wriggle) follow
-// pst-marble by Aubrey Jaffer (LPPL 1.3c), reworked here to apply incrementally.
-// The vortex uses the Lamb-Oseen velocity field. This is a modified JavaScript
-// reimplementation, not the original package.
+// The drop, stir, jiggle and wriggle motions follow the formulas of pst-marble by Aubrey Jaffer
+// (LPPL 1.3c), reworked here to apply incrementally, and _tine is translated from it. See NOTICE
+// for what changed and the conditions on reusing that code. This is a modified version, not the
+// original package, and its authors don't support it. The vortex uses the Lamb-Oseen velocity field.
 
 import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
@@ -1348,6 +1348,9 @@ export class Marble {
   }
 
   // Moves one tine from (bx,by) to (ex,ey).
+  // Modified from /stylus-deformation in pst-marble.pro, copyright Aubrey Jaffer, LPPL 1.3c: translated
+  // to JavaScript, applied tick by tick, with a limited reach, and measured across a repeating tank's
+  // seams. NOTICE lists the conditions on reusing this function.
   _tine(bx0, by0, ex0, ey0, L) {
     const len = Math.hypot(ex0 - bx0, ey0 - by0);
     if (len < 1e-9) return;

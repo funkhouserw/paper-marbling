@@ -1,0 +1,83 @@
+Marbler
+Copyright 2026 Ilse Funkhouser
+
+Licensed under the Apache License, Version 2.0 (see LICENSE). Anyone
+redistributing Marbler or a work based on it must keep this NOTICE file,
+as section 4 of that license explains.
+
+Marbler builds on the work below. BIBLIOGRAPHY.md lists every source and
+what was taken from each. None of these people endorse or support Marbler,
+so please don't send them questions or bug reports about it.
+
+--------------------------------------------------------------------------
+pst-marble
+https://ctan.org/pkg/pst-marble
+Copyright 2018, 2019 Aubrey Jaffer. Maintainers: Aubrey Jaffer, Manuel Luque,
+and the late Jurgen Gilg.
+License: LaTeX Project Public License 1.3c
+https://www.latex-project.org/lppl/lppl-1-3c/
+
+Marbler began as a JavaScript reimplementation of this package, and part of
+it is a Derived Work under that license:
+
+  - engine.js, Marble._tine, is translated into JavaScript from
+    /stylus-deformation in pst-marble.pro, and changed: it applies to outline
+    points tick by tick, limits how far each step reaches, and on a repeating
+    tank measures distances across the seams.
+  - engine.js, the stir and drop motions, and film.js, the radial map close
+    to a drop, follow pst-marble's formulas, reworked to apply a little at a
+    time. The drop map is also published in Lu, Jaffer, Jin, Zhao and Mao,
+    "Mathematical Marbling" (2012).
+
+That code is distributed here under the Apache License 2.0 as LPPL clause 10
+allows, on the condition that the following carry on applying to it. If you
+reuse it, you must also:
+
+  - keep a prominent notice of what was changed from pst-marble, in the code
+    or in a file you distribute with it (LPPL clause 6b);
+  - not imply that the authors or maintainers of pst-marble support your
+    version (clause 6c);
+  - include pst-marble itself, or information sufficient to get a complete,
+    unmodified copy, such as the CTAN address above (clause 6d).
+
+pst-marble itself is not included in this repository.
+
+--------------------------------------------------------------------------
+Bimocq (BiMocq2)
+https://github.com/ziyinq/Bimocq
+
+gridink.js and gridgl.js follow this code's 2D solver for their step order
+and constants. Its license:
+
+MIT License
+
+Copyright (c) 2019 Ziyin Qu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------
+Credited ideas, no code used
+
+  - florilegium, Kevin Raymond (MIT): https://github.com/kevinraymond/florilegium
+    Growing a composition by filling the largest hole first, which led to
+    fillDots in fill.js. The method is from Wong, Zongker and Salesin,
+    "Computer-Generated Floral Ornament" (SIGGRAPH 1998).
+  - Amanda Ghassaei, "Digital Marbling" (2022):
+    https://blog.amandaghassaei.com/2022/10/25/digital-marbling/
+    The target look, and rakes as forces on the flow.

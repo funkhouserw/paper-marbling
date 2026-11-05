@@ -2,7 +2,7 @@
 // Exercises /api/chat against a fake upstream, so no real API key is needed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
+import { createServer, request } from 'node:http';
 
 const call = (name, args, id = 'c1') => ({ type: 'function_call', name, call_id: id, arguments: JSON.stringify(args) });
 const say = (text) => ({ status: 200, body: { output: [{ type: 'message', content: [{ text }] }] } });
@@ -191,4 +191,23 @@ test('palette tools refuse bad colours, built-in names, unknown palettes, and re
   assert.equal(run('save_palette', { ...mine, name: 'MINE', replace: true }).ok, true);
   assert.match(run('use_palette', { name: 'nope' }).result, /no palette/);
   assert.equal(run('use_palette', { name: 'old dutch' }).s.actions[0].name, 'Old Dutch');
+});
+
+// fetch won't always send a made-up Host, so this goes through node:http.
+const withHost = (path, host) => new Promise((resolve, reject) => {
+  const req = request({ port: server.address().port, host: '127.0.0.1', path, method: 'POST', headers: { Host: host, 'Content-Type': 'application/json' } }, (res) => {
+    res.resume();
+    resolve(res.statusCode);
+  });
+  req.on('error', reject);
+  req.end('{}');
+});
+
+test('the API only answers requests addressed to this computer', async () => {
+  for (const path of ['/api/chat', '/api/profile']) {
+    assert.equal(await withHost(path, 'rebound.example:8000'), 403, path);
+    assert.equal(await withHost(path, 'localhost.example.com'), 403, path);
+  }
+  assert.equal(await withHost('/api/chat', 'localhost:8000'), 400);
+  assert.equal(await withHost('/api/chat', '127.0.0.1:8000'), 400);
 });

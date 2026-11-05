@@ -1,13 +1,13 @@
 # Bibliography
 
-What Marbler draws on, what we took from each source, and where it shows up. Sources are grouped by how much they shaped the code. Details were checked against the repo and the session record on 2026-11-02. Where a source was only partly read, or a detail is from memory, the entry says so.
+What Marbler draws on, what we took from each source, and where it shows up. Sources are grouped by how much they shaped the code. Where a source was only partly read, or a detail is from memory, the entry says so.
 
-Nothing here has been checked by a lawyer. See [Licences](#licences) before publishing.
+See [`NOTICE`](NOTICE) for licence terms.
 
 ## Foundations: code or maths used directly
 
-**Jaffer, Aubrey. pst-marble, v. 1.6 (2019), maintained by Jürgen Gilg and Manuel Luque. LaTeX/PSTricks package. LPPL 1.3c.** https://ctan.org/pkg/pst-marble. A copy is in `../pst-marble-ctan/`, outside this repo.
-- **Took:** Marbler's starting point. This is the "original latex thing": the drop and tine formulas, the idea of marbling as a list of actions, and the view of raking as a continuous, reversible mapping of the surface.
+**Jaffer, Aubrey. pst-marble, v. 1.6 (2019), maintained by Jürgen Gilg and Manuel Luque. LaTeX/PSTricks package. LPPL 1.3c.** https://ctan.org/pkg/pst-marble.
+- **Took:** Marbler's starting point. the drop and tine formulas, the idea of marbling as a list of actions, and the view of raking as a continuous, reversible mapping of the surface.
 - **Where:** `engine.js`, which identifies itself as a modified reimplementation that applies the formulas incrementally. Classic is the direct descendant.
 - **Changed:** motion plays out tick by tick, instead of a finished picture being computed. Everything else is built on top of that.
 
@@ -23,7 +23,6 @@ Nothing here has been checked by a lawyer. See [Licences](#licences) before publ
 - **Took:** Grid ink's whole method: forward and backward maps, reading fields from a checkpoint, error correction, accumulating changes through the forward map, the projection coefficient of 2 or 1, the dual-mesh trace back, and the check that the maps still agree.
 - **Where:** `gridink.js`, `gridgl.js`.
 - **Differs:** the header of `gridink.js` lists every difference, including one map level instead of two, a torus instead of walls, and our own checkpoint threshold.
-- **Note:** an earlier message of mine linked the wrong DOI (10.1145/3355089.3356504). The one above comes from the search results and the paper's own front page.
 
 **Qu, Z. et al. Bimocq, official code. MIT.** https://github.com/ziyinq/Bimocq
 - **Took:** I read its 2D solver, `src/bimocq2D/BimocqSolver2D.cpp`, and followed its step order and constants: 5-sample weights, the midpoint velocity, neighbour clamping, `blend_coeff = 1`. It's a rewrite in JavaScript and GLSL, not a copy, but it follows that code closely.
@@ -49,11 +48,10 @@ Nothing here has been checked by a lawyer. See [Licences](#licences) before publ
 - **Took:** the target look, and the case for BiMocq² over Stable Fluids. Also rakes as forces on the flow, curl noise as air, and the warning that fitting Jaffer's formula to a bounded space breaks strict area preservation, because expansion needs contraction elsewhere. Her stripes-then-comb layering and painterly edges shaped Paint, Stripes and soft edges.
 - **Where:** Wake's whorls were the goal. Grid ink follows the method her post describes (BiMocq² instead of Stable Fluids, rakes as forces on the flow), written independently from the paper and the Bimocq code. Her published code is the older Stable Fluids method, so none of Grid ink came from it. Her repeating patterns partly motivated tiling, which was your idea.
 - **Not taken:** any code. Her BiMocq² simulator is unreleased, and she calls it a "hacky research prototype".
-- **Read:** the whole post, on 2026-11-03. Earlier I'd worked from a summary of it.
 - **Ideas from it not yet used:** combs drawn as vector art (stroke width as tine size, and many tiny tines for a brushed look), editing an earlier comb pass and seeing the result update, ink thickening as drops are added (slower spreading, darker and contracting pattern), Jaffer's comb formulas combined with a fluid solve, vortex streets behind obstacles, designed flow fields instead of combs, and bouquet, birdwing, dovetail and thistle patterns.
 
 **Ghassaei, Amanda. gpu-io. MIT.** https://github.com/amandaghassaei/gpu-io
-- **Took:** nothing in the code. When Grid ink was written I had only read a summary of its README. I hand-wrote our WebGL because of a "no new dependencies" rule I made up myself, not one Ilse set.
+- **Took:** nothing in the code. When Grid ink was written I had only read a summary of its README. Our WebGL is hand-written.
 - **Read since (2026-11-03):** the README, the fluid example, and the parts that handle devices without full float support. Worth borrowing: emulating smooth texture sampling in the shader when the GPU can't, falling back to half-precision floats, and keeping positions as an anchor plus a small offset so half precision stays accurate. Grid ink currently drops to the CPU on such devices.
 - **Shape:** about 9,000 lines of TypeScript, MIT, four runtime dependencies, WebGL 1 or 2, with WebGPU planned.
 
@@ -65,7 +63,7 @@ Nothing here has been checked by a lawyer. See [Licences](#licences) before publ
 **Nervous System. Blog post on marbled puzzles.** https://n-e-r-v-o-u-s.com/blog/?p=9225
 - **Took:** confirmation that others combine a fluid solve with curl noise for marbling. No code or specifics.
 
-**Kevin Raymond, florilegium.** `~/workspace/florilegium`, https://github.com/kevinraymond/florilegium
+**Kevin Raymond, florilegium.** MIT. https://github.com/kevinraymond/florilegium
 - **Took:** the practice of growing a composition by filling the largest hole, which led to `fillDots`. It was also my route to Wong et al.
 
 ## Physics that shaped Film, Wake and spreading
@@ -74,7 +72,7 @@ These changed how we think about the models. None are implemented as written, an
 
 **McNair, R., Jensen, O. E., Landel, J. R. "Confinement-induced drift in Marangoni-driven transport of surfactant: a Lagrangian perspective." Journal of Fluid Mechanics 986, A5, 2024.** https://arxiv.org/abs/2310.09559
 - **Took:** the most direct marbling physics we found. A deposit spreads "until the edges meet a solid boundary or the edges of another deposit", and larger deposits compress others. It backs the idea that big drops can fill a tank.
-- **Where:** the reasoning behind Spreading, Film and "films ignore each other until they touch". An early Monge-Ampère prototype came from it, but wasn't kept (`handoff.md`).
+- **Where:** the reasoning behind Spreading, Film and "films ignore each other until they touch". An early Monge-Ampère prototype came from it, but wasn't kept.
 
 **Sun, Bush, Spagnolie, Rycroft. "Hydrodynamics of marbling art." Physical Review Fluids 9, 110506, 2024 (Gallery of Fluid Motion).** https://people.math.wisc.edu/~spagnolie/Papers/sbsr24.pdf. A three-page gallery piece with no equations; the physics is in chapter 4 of Sun's 2024 Harvard thesis (https://dash.harvard.edu/handle/1/37378811). Citation corrected on 2026-11-03 from marble-fable's survey. I originally worked from a summary.
 - **Took:** paint spreads through a balance of surface tensions, and surfactant makes it spread into thinner layers, so how far a drop goes depends on the ink. New colours shift the balance and move what's there.
@@ -90,7 +88,7 @@ These changed how we think about the models. None are implemented as written, an
 - **Took:** background on spreading in a deep layer, where the surface drags the fluid below.
 
 **Fay and Hoult, DTIC report on oil-slick spreading.** https://apps.dtic.mil/sti/pdfs/AD0726281.pdf
-- **Took:** spreading regimes driven by the spreading coefficient at the slick's edge. This supported your point about oil on water, as an analogy only.
+- **Took:** spreading regimes driven by the spreading coefficient at the slick's edge. This supported the comparison with oil on water, as an analogy only.
 
 **Wikipedia, "Marangoni effect."** https://en.wikipedia.org/wiki/Marangoni_effect
 - **Took:** general background.
@@ -109,7 +107,7 @@ These changed how we think about the models. None are implemented as written, an
 
 **Stam, J. *The Art of Fluid Animation.* 2004.** Listed by Ghassaei. Not read.
 
-**Wong, Jamie. "Fluid Simulation (with WebGL demo)." 2016.** https://jamie-wong.com/2016/08/05/webgl-fluid-simulation/. You sent this one.
+**Wong, Jamie. "Fluid Simulation (with WebGL demo)." 2016.** https://jamie-wong.com/2016/08/05/webgl-fluid-simulation/.
 - **Took:** nothing I can name specifically. It's background on the same approach, and `gridgl.js`'s pressure passes are the common Jacobi form it and GPU Gems describe.
 
 **NVIDIA, GPU Gems, chapter 38, "Fast Fluid Dynamics Simulation on the GPU."** http://developer.download.nvidia.com/books/HTML/gpugems/gpugems_ch38.html
@@ -140,12 +138,9 @@ Surveyed so that we'd know what exists. No code or methods came from these.
 
 ## Contributors, not sources
 
-- **marble-buddy and marble-fable:** other Claude sessions. They wrote the first film prototype and adversarial reviews, and measured that damping and rake push mattered more than grid size for whorls.
+- **Claude (Anthropic):** Marbler was written with Claude, including a first film prototype and the research behind this list. First-person notes here are Claude's.
 - **Ilse:** the physics corrections that shaped the project (oil on water, no pushing before contact), and the ideas for tiling, snapshots and adding models instead of replacing them.
 
 ## Licences
 
-- **pst-marble, LPPL 1.3c:** the most important one. `engine.js` and the README identify Marbler as a modified reimplementation. The terms need checking before publishing, as `handoff.md` already says.
-- **Bimocq, MIT:** `gridink.js` follows this code closely, so I'd include its copyright notice if Marbler is ever published. It isn't in the repo yet, and I haven't confirmed whether it's strictly required.
-- **gpu-io, MIT:** no code used.
-- **Ghassaei's simulator:** unreleased, no code used.
+See [`NOTICE`](NOTICE) for what applies to each source, including the conditions on the code derived from pst-marble.

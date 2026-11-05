@@ -9,7 +9,7 @@
 // gets a small k, which lets old ink thicken rather than having nowhere to go.
 //
 // Pressure depends only on what's feeding right now, so when feeding stops all motion stops.
-// Close to a drop, the exact radial map from pst-marble takes over, so rings stay round below
+// Close to a drop, the exact radial map from pst-marble (see NOTICE) takes over, so rings stay round below
 // grid size. Tools are unchanged. This is one-phase Hele-Shaw flow with a screened outer region.
 import { Marble, isTranslucent } from './engine.js';
 import { wrapX, wrapY, tileCell } from './tile.js';

@@ -139,3 +139,6 @@ button:disabled { opacity: .5; cursor: default; }
 #tankBar label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 #tankBar input[type=number] { width: 68px; }
 #tankBar input[type=color] { width: 32px; height: 22px; padding: 0; }
+#howItWorks { color: #a9c7ff; white-space: nowrap; }
+#assistantLocal { margin: 4px 0; color: #a9adb6; }
+#assistantLocal a { color: #a9c7ff; }

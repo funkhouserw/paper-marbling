@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Marbler works</title>
+<meta name="description" content="How Marbler simulates ink marbling: the simulators, tools, script commands and maths, in one place.">
+<link rel="stylesheet" href="how-it-works.css">
+</head>
+<body>
+<nav id="contents" aria-label="Contents">
+  <a class="back" href="index.html">← Back to Marbler</a>
+  <a href="#idea">The big idea</a>
+  <a href="#tank">The tank and the clock</a>
+  <a href="#simulators">Simulators</a>
+  <a href="#motions">The maths of each motion</a>
+  <a href="#tools">Tools</a>
+  <a href="#repeating">Repeating patterns</a>
+  <a href="#keeping">Prints and exports</a>
+  <a href="#saving">Saving your work</a>
+  <a href="#detail">Detail and speed</a>
+  <a href="#scripts">Scripts</a>
+  <a href="#reference">Command reference</a>
+  <a href="#assistant">The assistant</a>
+  <a href="#limits">Known limits</a>
+  <a href="#credits">Credits</a>
+</nav>
+
+<main>
+<header>
+  <h1>How Marbler works</h1>
+  <p class="lead">Marbling floats ink on a thick bath, combs it into patterns, then lifts the pattern off with paper. Marbler does all of that in your browser. This page explains what's going on underneath, in one place.</p>
+  <img class="hero" src="docs/images/teal-copper-swirls.jpg" alt="Teal, copper and cream ink curling into wave shapes" width="1100" height="770">
+</header>
+
+<section id="idea">
+  <h2>The big idea</h2>
+  <p>The maths of marbling comes from Aubrey Jaffer's work. Real raking is close to reversible: drag a tine through the ink, drag it back along the same line, and the pattern mostly returns. So each action can be written as a smooth, continuous formula that says where every point of the surface moves to. Ink never tears, and the overall order of the colours never changes.</p>
+  <p>Most of Marbler's simulators follow from that. <strong>Each patch of ink is a closed loop of points.</strong> Every action moves those points by its formula, and new points get added wherever a loop stretches too far to look smooth. That's why edges stay crisp at any zoom, and why long sessions get slow: a thoroughly raked tank can hold millions of points.</p>
+  <p>Grid ink is the exception. It stores colour on a grid of cells and simulates the water itself, which suits soft blends and long flows.</p>
+</section>
+
+<section id="tank">
+  <h2>The tank and the clock</h2>
+  <p>The tank is measured in millimetres internally, 1000 × 700 by default. Everything happens over time: each tick, every active drop and tool moves the ink a little, so a rake can pass through a drop that's still growing. Drops and tools wait or overlap depending on your settings, and <strong>Tools wait for ink</strong> holds a rake back until the drops have finished.</p>
+  <p>A drop's area grows as <code>final area × (1 − e^(−dispersion × t))</code>: fast at first, then easing off. <strong>Viscosity</strong> sets how thick the bath is, and <strong>Hard edges</strong> keeps ink inside the rectangle, where it flattens against the walls. With it off, ink pushed past the edge carries on out of view.</p>
+</section>
+
+<section id="simulators">
+  <h2>Simulators</h2>
+  <p>A simulator is a set of rules for how ink behaves. They all take the same tools and scripts, though the same script can look quite different on each. New ones get added rather than replacing old ones, so you can compare them.</p>
+  <div id="modelList"></div>
+</section>
+
+<section id="motions">
+  <h2>The maths of each motion</h2>
+  <p>These are the formulas behind the outline simulators. Here <code>p</code> is a point on an outline, and <code>c</code> is the centre of the action.</p>
+  <dl>
+    <dt>Drop</dt>
+    <dd>A point at distance <code>r</code> from the centre moves to distance <code>√(r² + s)</code>, where <code>s</code> is the drop's area over π. Everything outside gets pushed out by exactly the area the drop adds, so area is preserved.</dd>
+    <dt>Stylus and rake</dt>
+    <dd>Each tine pulls nearby ink along its direction of travel, and the pull fades exponentially with distance, as <code>e^(−d / L)</code>, where <code>L</code> is the reach. A rake is a row of tines. Each tine's motion also carries a matching sideways part, so the flow doesn't squash the ink.</dd>
+    <dt>Tine width</dt>
+    <dd>A real tine has thickness. The width option makes ink bulge around the tine and close up behind it, using the flow around a moving cylinder.</dd>
+    <dt>Stir</dt>
+    <dd>Circular tines. A point at distance <code>ρ</code> from the centre rotates by an angle that falls off as <code>e^(−|ρ − R| / (L R))</code> from each ring of radius <code>R</code>.</dd>
+    <dt>Vortex</dt>
+    <dd>A Lamb-Oseen swirl, which spins up around a point: angular speed <code>Γ / r² × (1 − e^(−r² / 4νt))</code>.</dd>
+    <dt>Jiggle and wriggle</dt>
+    <dd>Sine waves. Jiggle moves the whole tank across a travelling wave, and wriggle twists rings back and forth around a centre.</dd>
+    <dt>Air</dt>
+    <dd>A smooth random flow, built as the curl of noise. A curl can't compress anything, so ink stretches and swirls without changing its area. The same seed repeats the same breath.</dd>
+    <dt>Direction</dt>
+    <dd>Angle 0 points right and 90 points up. Positive <code>degrees</code> and <code>circulation</code> turn counter-clockwise, negative clockwise, and in <code>stir</code> a negative radius reverses that ring.</dd>
+  </dl>
+</section>
+
+<section id="tools">
+  <h2>Tools</h2>
+  <p>Everything in the toolbar, and what it's for. Each control in the app also has its own (i) with more detail.</p>
+  <div id="toolList" class="cards"></div>
+  <h3>Patterns to try</h3>
+  <div class="gallery">
+    <figure><img src="docs/images/hearts-on-navy.jpg" alt="Gold, blue and white hearts among dots on navy" loading="lazy"><figcaption><strong>Hearts:</strong> Fill dots on a repeating tank, then a Hearts pass.</figcaption></figure>
+    <figure><img src="docs/images/blue-gold-zigzag.jpg" alt="Rows of blue, gold and white zigzags" loading="lazy"><figcaption><strong>Combing:</strong> Stripes, then raking across them.</figcaption></figure>
+    <figure><img src="docs/images/targets-on-black.jpg" alt="Ringed targets of purple, gold and white on black" loading="lazy"><figcaption><strong>Targets:</strong> Fill dots with several rings in each dot.</figcaption></figure>
+    <figure><img src="docs/images/pink-feathers.jpg" alt="Pink, green and gold ink feathered across the page" loading="lazy"><figcaption><strong>Feathering:</strong> drops, then raking back and forth.</figcaption></figure>
+  </div>
+</section>
+
+<section id="repeating">
+  <h2>Repeating patterns</h2>
+  <p><strong>Repeating</strong> joins the tank's edges so it behaves like the surface of a doughnut: ink leaving one side comes back at the other, and exports tile seamlessly. <strong>See it repeat</strong> shows the copies side by side.</p>
+  <p>Outlines are never cut at the seam. They stay whole, every motion repeats across the join, and they're drawn wherever they show. That has a real physical cost: a doughnut has only so much surface. In Classic, each drop's growth is balanced by a slight contraction of everything else. In Film and Wake, drops spread over water instead, so a tank with no water left stops them growing.</p>
+  <p><strong>Offset</strong> shifts the repeat by half a tile, each row for a brick layout or each column for half-drop. An angled rake then has copies of its tines coming in from other places, so the whole bath can move a little before the tines get to it. That's the geometry at work, not a bug. Switching layout with ink on the tank moves copies relative to each other, so raked patterns stop lining up at the seams.</p>
+  <p>Classic, Film, Wake and Grid ink repeat, and Grid ink doesn't do offsets yet. Spreading and Thin film don't repeat.</p>
+</section>
+
+<section id="keeping">
+  <h2>Prints and exports</h2>
+  <dl>
+    <dt>PNG</dt><dd>Exactly what the tank shows.</dd>
+    <dt>SVG</dt><dd>Scalable shapes in flat colour, without shimmer. Grid ink exports an embedded picture.</dd>
+    <dt>Print</dt><dd>A 3000 pixel picture of the tank on paper. It works out how thick each region of ink is and tints the paper accordingly, thicker being deeper (Beer-Lambert). <strong>Thin ink looks paler</strong>, <strong>Rims and texture</strong> and <strong>Soft edges</strong> are artistic touches, not simulated, and each one can be turned off.</dd>
+    <dt>Pull paper</dt><dd>Lays a sheet across the tank, shows the print and keeps it in the browser. Options set the paper tint, how imperfect the pull is, and whether the tank clears afterwards. Prints read the same way round as the tank unless <strong>Mirror like a real print</strong> is on.</dd>
+  </dl>
+  <p>With no base colour set, an empty tank shows a soft grid that's never exported, so exports have transparent backgrounds.</p>
+</section>
+
+<section id="saving">
+  <h2>Saving your work</h2>
+  <p>Everything you save stays in your browser, on your computer. Marbler has no accounts, so clearing your browser's data for this site deletes it.</p>
+  <dl>
+    <dt>Saved states</dt><dd>A snapshot of the tank that you can return to.</dd>
+    <dt>My scripts</dt><dd>Scripts kept by name. Choosing one opens it with the simulator it was saved on, and it doesn't run until you press Run.</dd>
+    <dt>My palettes</dt><dd>Your own inks and base colour under a name. Scripts can use them with <code>palette('name')</code>.</dd>
+    <dt>Undo</dt><dd>Keeps full copies up to 500 MB, and older steps replay when undone.</dd>
+  </dl>
+</section>
+
+<section id="detail">
+  <h2>Detail and speed</h2>
+  <p><strong>Point limit</strong> caps how many points outlines may use, from 50,000 to 20 million. The limit holds: when ink needs more, edges get coarser so the total fits. Standard (400,000) is tuned for live play.</p>
+  <p><strong>Low framerate</strong> shows a snapshot about every 2 seconds and spends the rest of the time simulating. It also switches on by itself when things get slow, until the tank settles. The simulation still runs on the page's main thread, so clicks can wait for the current tick. <strong>Wake (fast)</strong> draws in a background worker, which helps busy tanks keep moving.</p>
+  <p>Wake also cuts off ribbons of ink thinner than 0.5 mm, which can split one drop's outline into several, so the counts on the status line can rise as you work.</p>
+</section>
+
+<section id="scripts">
+  <h2>Scripts</h2>
+  <p>Every pattern can be written as a short script, and <strong>Copy session to script</strong> turns what you just did by hand into one. Scripts are real JavaScript that runs in the page, so only run ones you trust.</p>
+<pre><code>const { bath: water, inks } = palette('Lapis &amp; Gilt');
+bath({ color: water });
+tile({ on: true });
+fillDots({ count: 80, colors: inks, gap: 0.6 });
+settle();
+hearts({ angle: 270 });</code></pre>
+  <dl>
+    <dt>Positions</dt><dd>Scripts work on a 0 to 100 page, the way CSS percentages do. <code>x</code> is % of the width from the left and <code>y</code> is % of the height from the top, so <code>50, 50</code> is the centre.</dd>
+    <dt>Sizes</dt><dd>% of the width, so circles stay round on any tank. A <code>y</code> step for equal spacing is the <code>x</code> step divided by <code>ASPECT</code>.</dd>
+    <dt>Amounts</dt><dd><code>quantity</code> is the amount of ink, as a share of the tank's area at plain size.</dd>
+    <dt>Time</dt><dd>Drops start at the current cursor and don't move it, so consecutive drops grow together. Tools move the cursor by their duration, <code>wait</code> moves it further, and <code>at</code> sets an explicit start. <code>settle()</code> makes everything after it wait until all ink and tools have finished.</dd>
+    <dt>Colours</dt><dd>Any CSS colour, including translucent ones. <code>shimmer</code> from 0 to 1 makes ink metallic.</dd>
+    <dt>Sliders</dt><dd>Size-like sidebar sliders run 0 to 100 across a useful range, so their numbers aren't script values.</dd>
+  </dl>
+</section>
+
+<section id="reference">
+  <h2>Command reference</h2>
+  <p>This list is generated from the same catalogue that the app and its tests use, so it can't fall out of date.</p>
+  <div id="commandList"></div>
+  <h3>Values</h3>
+  <div id="valueList"></div>
+  <h3>Palettes</h3>
+  <p id="paletteList"></p>
+</section>
+
+<section id="assistant">
+  <h2>The assistant</h2>
+  <p>The assistant turns a description into a script. It needs an OpenAI API key and runs only on your own computer, so the hosted demo leaves it out. A key in a web page wouldn't be safe, because scripts run in that same page and could read it.</p>
+  <ol>
+    <li>Download the code. There's nothing to install beyond Node.</li>
+    <li>Put <code>OPENAI_API_KEY=...</code> in a file called <code>.env.local</code>, in the folder <em>above</em> the code.</li>
+    <li>Run <code>node server.mjs</code> and open <code>http://127.0.0.1:8000</code>.</li>
+  </ol>
+  <p>The key stays in that local server and never reaches the browser. It's worth using a separate key with a monthly spend limit. Don't host this server publicly: it has no login or rate limit, so strangers could spend your key.</p>
+</section>
+
+<section id="limits">
+  <h2>Known limits</h2>
+  <ul>
+    <li><strong>Not calibrated:</strong> no simulator has been measured against real marbling yet. They look right, but they aren't a physical prediction.</li>
+    <li><strong>Grid ink:</strong> no offset repeat, eraser, freeze or Hearts yet.</li>
+    <li><strong>Hard edges:</strong> <code>shift</code> and <code>turn</code> smear ink along the walls. Ink dragged hard into a wall thins to a sliver and loses most of its area.</li>
+    <li><strong>Repeating tanks:</strong> a tine's pull reaches at most a fourteenth of the tile, a jiggle takes a whole number of waves so its period and angle shift slightly, wriggle's in-and-out movement is left out, and <code>turn</code> isn't available.</li>
+    <li><strong>Film seams:</strong> film edges stop closing at about 5 mm, so each outline is also painted under the ink to hide the gap. That's a drawing trick, not physics, and translucent inks skip it, so their seams can show.</li>
+    <li><strong>Spreading:</strong> neighbouring drops stop about 8 mm apart, and always stay separate outlines.</li>
+    <li><strong>Colour:</strong> a drop's ink has one flat colour, and <code>quantity</code> sets area only, not thickness.</li>
+  </ul>
+</section>
+
+<section id="credits">
+  <h2>Credits</h2>
+  <p>Marbler stands on other people's work, especially:</p>
+  <ul>
+    <li><strong><a href="https://ctan.org/pkg/pst-marble">pst-marble</a></strong> by Aubrey Jaffer (LPPL 1.3c), and his <a href="https://people.csail.mit.edu/jaffer/Marbling/">marbling pages</a>: the formulas Marbler began with. Part of Marbler's code is modified from this package. Its authors don't support Marbler.</li>
+    <li><strong><a href="https://github.com/ziyinq/Bimocq">BiMocq²</a></strong> by Qu et al. (2019, MIT): the method behind Grid ink.</li>
+    <li><strong><a href="https://blog.amandaghassaei.com/2022/10/25/digital-marbling/">Digital Marbling</a></strong> by Amanda Ghassaei: the look Wake aims for, and rakes as forces on the flow.</li>
+    <li><strong><a href="https://github.com/kevinraymond/florilegium">florilegium</a></strong> by Kevin Raymond, and Wong, Zongker &amp; Salesin (1998): filling the largest hole first.</li>
+    <li>Bridson et al. (2007), for curl noise.</li>
+  </ul>
+  <p>The repository's <code>BIBLIOGRAPHY.md</code> lists every source, and <code>NOTICE</code> has the licence details. Marbler is by Ilse Funkhouser, written with Claude.</p>
+</section>
+</main>
+<script type="module" src="howitworks.js"></script>
+</body>
+</html>

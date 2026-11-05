@@ -1,0 +1,17 @@
+{
+  "name": "marbler",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Ink marbling in your browser",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test *.test.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/preview.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
