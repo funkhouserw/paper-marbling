@@ -27,7 +27,7 @@ test('the script in the README and on How it works runs', () => {
 
 test('images and local links in the docs exist', () => {
   for (const file of ['README.md', 'how-it-works.html', 'ROADMAP.md']) {
-    const refs = [...read(file).matchAll(/(?:\]\(|src="|href=")(?!https?:|#)([^)"#\s]+)/g)].map((m) => m[1]);
+    const refs = [...read(file).matchAll(/(?:\]\(|src="|href=")(?!https?:|data:|#)([^)"#\s]+)/g)].map((m) => m[1]);
     assert.ok(refs.length > 0, file);
     for (const ref of refs) assert.ok(existsSync(new URL(`./${ref}`, import.meta.url)), `${file} points at ${ref}`);
   }
