@@ -8,9 +8,8 @@ Everything in [How it works](how-it-works.html): seven simulators, the full set 
 
 ## Up next
 
-1. **Run a script without clearing the tank.** Apply a script on top of ink that's already there.
-2. **A nicer interface.** Marbler has been a rough demo so far. Once the features, explanations and examples are in place, the interface gets a proper redesign, drawing on how Figma, Photoshop and Canva handle tools and panels. It'll be tried out on its own branch first.
-3. **Grid ink catches up.** Offset repeats, the eraser, freezing ink and Hearts.
+1. **A nicer interface.** Marbler has been a rough demo so far. Once the features, explanations and examples are in place, the interface gets a proper redesign, drawing on how Figma, Photoshop and Canva handle tools and panels. It'll be tried out on its own branch first.
+2. **Grid ink catches up.** Offset repeats, the eraser, freezing ink and Hearts.
 
 ## After that
 

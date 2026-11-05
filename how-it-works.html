@@ -129,6 +129,7 @@
 <section id="scripts">
   <h2>Scripts</h2>
   <p>Every pattern can be written as a short script, and <strong>Copy session to script</strong> turns what you just did by hand into one. Scripts are real JavaScript that runs in the page, so only run ones you trust.</p>
+  <p><strong>Run</strong> normally starts from an empty tank. Untick <strong>Clear tank first</strong> to play a script on top of the ink that's already there. It starts straight away, its <code>at</code> times count from when it starts, and one Undo takes it all back. Add <code>settle()</code> as its first line to wait for what's already moving.</p>
 <pre><code>const { bath: water, inks } = palette('Lapis &amp; Gilt');
 bath({ color: water });
 tile({ on: true });

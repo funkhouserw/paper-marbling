@@ -1406,27 +1406,50 @@ $('redo').onclick = redo;
 let finishing = false;
 $('finish').onclick = () => { finishing = true; };
 
-function runSource() {
+function runSource({ clearing = $('clearFirst').checked } = {}) {
   $('error').hidden = true;
-  const m = newTank();
-  resetHistory();
-  try {
-    act(() => runScript(m, $('script').value, {
-      // Lives here because tracing needs a canvas, which the engine must not depend on.
-      text: (o = {}) => {
-        const { string, x, y, size, font, color: c, shimmer: sh, at } = toMm('text', o, m);
-        return m.print({ contours: textContours({ text: string, x, y, size, font }), color: c, shimmer: sh, at });
-      },
-    }));
-  } catch (err) {
-    $('error').textContent = String(err);
+  const m = clearing ? newTank() : marble;
+  if (clearing) resetHistory();
+  // An earlier script's inOrder() shouldn't reach into this one.
+  else if (m.orderGap !== null) m.orderGap = null;
+  const before = m.log.length;
+  let failed = null;
+  act(() => {
+    try {
+      runScript(m, $('script').value, {
+        // Lives here because tracing needs a canvas, which the engine must not depend on.
+        text: (o = {}) => {
+          const { string, x, y, size, font, color: c, shimmer: sh, at } = toMm('text', o, m);
+          return m.print({ contours: textContours({ text: string, x, y, size, font }), color: c, shimmer: sh, at });
+        },
+      }, { fromNow: !clearing });
+    } catch (err) {
+      failed = err;
+    }
+  });
+  if (failed) {
+    $('error').textContent = String(failed);
     $('error').hidden = false;
+    // Half a script shouldn't land on work you wanted to keep, or leave a redo that brings it back.
+    if (!clearing && marble.log.length > before) {
+      undo();
+      redoGroups.pop();
+      redoStates.pop();
+      updateHistoryButtons();
+    }
   }
   // A script may change these settings itself, so the controls follow whatever it left in place.
-  syncToggles(m.log);
+  syncToggles(marble.log);
   setPlaying(true);
 }
-$('run').onclick = runSource;
+$('run').onclick = () => runSource();
+const showRunMode = () => { $('run').textContent = $('clearFirst').checked ? 'Run (clears tank)' : 'Run (keeps ink)'; };
+$('clearFirst').checked = localStorage.getItem('marbler.runKeepsInk') !== '1';
+showRunMode();
+$('clearFirst').onchange = () => {
+  localStorage.setItem('marbler.runKeepsInk', $('clearFirst').checked ? '0' : '1');
+  showRunMode();
+};
 $('capture').onclick = () => { $('script').value = marble.toScript(); };
 
 function showError(message) {
@@ -1555,7 +1578,8 @@ $('examples').onchange = () => {
   $('script').value = EXAMPLES[$('examples').value];
   $('myScripts').value = '';
   syncScriptButtons();
-  runSource();
+  // An example picks its own simulator, which needs a tank of its own.
+  runSource({ clearing: true });
 };
 
 // ---- My scripts -----------------------------------------------------------

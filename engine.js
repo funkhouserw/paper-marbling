@@ -2121,7 +2121,11 @@ export class Marble {
 }
 
 // The commands a script has in scope, taking page units as described in api.js.
-export function scriptApi(marble, extras = {}) {
+// With fromNow, a script added to a tank already in use counts its `at` times from when it starts,
+// not from when the tank began. Times after a settle() already count from that settle.
+export function scriptApi(marble, extras = {}, { fromNow = false } = {}) {
+  const start = marble.time;
+  const timed = (o) => (fromNow && o.at !== undefined && !marble.gates.length ? { ...o, at: o.at + start } : o);
   const api = {
     wait: (s) => marble.wait(s),
     settle: () => marble.settle(),
@@ -2134,14 +2138,15 @@ export function scriptApi(marble, extras = {}) {
     ASPECT: marble.height / marble.width,
   };
   for (const { name, engine, params } of COMMANDS) {
-    if (params && name !== 'text') api[name] = (o = {}) => marble[engine ?? name](toMm(name, o, marble));
+    if (params && name !== 'text') api[name] = (o = {}) => marble[engine ?? name](toMm(name, timed(o), marble));
   }
-  return { ...api, ...extras };
+  const added = Object.fromEntries(Object.entries(extras).map(([name, fn]) => [name, (o = {}) => fn(timed(o))]));
+  return { ...api, ...added };
 }
 
 // Runs a user script with the tank's commands in scope.
-export function runScript(marble, source, extras = {}) {
-  const api = scriptApi(marble, extras);
+export function runScript(marble, source, extras = {}, options = {}) {
+  const api = scriptApi(marble, extras, options);
   const names = Object.keys(api);
   new Function(...names, source)(...names.map((k) => api[k]));
 }

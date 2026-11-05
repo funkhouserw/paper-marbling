@@ -1363,3 +1363,27 @@ test('stripes can go around existing ink, and later ones go under what is there'
   assert.equal(top.polys[0].color, '#ff0000');
   assert.equal(top.log.at(-1).args.under, undefined);
 });
+
+test('a script added to a tank in use counts its times from when it starts', () => {
+  const m = new Marble();
+  runScript(m, 'drop({ x: 30, y: 50 });');
+  m.runUntilIdle();
+  const start = m.time;
+  assert.ok(start > 0);
+  const shapes = m.polys.length;
+  runScript(m, 'drop({ x: 70, y: 50, at: 2 }); settle(); drop({ x: 50, y: 20, at: 1 });', {}, { fromNow: true });
+  assert.equal(m.polys.length, shapes);
+  const logged = m.log.filter((e) => e.fn === 'drop');
+  assert.equal(logged[1].args.at, start + 2);
+  // After a settle, times already count from that settle, so they aren't moved again.
+  assert.equal(logged[2].args.at, 1);
+  assert.equal(m.queued.find((op) => op.delay !== undefined).delay, 1);
+  m.runUntilIdle();
+  assert.equal(m.polys.length, shapes + 2);
+});
+
+test('a script on a fresh tank keeps its times as written', () => {
+  const m = new Marble();
+  runScript(m, 'drop({ x: 70, y: 50, at: 2 });');
+  assert.equal(m.log.find((e) => e.fn === 'drop').args.at, 2);
+});

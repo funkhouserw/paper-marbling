@@ -25,7 +25,7 @@ Then open http://127.0.0.1:8000.
 - **Real marbling tools:** drops, spray, stripes, rakes, combs, stylus, stir, jiggle, vortex and air, plus an eraser, Hearts and freezing chosen ink in place.
 - **Seamless repeats:** make the tank a tile, straight, brick or half-drop, and exports join up.
 - **Prints:** PNG, SVG, a 3000 pixel print, and a simulated paper pull.
-- **Scripts:** every pattern can be a short script, and your hand session can be copied into one.
+- **Scripts:** every pattern can be a short script, your hand session can be copied into one, and a script can play on top of ink already in the tank.
 
 | Simulator | The idea |
 |---|---|
