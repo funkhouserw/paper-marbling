@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "fixtures": "node scripts/fixtures.mjs"
+    "fixtures": "node scripts/fixtures.mjs",
+    "test": "node --test coverage.test.mjs"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.5",

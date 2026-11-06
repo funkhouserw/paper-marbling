@@ -44,24 +44,80 @@ export function InfoTip({ text, label }) {
   );
 }
 
-export function Slider({ label, value, min, max, step, onChange, info, compact = false, className }) {
+// The number beside a slider, which you can also type into, as in the old page. Typing past the
+// slider's end is allowed when `loose`, since a script can use any value.
+function ValueBox({ value, digits, onCommit, label, min, max, loose }) {
+  const [text, setText] = useState(null);
+  const shown = text ?? Number(value).toFixed(digits);
+  const commit = () => {
+    if (text === null) return;
+    const n = Number(text);
+    setText(null);
+    if (text.trim() === '' || !Number.isFinite(n)) return;
+    onCommit(loose ? n : Math.min(max, Math.max(min, n)));
+  };
+  return (
+    <input
+      aria-label={`${label} value`}
+      inputMode="decimal"
+      value={shown}
+      onChange={(e) => setText(e.target.value)}
+      onFocus={(e) => e.target.select()}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { setText(null); e.currentTarget.blur(); } }}
+      className="ml-auto w-14 rounded bg-transparent px-1 text-right font-mono tabular-nums text-ink-100 hover:bg-ink-800 focus:bg-ink-800 focus:outline-1 focus:outline-gilt"
+    />
+  );
+}
+
+// `toDial`/`fromDial` turn a value into a 0-100 slider position and back, for size-like settings.
+// `showValue` makes the box show and take the real value instead of the slider position.
+export function Slider({ label, value, min, max, step, onChange, info, compact = false, className, hint, toDial, fromDial, dialTop = 100, showValue }) {
   const id = useId();
-  const fill = `${((Number(value) - min) / (max - min)) * 100}%`;
-  const digits = step < 0.1 ? 2 : step < 1 ? 1 : 0;
+  const dial = Boolean(toDial);
+  const pos = dial ? toDial(Number(value)) : Number(value);
+  const lo = dial ? 0 : min;
+  const hi = dial ? dialTop : max;
+  const fill = `${((pos - lo) / (hi - lo)) * 100}%`;
+  const digits = dial ? 0 : step < 0.1 ? 2 : step < 1 ? 1 : 0;
   return (
     <div className={cx('flex min-w-0 flex-col gap-1', className)}>
       <div className="flex items-center gap-1 text-xs text-ink-300">
         <label htmlFor={id} className={cx('truncate', compact && 'max-w-28')}>{label}</label>
         <InfoTip text={info} label={label} />
-        <span className="ml-auto pl-2 font-mono tabular-nums text-ink-100">{Number(value).toFixed(digits)}</span>
+        {showValue
+          ? <ValueBox label={label} digits={0} min={min} max={max} value={Number(value)} onCommit={(n) => onChange(Math.min(max, Math.max(min, n)))} />
+          : (
+            <ValueBox
+              label={label} digits={digits} min={lo} max={hi} loose={!dial}
+              value={pos}
+              onCommit={(n) => onChange(dial ? fromDial(Math.round(n)) : n)}
+            />
+          )}
       </div>
       <input
         id={id}
         type="range"
         className="slider w-full"
         style={{ '--fill': fill }}
-        min={min} max={max} step={step} value={value}
+        min={lo} max={hi} step={dial ? 1 : step} value={pos}
+        onChange={(e) => onChange(dial ? fromDial(Number(e.target.value)) : Number(e.target.value))}
+      />
+      {hint && <small className="text-[11px] text-ink-400">{hint}</small>}
+    </div>
+  );
+}
+
+export function NumberField({ label, value, min, max, step, onChange, info }) {
+  const id = useId();
+  return (
+    <div className="flex items-center gap-2 text-xs text-ink-300">
+      <label htmlFor={id}>{label}</label>
+      <InfoTip text={info} label={label} />
+      <input
+        id={id} type="number" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
+        className="h-7 w-24 rounded-md border border-ink-600 bg-ink-800 px-2 font-mono text-xs text-ink-100"
       />
     </div>
   );

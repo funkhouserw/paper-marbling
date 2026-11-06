@@ -2,6 +2,7 @@
 // keys follow DEFAULT_SETTINGS in controller.js, so connecting it later is a swap, not a rewrite.
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { TOOLS, PALETTES, EXAMPLES, toolDef } from './controls.js';
+import { FIXED, SECTIONS } from './features.js';
 
 function startingValues() {
   const values = {};
@@ -26,12 +27,12 @@ export function initialState(overrides = {}) {
     palette: 'Copper & Verdigris',
     ink: 0,
     settings: {
-      simulator: 'wake', visc: '60', tankW: '1000', tankH: '700', useBath: true, bath: '#14211f',
-      walls: false, tile: false, toolsWait: true, queueMode: 'together', lowFramerate: false, speed: '1',
-      flowPreset: 'curling', flowPush: '1', flowFriction: '0.25', flowCoast: '25', flowCell: '7',
-      pointLimit: '400000', clearFirst: true,
+      ...Object.fromEntries([...SECTIONS.flatMap((x) => x.controls), ...FIXED].filter((c) => 'value' in c).map((c) => [c.id, c.value])),
+      simulator: 'wake', visc: '1000', tankW: '1000', tankH: '700', useBath: true, bath: '#14211f', tileOffset: '', speed: '1',
       ...settings,
     },
+    freezeMode: 'off',
+    notice: null,
     playing: true,
     time: 12.4,
     shapes: 80,
@@ -61,6 +62,7 @@ function reducer(s, a) {
     }
     case 'clear': return { ...s, history: [], historyAt: 0, shapes: 0, time: 0 };
     case 'tick': return s.playing ? { ...s, time: s.time + 0.1 * Number(s.settings.speed) } : s;
+    case 'notice': return { ...s, notice: a.text };
     case 'run': {
       if (/\bthrow\b|\)\s*\(/.test(s.script) || s.script.includes('oops')) {
         return { ...s, scriptError: 'Line 3: oops is not defined' };

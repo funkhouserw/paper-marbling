@@ -20,7 +20,7 @@ function useWide() {
 export default function App() {
   const tank = useMockTank();
   const wide = useWide();
-  // The public demo has no server, and so no script-writing assistant.
+  // The public demo has no server, so no script-writing assistant, microphone or timing recorder.
   const local = !document.querySelector('meta[name="marbler-demo"]');
-  return wide ? <Desktop tank={tank} canWriteScripts={local} /> : <Phone tank={tank} canWriteScripts={local} />;
+  return wide ? <Desktop tank={tank} local={local} /> : <Phone tank={tank} local={local} />;
 }
