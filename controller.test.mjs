@@ -332,3 +332,16 @@ test('every tool says how it is used and what it does', async () => {
     assert.equal(def.input === 'whole', Boolean(def.whole), `${name}: whole tools have an Apply button`);
   }
 });
+
+test('steps can be taken back with nothing left to redo, as if a press never happened', () => {
+  const c = fresh();
+  c.press([0, 0]);
+  const marks = c.undoMarks.length;
+  const log = fns(c);
+  c.press([20, 0]);
+  c.press([40, 0]);
+  c.discardStepsSince(marks);
+  assert.deepEqual(fns(c), log);
+  assert.ok(!c.canRedo);
+  assert.equal(c.undoMarks.length, marks);
+});

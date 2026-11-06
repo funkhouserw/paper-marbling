@@ -28,7 +28,11 @@ function opaque(color) {
 // profiler: from makeProfiler(), told about frames, ticks and draws. onStats: called a few times
 // a second, to show the tank's numbers.
 // leftOnly: other mouse buttons don't use the tool, leaving them free for menus.
-export function mountTank(container, c, { profiler = null, onStats = null, leftOnly = false } = {}) {
+// touchGestures: a touch waits a moment before it uses the tool, so that a second finger can turn
+// it into a gesture instead. Two fingers are then the interface's: onGesture({ type, touches }) is
+// told when one starts ('start') and when the last finger lifts ('end'), and nothing touches the
+// tank in between. Whatever the first finger had already done is taken back.
+export function mountTank(container, c, { profiler = null, onStats = null, leftOnly = false, touchGestures = false, onGesture = null } = {}) {
   let wrap, tank, overlay;
   if (container.tank) ({ wrap, tank, overlay } = container);
   else {
@@ -90,20 +94,89 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     overlay.addEventListener(type, fn);
     unsubscribe.push(() => overlay.removeEventListener(type, fn));
   };
+  const HOLD_MS = 70;   // how long a touch waits before it counts as using the tool
+  const HOLD_PX = 6;    // ...unless it moves this far first
+  const touches = new Map(); // touches down now, by pointer id
+  let held = null;     // a touch waiting to start: { id, point, x, y, timer, marks }
+  let pressing = null; // the touch whose press has started: { id, marks }
+  let gesture = false; // two fingers came down, so the tank ignores touches until all lift
+  const capture = (ev) => { try { overlay.setPointerCapture(ev.pointerId); } catch { /* already gone */ } };
+  const startHeld = () => {
+    clearTimeout(held.timer);
+    pressing = { id: held.id, marks: held.marks };
+    const { point } = held;
+    held = null;
+    c.press(point);
+  };
+  // A second finger: nothing the first one did should stay.
+  const startGesture = () => {
+    if (held) { clearTimeout(held.timer); held = null; }
+    if (pressing) {
+      c.endPress();
+      c.discardStepsSince(pressing.marks);
+      pressing = null;
+    }
+    gesture = true;
+    onGesture?.({ type: 'start', touches: touches.size });
+  };
+  const isTouch = (ev) => touchGestures && ev.pointerType === 'touch';
+
   on('pointerdown', (ev) => {
     if (pull || (leftOnly && ev.button > 0)) return;
-    overlay.setPointerCapture(ev.pointerId);
+    if (isTouch(ev)) {
+      touches.set(ev.pointerId, true);
+      if (gesture) return;
+      if (touches.size > 1) { startGesture(); return; }
+      capture(ev);
+      held = { id: ev.pointerId, point: toTank(ev), x: ev.clientX, y: ev.clientY, marks: c.undoMarks.length };
+      held.timer = setTimeout(() => { if (held?.id === ev.pointerId) startHeld(); }, HOLD_MS);
+      return;
+    }
+    capture(ev);
     c.press(toTank(ev));
   });
+  const lift = (ev, cancelled) => {
+    if (!isTouch(ev)) {
+      if (cancelled) c.endPress();
+      else c.release();
+      return;
+    }
+    touches.delete(ev.pointerId);
+    if (gesture) {
+      if (!touches.size) {
+        gesture = false;
+        onGesture?.({ type: 'end', touches: 0 });
+      }
+      return;
+    }
+    // A quick tap still counts, once it lifts.
+    if (held?.id === ev.pointerId) {
+      if (cancelled) { clearTimeout(held.timer); held = null; return; }
+      startHeld();
+    }
+    if (pressing?.id === ev.pointerId) {
+      if (cancelled) c.endPress();
+      else c.release();
+      pressing = null;
+    }
+  };
   // The system can take the pointer away mid-press, with no pointerup, so a press also ends here.
-  on('pointercancel', () => c.endPress());
+  on('pointercancel', (ev) => lift(ev, true));
   on('pointerleave', () => { view.hover = null; });
   on('pointermove', (ev) => {
     const p = toTank(ev);
     view.hover = p;
+    if (isTouch(ev)) {
+      if (gesture) return;
+      if (held?.id === ev.pointerId) {
+        if (Math.hypot(ev.clientX - held.x, ev.clientY - held.y) < HOLD_PX) return;
+        startHeld();
+      }
+      if (pressing?.id !== ev.pointerId) return;
+    }
     c.move(p, Boolean(ev.buttons));
   });
-  on('pointerup', () => c.release());
+  on('pointerup', (ev) => lift(ev, false));
 
   // ---- Previews over the tank -----------------------------------------------
 
@@ -140,26 +213,29 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     octx.restore();
   }
 
+  // The outline of some loops, in every copy that shows.
+  function pathFor(loops) {
+    const m = c.marble;
+    const path = new Path2D();
+    for (const poly of loops) {
+      for (const [sx, sy] of m.tileShifts([poly])) {
+        for (let i = 0; i < poly.n; i++) {
+          const [x, y] = toPx([poly.xy[i * 2] + sx, poly.xy[i * 2 + 1] + sy]);
+          if (i) path.lineTo(x, y);
+          else path.moveTo(x, y);
+        }
+        path.closePath();
+      }
+    }
+    return path;
+  }
+
   // Frozen ink is outlined, and masked red where a full rake or a freeze would leave it be.
   function drawFrozen() {
     const m = c.marble;
     if (!m.polys.some((p) => p.frozen)) return;
     const masked = c.tool === 'fullRake' || c.freezeMode !== 'off';
     const px = devicePixelRatio || 1;
-    const pathFor = (loops) => {
-      const path = new Path2D();
-      for (const poly of loops) {
-        for (const [sx, sy] of m.tileShifts([poly])) {
-          for (let i = 0; i < poly.n; i++) {
-            const [x, y] = toPx([poly.xy[i * 2] + sx, poly.xy[i * 2 + 1] + sy]);
-            if (i) path.lineTo(x, y);
-            else path.moveTo(x, y);
-          }
-          path.closePath();
-        }
-      }
-      return path;
-    };
     octx.save();
     octx.lineWidth = px;
     octx.setLineDash([5 * px, 4 * px]);
@@ -178,11 +254,11 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
       octx.stroke(path);
     }
     octx.restore();
-    drawFreezePick(pathFor);
+    drawFreezePick();
   }
 
-  // What a click would freeze or unfreeze.
-  function drawFreezePick(pathFor) {
+  // What a click would freeze or unfreeze, once something is frozen.
+  function drawFreezePick() {
     if (c.freezeMode === 'off' || !view.hover) return;
     const loops = c.freezeTarget(view.hover);
     if (!loops) return;
@@ -530,6 +606,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
   // Stops the loop and lets go of the page, for an interface that unmounts the tank.
   view.destroy = () => {
     running = false;
+    clearTimeout(held?.timer);
     observer.disconnect();
     for (const off of unsubscribe) off();
     if (!container.tank) { tank.remove(); overlay.remove(); }

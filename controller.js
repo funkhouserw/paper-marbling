@@ -687,6 +687,18 @@ export class TankController {
     else this.rebuild(this.marble.log.slice(0, at));
   }
 
+  // Takes back every step made since there were count of them, leaving nothing to redo, as if
+  // they never happened. For a press that turns out to be the start of a gesture.
+  discardStepsSince(count) {
+    if (this.undoMarks.length <= count) return;
+    while (this.undoMarks.length > count && !this.locked) {
+      this.undo();
+      this.redoGroups.pop();
+      this.redoStates.pop();
+    }
+    this.emit('history');
+  }
+
   redo() {
     if (this.locked || !this.redoGroups.length) return;
     const group = this.redoGroups.pop();
