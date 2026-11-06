@@ -221,7 +221,8 @@ export class TankController {
 
   // ---- Telling the interface ------------------------------------------------
 
-  // Events: 'tank' (a new tank, so sizes may have changed), 'settings', 'history', 'playing', 'tool'.
+  // Events: 'tank' (a new tank, so sizes may have changed), 'settings', 'history', 'playing', 'tool',
+  // 'freeze' (freezeMode changed) and 'notice' (a message for the user).
   on(type, fn) {
     (this.listeners[type] ??= []).push(fn);
     return () => { this.listeners[type] = this.listeners[type].filter((f) => f !== fn); };
@@ -286,7 +287,10 @@ export class TankController {
     const proto = this.engine().prototype;
     if (!proto.eraseSupported && this.tool === 'erase') this.setTool('drop');
     if (!proto.freezeSupported && this.tool === 'hearts') this.setTool('drop');
-    if (!proto.freezeSupported) this.freezeMode = 'off';
+    if (!proto.freezeSupported && this.freezeMode !== 'off') {
+      this.freezeMode = 'off';
+      this.emit('freeze');
+    }
     const atFirst = model.repeatsAtFirst === true;
     const supported = !model.spreading && proto.tileSupported;
     if (!supported) s.tile = false;
@@ -397,26 +401,45 @@ export class TankController {
 
   setTool(name) {
     const changed = name !== this.tool;
-    if (changed) this.freezeMode = 'off';
+    if (changed && this.freezeMode !== 'off') {
+      this.freezeMode = 'off';
+      this.emit('freeze');
+    }
     this.tool = name;
     this.stroke = null;
     this.emit('tool', { changed });
   }
 
-  // Freeze or Unfreeze, or off when it's picked again.
-  pickFreezeMode(mode) {
-    this.freezeMode = this.freezeMode === mode ? 'off' : mode;
+  // While freezing is on, a press on the tank freezes or unfreezes the ink there instead of using
+  // the tool. 'off', 'freeze' or 'unfreeze'; choosing a tool turns it off. Heard through on('freeze').
+  setFreezeMode(mode) {
+    if (mode !== 'off' && !this.capabilities().freeze) mode = 'off';
+    if (mode === this.freezeMode) return;
+    this.freezeMode = mode;
+    this.emit('freeze');
   }
 
-  freezeAt([x, y]) {
+  // Freeze or Unfreeze, or off when it's picked again.
+  pickFreezeMode(mode) {
+    this.setFreezeMode(this.freezeMode === mode ? 'off' : mode);
+  }
+
+  // Freezes or unfreezes the ink at a point in tank mm, as mode says, whatever the tool.
+  freezeAt([x, y], mode = this.freezeMode) {
     const m = this.marble;
-    const unfreezing = this.freezeMode === 'unfreeze';
+    const unfreezing = mode === 'unfreeze';
     if (!m.shapeAt(x, y, { frozen: unfreezing })) return;
     this.act(() => {
       m.live(() => (unfreezing ? m.unfreeze({ x, y, at: m.time }) : m.freeze({ x, y, at: m.time })));
       m.applyNow();
     });
     this.dirty = true;
+  }
+
+  // The loops a press would freeze or unfreeze at a point, or null, for previews and menus.
+  freezeTarget([x, y], mode = this.freezeMode) {
+    if (mode === 'off' || !this.capabilities().freeze) return null;
+    return this.marble.shapeAt(x, y, { frozen: mode === 'unfreeze' }) ?? null;
   }
 
   unfreezeAll() {
@@ -505,7 +528,7 @@ export class TankController {
 
   // A press on the tank, at a point in tank mm.
   press(p) {
-    if (this.tool === 'fullRake' && this.freezeMode !== 'off') {
+    if (this.freezeMode !== 'off') {
       this.freezeAt(p);
       return;
     }

@@ -264,3 +264,33 @@ test('notices reach whoever listens', () => {
   c.notice('');
   assert.deepEqual(heard, ['Saved', '']);
 });
+
+test('freezing works under any tool, from a press or straight from a point, and a tool change ends it', () => {
+  const c = fresh();
+  c.press([0, 0]);
+  settle(c);
+  const heard = [];
+  c.on('freeze', () => heard.push(c.freezeMode));
+  c.setTool('vortex');
+  c.setFreezeMode('freeze');
+  assert.ok(c.freezeTarget([0, 0]));
+  c.press([0, 0]);
+  assert.ok(c.marble.polys.some((p) => p.frozen));
+  assert.ok(!fns(c).includes('vortex'), 'the press froze instead of using the tool');
+  c.setTool('drop');
+  assert.equal(c.freezeMode, 'off');
+  assert.deepEqual(heard, ['freeze', 'off']);
+  c.freezeAt([0, 0], 'unfreeze');
+  assert.ok(!c.marble.polys.some((p) => p.frozen));
+  assert.equal(c.freezeTarget([0, 0], 'off'), null);
+  assert.deepEqual(c.history().steps.slice(-2).map((s) => s.label), ['Freeze', 'Unfreeze']);
+});
+
+test('a simulator that can’t freeze turns freezing off and won’t take it', () => {
+  const c = fresh();
+  c.setFreezeMode('freeze');
+  c.setSimulator('gridink');
+  assert.equal(c.freezeMode, 'off');
+  c.setFreezeMode('freeze');
+  assert.equal(c.freezeMode, 'off');
+});
