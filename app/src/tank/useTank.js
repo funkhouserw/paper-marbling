@@ -69,7 +69,9 @@ function uiReducer(s, a) {
 
 export function useTank() {
   const controller = useMemo(() => {
-    const c = new TankController({ settings: storedSettings(localStorage), trace: textContours });
+    // The new interface starts on Wake, as the plan decided, unless a simulator was chosen before.
+    const kept = storedSettings(localStorage);
+    const c = new TankController({ settings: { simulator: 'wake', ...kept }, trace: textContours });
     c.setPointLimit(c.pointLimit());
     return c;
   }, []);
