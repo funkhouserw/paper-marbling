@@ -30,6 +30,20 @@ const COMMIT = {
   pointLimit: (c, v) => c.setPointLimit(Number(v)),
 };
 
+// The status line's numbers and warnings, as the old page's showStats gives them.
+function readStats(c) {
+  const m = c.marble;
+  return {
+    points: m.vertexCount,
+    active: m.active.length,
+    queued: m.queued.length,
+    bathMoving: m.busy && !m.active.length && !m.queued.length,
+    warn: m.stoppedAtLimit ? 'Point limit reached: the bath has stopped. A higher limit in Detail lets it run longer.'
+      : m.capped ? 'Point limit reached: curls will look rough, so raise it in Detail.' : null,
+    snapshots: c.snapshotting() ? (c.autoSnapshots && !c.settings.lowFramerate ? 'low framerate (automatic)' : 'low framerate') : null,
+  };
+}
+
 // The Detail menu shows a preset when the point limit is one, and Custom otherwise.
 const detailPreset = (limit) => DETAIL_PRESETS.find(([v]) => Number(v) === Number(limit))?.[0] ?? 'custom';
 
@@ -66,9 +80,13 @@ export function useTank() {
   useEffect(() => {
     const offs = ['tank', 'settings', 'history', 'playing', 'tool', 'freeze'].map((t) => c.on(t, bump));
     offs.push(c.on('notice', (msg) => setUi({ notice: msg || null })));
-    const id = setInterval(bump, 250);
-    return () => { offs.forEach((off) => off()); clearInterval(id); };
+    return () => offs.forEach((off) => off());
   }, [c]);
+
+  // tankview.js, once LiveTank has mounted it. It reports the tank's numbers every 250 ms.
+  const view = useRef(null);
+  const setView = useCallback((v) => { view.current = v; }, []);
+  const onStats = useCallback(() => bump(), []);
 
   const latestUi = useRef(ui);
   latestUi.current = ui;
@@ -120,6 +138,7 @@ export function useTank() {
         }
         c.settings[a.key] = a.value;
         COMMIT[a.key]?.(c, a.value);
+        if (a.key === 'lowFramerate') view.current?.redrawNow();
         if (a.key === 'pointLimit') storeSetting(localStorage, 'pointLimit', String(c.pointLimit()));
         else storeSetting(localStorage, a.key, a.value);
         if (!COMMIT[a.key]) c.emit('settings');
@@ -168,6 +187,7 @@ export function useTank() {
     historyAt: current,
     time: c.marble.time,
     shapes: c.marble.polys.length,
+    stats: readStats(c),
     version,
   };
   const pal = findPalette(ui.palette) ?? PALETTES[0];
@@ -178,6 +198,9 @@ export function useTank() {
   const perform = useCallback((id, ctx) => {
     switch (id) {
       case 'finish': c.finish(); return true;
+      case 'seeRepeat':
+        view.current?.tilePreview().then((blob) => window.open(URL.createObjectURL(blob), '_blank'));
+        return true;
       case 'freezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'freeze'); return true;
       case 'unfreezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'unfreeze'); return true;
       case 'unfreezeAll': c.unfreezeAll(); return true;
@@ -194,6 +217,8 @@ export function useTank() {
     act: () => {},
     applyTool: () => c.applyTool(),
     perform,
+    setView,
+    onStats,
     settingsSpec: SETTINGS,
   };
 }

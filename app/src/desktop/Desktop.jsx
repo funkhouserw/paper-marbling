@@ -196,6 +196,20 @@ export function Panels({ tank, commands, local, floating }) {
 
 const visc = FIXED.find((c) => c.id === 'visc');
 
+// Time and shapes, with the point-limit warning first so it shows even when the line is short.
+// The full line, with points, active and queued, is in its tooltip.
+export function Stats({ state }) {
+  const st = state.stats;
+  const full = `t ${state.time.toFixed(1)} s · ${state.shapes} shapes${st ? ` · ${st.points.toLocaleString()} points · ${st.active} active · ${st.queued} queued${st.bathMoving ? ' · bath still moving' : ''}` : ''}`;
+  return (
+    <span title={full} className="flex shrink-0 items-center gap-2 pl-3 font-mono text-xs tabular-nums text-ink-400">
+      {st?.warn && <span className="max-w-64 truncate rounded bg-amber-500/15 px-1.5 py-0.5 font-sans text-amber-300" title={st.warn}>{st.warn}</span>}
+      {st?.snapshots && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 font-sans text-sky-300">{st.snapshots}</span>}
+      t {state.time.toFixed(1)} s · {state.shapes} shapes
+    </span>
+  );
+}
+
 export function TransportBar({ tank, commands }) {
   const { state, dispatch } = tank;
   const s = state.settings;
@@ -223,9 +237,7 @@ export function TransportBar({ tank, commands }) {
       <ViscositySlider c={visc} value={s.visc} info={INFO.viscosity} onChange={(value) => dispatch({ type: 'setting', key: 'visc', value })} />
       <span className="flex-1" />
       <span className="hidden min-w-0 xl:flex"><ToolHint tool={state.tool} /></span>
-      <span className="shrink-0 pl-3 font-mono text-xs tabular-nums text-ink-400">
-        t {state.time.toFixed(1)} s · {state.shapes} shapes
-      </span>
+      <Stats state={state} />
       <Button primary className="ml-2" onClick={() => commands.run('pull')}><Printer size={13} /> Pull</Button>
     </footer>
   );
