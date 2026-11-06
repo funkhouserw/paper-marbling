@@ -113,27 +113,41 @@ export function Control({ c: placed, tank, run }) {
         </div>
       );
     case 'inkEditor': {
-      const ink = palette.inks[state.ink] ?? palette.inks[0];
+      // The ink the next drop uses: any colour, not only the palette's, with opacity and shimmer.
+      const ink = state.inkNow ?? { rgb: (palette.inks[state.ink] ?? palette.inks[0]).color.slice(0, 7), alpha: 1, shimmer: (palette.inks[state.ink] ?? palette.inks[0]).shimmer };
+      const setInk = (patch) => dispatch({ type: 'ink', ...patch });
       return (
         <div className="flex flex-col gap-2 rounded-md border border-ink-700 p-2">
           <label className="flex items-center gap-2 text-xs text-ink-300">
             Colour
-            <input type="color" defaultValue={ink.color.slice(0, 7)} className="h-6 w-10 cursor-pointer rounded border border-ink-600 bg-transparent" />
-            <span className="font-mono text-ink-400">{ink.color}</span>
+            <input type="color" value={ink.rgb} onChange={(e) => setInk({ rgb: e.target.value })} className="h-6 w-10 cursor-pointer rounded border border-ink-600 bg-transparent" />
+            <span className="font-mono text-ink-400">{ink.rgb}</span>
           </label>
-          <Slider label="Opacity (%)" value={100} min={0} max={100} step={1} info={INFO['color.alpha']} onChange={() => {}} />
-          <Slider label="Shimmer (%)" value={Math.round(ink.shimmer * 100)} min={0} max={100} step={1} info={INFO['color.shimmer']} onChange={() => {}} />
+          <Slider label="Opacity (%)" value={Math.round(ink.alpha * 100)} min={0} max={100} step={1} info={INFO['color.alpha']} onChange={(v) => setInk({ alpha: v / 100 })} />
+          <Slider label="Shimmer (%)" value={Math.round(ink.shimmer * 100)} min={0} max={100} step={1} info={INFO['color.shimmer']} onChange={(v) => setInk({ shimmer: v / 100 })} />
         </div>
       );
     }
     case 'paletteEditor':
+      // Changing the palette's inks recolours the swatches, not ink already in the tank. Saving and
+      // deleting named palettes keep them in this browser.
       return (
         <details className="text-xs text-ink-300">
           <summary className="cursor-pointer">{c.label}</summary>
           <div className="mt-2 flex flex-col gap-2">
-            <Button className="self-start">Add ink</Button>
-            <input placeholder="Palette name" className="h-7 rounded-md border border-ink-600 bg-ink-800 px-2" />
-            <div className="flex gap-1.5"><Button>Save palette</Button><Button>Delete</Button></div>
+            {palette.inks.map((k, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input type="color" aria-label={`Ink ${i + 1} colour`} value={k.color.slice(0, 7)} onChange={(e) => dispatch({ type: 'paletteInk', i, rgb: e.target.value })} className="h-6 w-8 cursor-pointer rounded border border-ink-600 bg-transparent" />
+                <Slider className="flex-1" label={`Ink ${i + 1} shimmer`} value={Math.round(k.shimmer * 100)} min={0} max={100} step={1} onChange={(v) => dispatch({ type: 'paletteInk', i, shimmer: v / 100 })} />
+                <button type="button" aria-label={`Remove ink ${i + 1}`} disabled={palette.inks.length < 2} onClick={() => dispatch({ type: 'paletteInk', i, remove: true })} className="text-ink-400 hover:text-ink-100 disabled:opacity-30">×</button>
+              </div>
+            ))}
+            <Button className="self-start" disabled={palette.inks.length >= 12} onClick={() => dispatch({ type: 'paletteInk', add: true })}>Add ink</Button>
+            <input placeholder="Palette name" value={state.paletteName ?? ''} onChange={(e) => dispatch({ type: 'set', patch: { paletteName: e.target.value } })} className="h-7 rounded-md border border-ink-600 bg-ink-800 px-2" />
+            <div className="flex gap-1.5">
+              <Button onClick={() => run('savePalette')}>Save palette</Button>
+              <Button onClick={() => run('deletePalette')}>Delete</Button>
+            </div>
           </div>
         </details>
       );
@@ -157,7 +171,7 @@ export function Control({ c: placed, tank, run }) {
             {[['1000', '700', 'Landscape'], ['700', '1000', 'Portrait'], ['800', '800', 'Square']].map(([w, h, name]) => (
               <Button key={name} onClick={() => dispatch({ type: 'set', patch: { settings: { ...s, tankW: w, tankH: h } } })}>{name}</Button>
             ))}
-            <Button primary>Apply (clears tank)</Button>
+            <Button primary onClick={() => run('clear')}>Apply (clears tank)</Button>
           </div>
         </div>
       );

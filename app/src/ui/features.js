@@ -137,6 +137,8 @@ export const ACTIONS = [
   { id: 'undo', label: 'Undo', menu: 'Edit', shortcut: '⌘Z', context: true, icon: 'undo' },
   { id: 'redo', label: 'Redo', menu: 'Edit', shortcut: '⇧⌘Z', context: true, icon: 'redo' },
   { id: 'copySession', label: 'Copy session to script', menu: 'Edit', replaces: ['capture'] },
+  { id: 'savePalette', label: 'Save palette', menu: 'Edit', view: 'advanced' },
+  { id: 'deletePalette', label: 'Delete palette', menu: 'Edit', view: 'advanced' },
   { id: 'clear', label: 'Clear tank', menu: 'Edit', context: true, icon: 'trash' },
   { id: 'play', label: 'Play or pause', menu: 'Tank', shortcut: 'Space', icon: 'play' },
   { id: 'finish', label: 'Finish now', menu: 'Tank', info: 'finish', icon: 'finish' },

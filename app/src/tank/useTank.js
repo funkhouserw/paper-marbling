@@ -140,14 +140,31 @@ export function useTank() {
           setUi({ page: { ...latestUi.current.page, [a.key]: a.value } });
           return;
         }
-        c.settings[a.key] = a.value;
-        COMMIT[a.key]?.(c, a.value);
+        // The controller keeps numbers as strings, as a form field holds them.
+        const value = SETTINGS[a.key].kind === 'number' ? String(a.value) : a.value;
+        c.settings[a.key] = value;
+        COMMIT[a.key]?.(c, value);
         if (a.key === 'lowFramerate') view.current?.redrawNow();
         if (a.key === 'pointLimit') storeSetting(localStorage, 'pointLimit', String(c.pointLimit()));
-        else storeSetting(localStorage, a.key, a.value);
+        else storeSetting(localStorage, a.key, value);
         if (!COMMIT[a.key]) c.emit('settings');
         return;
       }
+      case 'ink': {
+        // The ink the next drop uses, which needn't be one of the palette's.
+        const rgb = a.rgb ?? c.inkRgb();
+        const alpha = a.alpha ?? c.inkAlpha();
+        if (a.rgb !== undefined || a.alpha !== undefined) c.setInk(rgb, alpha);
+        if (a.shimmer !== undefined) c.shimmer = a.shimmer;
+        bump();
+        return;
+      }
+      case 'paletteInk':
+        if (a.add) c.addPaletteInk();
+        else if (a.remove) c.removePaletteInk(a.i);
+        else c.setPaletteInk(a.i, { rgb: a.rgb, shimmer: a.shimmer });
+        bump();
+        return;
       case 'value':
         c.values[a.tool][a.key] = a.value;
         bump();
@@ -195,6 +212,7 @@ export function useTank() {
     time: c.marble.time,
     shapes: c.marble.polys.length,
     stats: readStats(c),
+    inkNow: { rgb: c.inkRgb(), alpha: c.inkAlpha(), shimmer: c.shimmer },
     version,
   };
   const pal = findPalette(ui.palette) ?? PALETTES[0];

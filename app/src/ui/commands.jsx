@@ -20,6 +20,8 @@ function perform(id, tank, ctx) {
     case 'clear': return dispatch({ type: 'clear' });
     case 'play': return set({ playing: !state.playing });
     case 'finish': return say('Skipping ahead until everything stops moving.');
+    case 'savePalette': return say('Palettes are saved once pageactions.js is connected.');
+    case 'deletePalette': return say('Palettes are deleted once pageactions.js is connected.');
     case 'copySession': return set({ script: '// Your session so far\nviscosity({ value: 1000 });\n', example: '', drawer: true, view: 'advanced' });
     case 'freezeHere': return act(ctx?.point ? `Freeze ink at ${ctx.point.map(Math.round).join(', ')}` : 'Freeze ink');
     case 'unfreezeHere': return act('Unfreeze ink');
