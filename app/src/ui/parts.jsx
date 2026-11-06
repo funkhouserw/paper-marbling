@@ -7,9 +7,17 @@ import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Play, Send, Snowflake, X } from 'lucide-react';
 import { dialToValue, valueToDial } from '../../../api.js';
+import { LiveTank } from '../tank/LiveTank.jsx';
 import tankImage from '../../../docs/images/teal-copper-swirls.jpg';
 import { EXAMPLES, FONTS, INFO, WEAVE_ICONS, shownChoices, shownParams, toolDef } from './controls.js';
 import { Button, Choice, IconButton, InfoTip, Slider, Swatches, Toggle, cx } from './widgets.jsx';
+
+// The real tank when there is one, or the mockup's picture.
+export function TankArea({ tank, className, onMenu }) {
+  return tank.controller
+    ? <LiveTank tank={tank} className={className} onMenu={onMenu} />
+    : <Tank state={tank.state} palette={tank.palette} className={className} onUse={tank.applyTool} onMenu={onMenu} />;
+}
 
 // The tank. In the mockup it's a finished print; connected, tankview.js mounts its canvases here.
 // Right-click, or a long press on a touch screen, opens the tank's menu at that point.
@@ -253,7 +261,10 @@ export function ScriptEditor({ value, onChange, onRun, className }) {
         basicSetup, javascript(), oneDark,
         EditorView.lineWrapping,
         EditorView.theme({ '&': { height: '100%', fontSize: '12px' }, '.cm-scroller': { fontFamily: 'var(--font-mono)' } }),
-        EditorView.updateListener.of((u) => { if (u.docChanged) latest.current(u.state.doc.toString()); }),
+        EditorView.updateListener.of((u) => {
+          // Only edits by hand count; text set from outside (an example, the assistant) isn't one.
+          if (u.docChanged && u.transactions.some((t) => t.isUserEvent('input') || t.isUserEvent('delete') || t.isUserEvent('move') || t.isUserEvent('undo') || t.isUserEvent('redo'))) latest.current(u.state.doc.toString());
+        }),
       ],
     });
     return () => view.current.destroy();
@@ -275,9 +286,9 @@ export function ScriptBody({ tank, onRun, onCapture }) {
         <Choice
           label="Examples"
           value={state.example}
-          options={Object.fromEntries(Object.keys(EXAMPLES).map((k) => [k, k]))}
+          options={Object.fromEntries([['', 'Choose an example…'], ...Object.keys(EXAMPLES).map((k) => [k, k])])}
           info={INFO.script}
-          onChange={(k) => dispatch({ type: 'set', patch: { example: k, script: EXAMPLES[k], scriptError: null } })}
+          onChange={(name) => dispatch({ type: 'example', name })}
         />
         <Choice label="My scripts" value="" options={{ '': 'None saved yet' }} info={INFO.myScripts} onChange={() => {}} />
       </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Desktop } from './desktop/Desktop.jsx';
 import { Phone } from './phone/Phone.jsx';
 import { useMockTank } from './ui/useMockTank.js';
+import { useTank } from './tank/useTank.js';
 
 function useWide() {
   const query = '(min-width: 900px)';
@@ -17,8 +18,12 @@ function useWide() {
   return wide;
 }
 
+// ?mock shows the unconnected mockup, with a still picture for a tank.
+const MOCK = new URLSearchParams(location.search).has('mock');
+
 export default function App() {
-  const tank = useMockTank();
+  // Which hook runs never changes while the page is open, so this keeps React's hook order.
+  const tank = MOCK ? useMockTank() : useTank(); // eslint-disable-line react-hooks/rules-of-hooks
   const wide = useWide();
   // The public demo has no server, so no script-writing assistant, microphone or timing recorder.
   const local = !document.querySelector('meta[name="marbler-demo"]');

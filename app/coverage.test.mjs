@@ -45,3 +45,24 @@ test('every tool in tools.js has a place in a tool group, once', () => {
   assert.deepEqual(placed.filter((t) => !(t in controls.tools)), []);
   assert.equal(new Set(placed).size, placed.length);
 });
+
+// Settings the page keeps for itself, which the tank never reads.
+const PAGE_ONLY = ['imperfection', 'pullBase', 'clearAfter', 'mirror', 'autoSave', 'printPale', 'printTexture', 'printSoft', 'detailPreset', 'profiling'];
+
+test('every setting control is a controller setting or a page setting, and every controller setting has a control', async () => {
+  const { SETTINGS } = await import('../controller.js');
+  const kinds = ['toggle', 'choice', 'number', 'slider', 'viscosity', 'colourToggle'];
+  const all = [...SECTIONS.flatMap((s) => s.controls), ...FIXED];
+  const settingControls = all.filter((c) => kinds.includes(c.kind));
+  assert.deepEqual(settingControls.map((c) => c.id).filter((id) => !(id in SETTINGS) && !PAGE_ONLY.includes(id)), []);
+  const placed = new Set(all.flatMap((c) => [c.id, ...(c.replaces ?? [])]));
+  placed.add('speed'); // the transport's speed buttons
+  assert.deepEqual(Object.keys(SETTINGS).filter((id) => !placed.has(id)), []);
+});
+
+test('choices offer the controller\'s options, in its order', async () => {
+  const { SETTINGS } = await import('../controller.js');
+  for (const c of SECTIONS.flatMap((s) => s.controls).filter((x) => x.kind === 'choice' && SETTINGS[x.id])) {
+    assert.deepEqual(Object.keys(c.options), SETTINGS[c.id].options.map(([v]) => v), c.id);
+  }
+});

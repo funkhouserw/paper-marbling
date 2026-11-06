@@ -6,7 +6,7 @@ import { ChevronRight, Code, FastForward, Pause, Play, Printer, Redo2, Trash2, U
 import { FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
 import { ACTIONS, FIXED, MENU_ORDER } from '../ui/features.js';
 import { Button, IconButton, Swatches, cx } from '../ui/widgets.jsx';
-import { CreatureChat, InkDrop, ScriptBody, Tank, ToolHint, ToolSettings } from '../ui/parts.jsx';
+import { CreatureChat, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } from '../ui/parts.jsx';
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { CommandPalette, ContextMenu, Notice, useCommands, useShortcuts } from '../ui/commands.jsx';
 
@@ -288,7 +288,7 @@ export function useOverlays(tank, local) {
 }
 
 export function Desktop({ tank, local = true }) {
-  const { state, applyTool } = tank;
+  const { state } = tank;
   const { commands, openMenu, overlays } = useOverlays(tank, local);
   return (
     <div className="flex h-full min-h-[600px] flex-col overflow-hidden bg-ink-950">
@@ -297,7 +297,7 @@ export function Desktop({ tank, local = true }) {
       <div className="flex min-h-0 flex-1">
         <ToolRail tank={tank} local={local} />
         <main className="relative flex min-w-0 flex-1 p-6">
-          <Tank state={state} palette={tank.palette} className="flex-1" onUse={applyTool} onMenu={openMenu} />
+          <TankArea tank={tank} className="flex-1" onMenu={openMenu} />
           <Creature tank={tank} canWriteScripts={local} />
         </main>
         {state.drawer && state.view === 'advanced' ? <ScriptDrawer tank={tank} commands={commands} /> : <Panels tank={tank} commands={commands} local={local} />}

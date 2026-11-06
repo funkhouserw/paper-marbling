@@ -6,7 +6,7 @@ import { Code, Menu, Pause, Play, Redo2, Search, Undo2, X } from 'lucide-react';
 import { FreezeIcon, GROUPS, INFO, NEEDS, groupOf, iconFor, shownChoices, shownParams, toolDef } from '../ui/controls.js';
 import { FIXED } from '../ui/features.js';
 import { Button, Choice, IconButton, Swatches, cx } from '../ui/widgets.jsx';
-import { CreatureChat, InkDrop, ParamSlider, ScriptBody, Tank, ToolSettings } from '../ui/parts.jsx';
+import { CreatureChat, InkDrop, ParamSlider, ScriptBody, TankArea, ToolSettings } from '../ui/parts.jsx';
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { ViewSwitch, useOverlays } from '../desktop/Desktop.jsx';
 
@@ -97,7 +97,7 @@ export function Phone({ tank, local = false, landscape = false }) {
 
       {/* Tank */}
       <main className="relative flex min-h-0 flex-1 items-center justify-center p-2">
-        <Tank state={state} palette={palette} className="size-full" onUse={applyTool} onMenu={openMenu} />
+        <TankArea tank={tank} className="size-full" onMenu={openMenu} />
         <button
           type="button" aria-label="Ask the drop" onClick={() => setSheet('creature')}
           className="absolute bottom-3 right-3 rounded-full p-1 focus-visible:outline-2 focus-visible:outline-gilt"

@@ -4,6 +4,7 @@ import {
   Square, Trash2, Undo2, Waves,
 } from 'lucide-react';
 import { ACTIONS, SECTIONS } from './features.js';
+import { SETTINGS } from '../../../controller.js';
 import { INFO, PALETTES, SIMULATORS } from './controls.js';
 import { Button, Choice, NumberField, Slider, Swatches, Toggle, cx } from './widgets.jsx';
 
@@ -77,7 +78,10 @@ export function ViscositySlider({ c, value, info, onChange, className = 'w-52' }
 const TINTS = ['#fbf7ee', '#f3e9d2', '#e8dcc0', '#d9e4e8', '#1b1b1b'];
 
 // One control from features.js.
-export function Control({ c, tank, run }) {
+export function Control({ c: placed, tank, run }) {
+  // Ranges and steps come from the controller's own list where it has the setting, so they can't drift.
+  const spec = SETTINGS[placed.id];
+  const c = spec ? { ...placed, min: spec.min ?? placed.min, max: spec.max ?? placed.max, step: spec.step ?? placed.step } : placed;
   const { state, dispatch, palette } = tank;
   const s = state.settings;
   const set = (value) => dispatch({ type: 'setting', key: c.id, value });

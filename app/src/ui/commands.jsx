@@ -10,6 +10,7 @@ import { cx } from './widgets.jsx';
 
 // What each action does to the mock tank. Connected, these call TankController and pageactions.js.
 function perform(id, tank, ctx) {
+  if (tank.perform?.(id, ctx)) return undefined; // the real tank handles it
   const { state, dispatch, act } = tank;
   const set = (patch) => dispatch({ type: 'set', patch });
   const say = (text) => dispatch({ type: 'notice', text });

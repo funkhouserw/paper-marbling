@@ -63,6 +63,7 @@ function reducer(s, a) {
     case 'clear': return { ...s, history: [], historyAt: 0, shapes: 0, time: 0 };
     case 'tick': return s.playing ? { ...s, time: s.time + 0.1 * Number(s.settings.speed) } : s;
     case 'notice': return { ...s, notice: a.text };
+    case 'example': return { ...s, example: a.name, script: EXAMPLES[a.name] ?? '', scriptError: null };
     case 'run': {
       if (/\bthrow\b|\)\s*\(/.test(s.script) || s.script.includes('oops')) {
         return { ...s, scriptError: 'Line 3: oops is not defined' };
