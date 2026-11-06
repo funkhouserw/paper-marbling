@@ -209,9 +209,9 @@ export function Control({ c: placed, tank, run }) {
     case 'tankSize':
       return (
         <div className="flex flex-col gap-1.5">
-          <div className="grid grid-cols-2 gap-2">
-            <NumberField label="W" value={s.tankW} min={100} max={4000} step={10} info={info} onChange={(v) => dispatch({ type: 'setting', key: 'tankW', value: String(v) })} />
-            <NumberField label="H" value={s.tankH} min={100} max={4000} step={10} onChange={(v) => dispatch({ type: 'setting', key: 'tankH', value: String(v) })} />
+          <div className="flex flex-col gap-1.5">
+            <NumberField label="Tank width (mm)" value={s.tankW} min={100} max={4000} step={10} info={info} onChange={(v) => dispatch({ type: 'setting', key: 'tankW', value: String(v) })} />
+            <NumberField label="Tank height (mm)" value={s.tankH} min={100} max={4000} step={10} onChange={(v) => dispatch({ type: 'setting', key: 'tankH', value: String(v) })} />
           </div>
           <div className="flex flex-wrap gap-1">
             {[['1000', '700', 'Landscape'], ['700', '1000', 'Portrait'], ['800', '800', 'Square']].map(([w, h, name]) => (
@@ -225,7 +225,7 @@ export function Control({ c: placed, tank, run }) {
       return (
         <div className="flex items-center gap-2">
           <Toggle label={c.label} checked={Boolean(s[c.id])} info={info} onChange={set} />
-          <input type="color" aria-label="Base colour" value={s.bath} onChange={(e) => dispatch({ type: 'setting', key: 'bath', value: e.target.value })} className="h-6 w-8 cursor-pointer rounded border border-ink-600 bg-transparent" />
+          <input type="color" aria-label="Base colour picker" value={s.bath} onChange={(e) => dispatch({ type: 'setting', key: 'bath', value: e.target.value })} className="h-6 w-8 cursor-pointer rounded border border-ink-600 bg-transparent" />
         </div>
       );
     case 'custom': return null; // drawn by its own section (script drawer, assistant)

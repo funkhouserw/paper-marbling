@@ -353,18 +353,23 @@ export function Desktop({ tank, local = true }) {
   const narrow = !useMedia(ROOMY);
   const [panelsOpen, setPanelsOpen] = useState(false);
   const drawer = state.drawer && state.view === 'advanced';
+  // Panels sit beside the tank when there's room. On narrower screens, or beside the script drawer,
+  // they fold behind a button and open over the tank, so they're always one click away.
+  const folded = narrow || drawer;
+  const panels = <Panels tank={tank} commands={commands} local={local} floating={folded} />;
   return (
     <div className="flex h-full min-h-[600px] flex-col overflow-hidden bg-ink-950">
-      <MenuBar tank={tank} commands={commands} narrow={narrow && !drawer} panelsOpen={panelsOpen} onPanels={() => setPanelsOpen((o) => !o)} />
+      <MenuBar tank={tank} commands={commands} narrow={folded} panelsOpen={panelsOpen} onPanels={() => setPanelsOpen((o) => !o)} />
       <OptionsBar tank={tank} />
       <div className="relative flex min-h-0 flex-1">
         <ToolRail tank={tank} local={local} />
         <main className={cx('relative flex min-w-0 flex-1', narrow ? 'p-3' : 'p-6')}>
           <TankArea tank={tank} className="flex-1" onMenu={openMenu} />
           <Creature tank={tank} local={local} />
+          {folded && panelsOpen && panels}
         </main>
         {drawer && <ScriptDrawer tank={tank} commands={commands} />}
-        {!drawer && (!narrow || panelsOpen) && <Panels tank={tank} commands={commands} local={local} floating={narrow} />}
+        {!folded && panels}
       </div>
       <TransportBar tank={tank} commands={commands} />
       {overlays}

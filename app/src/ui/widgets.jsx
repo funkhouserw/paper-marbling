@@ -108,15 +108,35 @@ export function Slider({ label, value, min, max, step, onChange, info, compact =
   );
 }
 
+// A typed number, kept here while it's typed and handed over once, on Enter or leaving the box,
+// as the old page's fields did. The spinner's arrows hand it over straight away. An empty box or
+// something that isn't a number puts the last value back.
 export function NumberField({ label, value, min, max, step, onChange, info }) {
   const id = useId();
+  const [text, setText] = useState(null);
+  const commit = (raw) => {
+    setText(null);
+    const n = Number(raw);
+    if (String(raw).trim() === '' || !Number.isFinite(n) || n === Number(value)) return;
+    onChange(n);
+  };
   return (
     <div className="flex items-center gap-2 text-xs text-ink-300">
       <label htmlFor={id}>{label}</label>
       <InfoTip text={info} label={label} />
       <input
-        id={id} type="number" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        id={id} type="number" min={min} max={max} step={step}
+        value={text ?? value}
+        onChange={(e) => {
+          // Typing says what kind of input it was; the spinner arrows don't.
+          if (e.nativeEvent.inputType) setText(e.target.value);
+          else commit(e.target.value);
+        }}
+        onBlur={(e) => { if (text !== null) commit(e.target.value); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit(e.currentTarget.value);
+          if (e.key === 'Escape') setText(null);
+        }}
         className="h-7 w-24 rounded-md border border-ink-600 bg-ink-800 px-2 font-mono text-xs text-ink-100"
       />
     </div>
