@@ -5,7 +5,7 @@ import { keymap } from '@codemirror/view';
 import { Prec } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Play, Send, Snowflake, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Mic, Play, Send, Snowflake, X } from 'lucide-react';
 import { dialToValue, valueToDial } from '../../../api.js';
 import { LiveTank } from '../tank/LiveTank.jsx';
 import tankImage from '../../../docs/images/teal-copper-swirls.jpg';
@@ -347,36 +347,98 @@ const FAQ = [
 ];
 
 // What the drop says. Questions search an FAQ in the browser, so it works on the demo without a key.
-export function CreatureChat({ onClose, canWriteScripts }) {
+// Answers from the explanations the page already has: the (i) texts and a few how-tos, ranked by
+// how many of the question's words they share. Works with no server and no key.
+const STOP = new Set('a an and are be can do does how i in is it make my of on or the to what when where which why with you your'.split(' '));
+const words = (t) => t.toLowerCase().match(/[a-z]+/g)?.filter((w) => w.length > 2 && !STOP.has(w)) ?? [];
+const ANSWERS = [...FAQ.map((f) => ({ title: f.q, text: f.a })), ...Object.entries(INFO).map(([k, text]) => ({ title: k, text }))];
+export function findAnswers(question, n = 2) {
+  const want = new Set(words(question).map((w) => w.replace(/s$/, '')));
+  if (!want.size) return [];
+  return ANSWERS
+    .map((a) => ({ a, score: words(`${a.title} ${a.title} ${a.text}`).reduce((n2, w) => n2 + (want.has(w.replace(/s$/, '')) ? 1 : 0), 0) }))
+    .filter((x) => x.score > 0)
+    .sort((x, y) => y.score - x.score)
+    .slice(0, n)
+    .map((x) => x.a.text);
+}
+
+// The ink drop's chat. Locally it talks to the assistant, which edits the script; on the public
+// demo it answers from findAnswers. The microphone shows where the browser can listen.
+export function CreatureChat({ onClose, tank, local }) {
   const [text, setText] = useState('');
+  const [faq, setFaq] = useState([]);
+  const [listening, setListening] = useState(null);
+  const log = useRef(null);
+  const live = local && tank?.sendChat;
+  const chat = live ? tank.state.chat : faq;
+  const busy = live && tank.state.chatBusy;
+  useEffect(() => { log.current?.scrollTo(0, log.current.scrollHeight); }, [chat.length, busy]);
+  const Speech = typeof window !== 'undefined' && window.webkitSpeechRecognition;
+  const send = async () => {
+    const q = text.trim();
+    if (!q || busy) return;
+    setText('');
+    if (live) {
+      if (!(await tank.sendChat(q))) setText(q);
+      return;
+    }
+    const found = findAnswers(q);
+    setFaq((f) => [...f, { role: 'user', content: q }, { role: 'assistant', content: found.length ? found.join('\n\n') : 'I don\'t know that one yet. Try "How it works" in the Help menu.' }]);
+  };
+  const listen = () => {
+    if (listening) { listening.stop(); return; }
+    const rec = new Speech();
+    rec.interimResults = true;
+    rec.onresult = (ev) => setText(Array.from(ev.results, (r) => r[0].transcript).join(' '));
+    rec.onerror = (ev) => tank?.dispatch({ type: 'notice', text: `Microphone: ${ev.error}` });
+    rec.onend = () => setListening(null);
+    rec.start();
+    setListening(rec);
+  };
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-2">
         <InkDrop size={24} />
         <span className="text-sm font-medium">Ask the drop</span>
         <span className="flex-1" />
+        {chat.length > 0 && (
+          <button type="button" className="text-xs text-ink-400 hover:text-ink-100" disabled={busy} onClick={() => (live ? tank.clearChat() : setFaq([]))}>Clear chat</button>
+        )}
         <IconButton size="sm" label="Close" onClick={onClose}><X size={14} /></IconButton>
       </div>
-      <div className="scroll-thin flex-1 space-y-3 overflow-y-auto p-3 text-sm">
+      <div ref={log} className="scroll-thin flex-1 space-y-3 overflow-y-auto p-3 text-sm">
         <p className="rounded-lg bg-ink-800 px-3 py-2 text-ink-300">
-          Hi! Ask me how anything works.{canWriteScripts && ' I can also write and change scripts for you.'}
+          {live
+            ? 'Hi! Describe a pattern or a change and I\'ll write it into the script. Nothing happens in the tank until you press Run.'
+            : 'Hi! Ask me how anything works.'}
         </p>
-        {FAQ.map((f) => (
+        {chat.length === 0 && FAQ.map((f) => (
           <details key={f.q} className="rounded-lg border border-ink-700 px-3 py-2">
             <summary className="cursor-pointer text-ink-100">{f.q}</summary>
             <p className="mt-2 text-xs leading-relaxed text-ink-300">{f.a}</p>
           </details>
         ))}
+        {chat.map((m, i) => (
+          <p key={i} className={cx('whitespace-pre-line rounded-lg px-3 py-2', m.role === 'user' ? 'ml-6 bg-ink-700 text-ink-100' : 'mr-6 bg-ink-800 text-ink-300')}>
+            {m.content}
+          </p>
+        ))}
+        {busy && <p className="mr-6 animate-pulse rounded-lg bg-ink-800 px-3 py-2 text-ink-400">Working…</p>}
       </div>
-      <form className="flex gap-2 border-t border-ink-700 p-2" onSubmit={(e) => { e.preventDefault(); setText(''); }}>
+      <form className="flex gap-2 border-t border-ink-700 p-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <input
           aria-label="Your question"
           value={text}
+          disabled={busy}
           onChange={(e) => setText(e.target.value)}
-          placeholder={canWriteScripts ? 'Ask, or describe a pattern…' : 'Ask a question…'}
+          placeholder={live ? 'Describe a pattern, or ask…' : 'Ask a question…'}
           className="h-8 min-w-0 flex-1 rounded-md border border-ink-600 bg-ink-800 px-2 text-sm"
         />
-        <IconButton label="Send" type="submit"><Send size={14} /></IconButton>
+        {Speech && local && (
+          <IconButton label={listening ? 'Stop listening' : 'Speak'} active={Boolean(listening)} onClick={listen}><Mic size={14} /></IconButton>
+        )}
+        <IconButton label="Send" type="submit" disabled={busy}><Send size={14} /></IconButton>
       </form>
     </div>
   );

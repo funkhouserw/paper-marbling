@@ -16,7 +16,8 @@ export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
   // The tank picture comes from the repo's docs/images.
-  server: { fs: { allow: ['..'] } },
+  // /api goes to node server.mjs, which runs the assistant. MARBLER_SERVER picks its address.
+  server: { fs: { allow: ['..'] }, proxy: { '/api': process.env.MARBLER_SERVER || 'http://127.0.0.1:8000' } },
   test: {
     projects: [{
       extends: true,

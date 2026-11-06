@@ -59,6 +59,8 @@ const START = {
   palette: 'Dark Academia',
   ink: 0,
   page: PAGE_SETTINGS,
+  chat: [],
+  chatBusy: false,
 };
 
 function uiReducer(s, a) {
@@ -160,14 +162,17 @@ export function useTank() {
         return;
       }
       case 'example': {
-        // Examples open on the simulator they were made for, ready to change, and only run on Run.
+        // As on the old page: an example picks the simulator it was made for and runs straight away,
+        // on a tank of its own.
+        if (!a.name) return;
         const sim = EXAMPLE_SIMULATOR[a.name];
-        if (sim && sim !== c.settings.simulator) {
-          c.settings.simulator = sim;
-          c.commitSimulator();
+        if (sim) {
+          c.setSimulator(sim);
           storeSetting(localStorage, 'simulator', sim);
         }
-        setUi({ example: a.name, script: EXAMPLES[a.name], scriptError: null });
+        c.notice('');
+        const failed = c.runScript(EXAMPLES[a.name], { clearing: true });
+        setUi({ example: a.name, script: EXAMPLES[a.name], scriptError: failed ? String(failed) : null });
         return;
       }
       default: throw new Error(`Unknown action ${a.type}`);
@@ -193,6 +198,40 @@ export function useTank() {
   const pal = findPalette(ui.palette) ?? PALETTES[0];
   const paletteView = { name: pal.name, bath: c.settings.bath, inks: c.inks };
 
+  // The assistant, on the local server. Its reply replaces the script; nothing runs until Run.
+  // A failed turn comes back out of the chat, ready to send again.
+  const sendChat = useCallback(async (content) => {
+    const now = latestUi.current;
+    if (!content.trim() || now.chatBusy) return false;
+    const messages = [...now.chat, { role: 'user', content }];
+    setUi({ chat: messages, chatBusy: true });
+    c.notice('');
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages,
+          script: latestUi.current.script,
+          palettes: tankRef.current?.savedPalettes?.() ?? [],
+          currentPalette: { name: latestUi.current.palette, bath: c.settings.bath, inks: c.inks },
+        }),
+      });
+      if (res.status === 404 || res.status === 501) throw new Error('The assistant needs the local server. Start with: node server.mjs');
+      const data = await res.json().catch(() => ({ error: `Server replied ${res.status} with no usable JSON` }));
+      if (data.error) throw new Error(data.error);
+      if (data.paletteActions?.length) tankRef.current?.applyPaletteActions?.(data.paletteActions);
+      setUi({ chat: [...messages, { role: 'assistant', content: data.reply }], script: data.script, example: '', chatBusy: false });
+      return true;
+    } catch (err) {
+      c.notice(err.message.startsWith('The assistant') ? err.message : `Couldn't reach the server: ${err.message}`);
+      setUi({ chat: now.chat, chatBusy: false });
+      return false;
+    }
+  }, [c]);
+  // Saved palettes and their storage arrive with pageactions.js; until then the assistant sees none.
+  const tankRef = useRef(null);
+
   // Actions from features.js that the real tank handles itself. The rest fall back to the
   // shared handlers in commands.jsx.
   const perform = useCallback((id, ctx) => {
@@ -217,6 +256,8 @@ export function useTank() {
     act: () => {},
     applyTool: () => c.applyTool(),
     perform,
+    sendChat,
+    clearChat: () => setUi({ chat: [] }),
     setView,
     onStats,
     settingsSpec: SETTINGS,

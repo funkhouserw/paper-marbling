@@ -190,7 +190,7 @@ export function Phone({ tank, local = false, landscape = false }) {
       )}
       {sheet === 'creature' && (
         <div className="absolute inset-x-0 bottom-0 z-40 h-[60%] overflow-hidden rounded-t-2xl border-t border-ink-600 bg-ink-900 shadow-2xl">
-          <CreatureChat onClose={() => setSheet(null)} canWriteScripts={local} />
+          <CreatureChat onClose={() => setSheet(null)} tank={tank} local={local} />
         </div>
       )}
       {overlays}

@@ -273,7 +273,7 @@ export function ScriptDrawer({ tank, commands }) {
   );
 }
 
-export function Creature({ tank, canWriteScripts }) {
+export function Creature({ tank, local }) {
   const { state, dispatch } = tank;
   const set = (creature) => dispatch({ type: 'set', patch: { creature } });
   return (
@@ -281,7 +281,7 @@ export function Creature({ tank, canWriteScripts }) {
       {state.creature
         ? (
           <div className="h-96 w-80 overflow-hidden rounded-xl border border-ink-600 bg-ink-900 shadow-2xl">
-            <CreatureChat onClose={() => set(false)} canWriteScripts={canWriteScripts} />
+            <CreatureChat onClose={() => set(false)} tank={tank} local={local} />
           </div>
         )
         : (
@@ -336,7 +336,7 @@ export function Desktop({ tank, local = true }) {
         <ToolRail tank={tank} local={local} />
         <main className={cx('relative flex min-w-0 flex-1', narrow ? 'p-3' : 'p-6')}>
           <TankArea tank={tank} className="flex-1" onMenu={openMenu} />
-          <Creature tank={tank} canWriteScripts={local} />
+          <Creature tank={tank} local={local} />
         </main>
         {drawer && <ScriptDrawer tank={tank} commands={commands} />}
         {!drawer && (!narrow || panelsOpen) && <Panels tank={tank} commands={commands} local={local} floating={narrow} />}
