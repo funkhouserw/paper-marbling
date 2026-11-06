@@ -1,0 +1,866 @@
+// The tank and everything that drives it, with no page attached, so any interface can run it.
+// Settings are kept the way the page's form fields hold them: strings for typed boxes and
+// dropdowns, true or false for ticks. Their keys are the old interface's element IDs.
+// An interface changes `settings` as the user edits, calls the commit methods where a
+// change should act on the tank, and redraws when told to through on().
+import { Marble, runScript } from './engine.js';
+import { toMm } from './api.js';
+import { TOOLS, PAGE_UNITS } from './tools.js';
+import { closedDirection } from './tile.js';
+import { MODELS } from './models.js';
+import { palette } from './palettes.js';
+import { moveContours } from './text.js';
+
+export const START_PALETTE = 'Dark Academia';
+export const STANDARD_VISCOSITY = 1000;
+
+// Point limits are a setting of the machine, not of the tank, so saved tanks and undo don't change them.
+export const STANDARD_LIMIT = 400000;
+export const LEAST_LIMIT = 50000;
+export const MOST_LIMIT = 20000000;
+
+// The Wake simulator's bath. Each preset is also a viscosity, since it needs a thin bath to show.
+export const FLOW_PRESETS = {
+  calm: { viscosity: 1000, push: 1, friction: 0.25, coast: 25, cell: 7 },
+  curling: { viscosity: 30, push: 1, friction: 0.05, coast: 120, cell: 7 },
+  whorls: { viscosity: 10, push: 3, friction: 0.05, coast: 120, cell: 7 },
+  storm: { viscosity: 10, push: 10, friction: 0.05, coast: 40, cell: 7 },
+};
+export const FLOW_FIELDS = { push: 'flowPush', friction: 'flowFriction', coast: 'flowCoast', cell: 'flowCell' };
+// Simulators whose bath can move, so the Moving bath settings mean something.
+const FLOWING = ['wake', 'wakefast', 'gridink'];
+
+// What the page started with before anyone touched it.
+export const DEFAULT_SETTINGS = {
+  simulator: MODELS[0].id,
+  visc: '1000',
+  tankW: '1000',
+  tankH: '700',
+  useBath: false,
+  bath: '#f4efe2',
+  walls: false,
+  tile: false,
+  tileForced: false, // the tick was set by arriving at a simulator that starts out repeating
+  tileOffset: '',
+  toolsWait: true,
+  queueMode: 'together',
+  queueGap: '0.5',
+  lowFramerate: false,
+  speed: '1',
+  flowPreset: 'calm',
+  flowPush: '1',
+  flowFriction: '0.25',
+  flowCoast: '25',
+  flowCell: '7',
+  pointLimit: String(STANDARD_LIMIT),
+  gridCell: '2',
+  clearFirst: true,
+};
+
+const KEPT_UNDO_STATES = 30;
+const KEPT_UNDO_BYTES = 500e6;
+const stateBytes = (state) => state.polys.reduce((sum, p) => sum + p.xy.byteLength, 0)
+  + Object.values(state.grid ?? {}).flat().reduce((sum, f) => sum + (f?.byteLength ?? 0), 0);
+
+const STEP_BUDGET_MS = 10;   // simulation per frame while playing, leaving room for input
+const FINISH_BUDGET_MS = 24; // Finish now asks for speed, so it gets more
+const SNAPSHOT_STEP_MS = 150; // simulation per frame in low framerate mode
+const SLOW_STEP_MS = 66;      // a tick this slow can't reach half of real time
+const SLOW_TANK_DRAW_MS = 150;
+
+// Normalises #rgb, #rgba, #rrggbb and #rrggbbaa, with or without the #. Null if invalid.
+export function parseHex(text) {
+  const h = text.trim().replace(/^#/, '').toLowerCase();
+  if (!/^[0-9a-f]+$/.test(h) || ![3, 4, 6, 8].includes(h.length)) return null;
+  const full = h.length < 6 ? [...h].map((c) => c + c).join('') : h;
+  return { rgb: `#${full.slice(0, 6)}`, alpha: full.length === 8 ? parseInt(full.slice(6), 16) / 255 : 1 };
+}
+
+function startingValues() {
+  const values = {};
+  for (const [name, def] of Object.entries(TOOLS)) {
+    values[name] = Object.fromEntries(Object.entries(def.params).map(([k, p]) => [k, p[1]]));
+    for (const [k, c] of Object.entries(def.choices ?? {})) values[name][k] = c[2];
+  }
+  values.fullRake.angle = 0;
+  values.stripes.angle = 0;
+  values.text.string = 'Marbled';
+  values.text.font = 'serif';
+  return values;
+}
+
+export class TankController {
+  // trace turns text into contours. It needs a canvas, so the interface supplies it.
+  constructor({ settings = {}, trace = () => [] } = {}) {
+    this.settings = { ...DEFAULT_SETTINGS, ...settings };
+    this.trace = trace;
+    this.listeners = {};
+    this.onTick = null; // told how long each tick took, for profiling
+
+    this.marble = new Marble();
+    this.playing = true;
+    this.tool = 'drop';
+    this.values = startingValues();
+    this.freezeMode = 'off'; // Full rake's clicks can pick ink to freeze: 'off', 'freeze' or 'unfreeze'
+    this.locked = false;     // set while the interface pulls a print, which holds the tank still
+    this.dirty = true;       // the tank needs drawing again
+
+    // Each simulator has its own starting viscosity.
+    if (settings.visc === undefined) this.settings.visc = this.startingViscosity();
+    this.viscositySimulator = this.model().id; // whose starting viscosity the box was last given
+    this.tileSimulator = null; // the simulator the Repeating tick was last set for
+
+    // A copy, so changing colours can't change the palette it started from.
+    const p = palette(START_PALETTE);
+    this.inks = p.inks.map((ink) => ({ ...ink }));
+    this.color = this.inks[0].color;
+    this.shimmer = this.inks[0].shimmer;
+    if (settings.bath === undefined) this.settings.bath = p.bath;
+    this.marble.bath = this.bathColor();
+
+    // Pointer presses.
+    this.stroke = null;        // the rake, stylus or paint path being dragged
+    this.lastSpray = null;
+    this.pressCounted = false; // whether this press has already made an undo step
+
+    // Each user action is one undo step, however many log entries it adds. undoMarks
+    // holds the log length before each action; the log before the first mark (settings
+    // the tank started with) can't be undone.
+    this.undoMarks = [];
+    this.redoGroups = [];
+    this.undoStates = [];
+    this.redoStates = [];
+
+    this.queueEnd = 0;
+    this.traced = { key: null, contours: [] };
+
+    // Running.
+    this.finishing = false;
+    this.owed = 0;
+    this.stepMs = 0;            // smoothed time for one tick
+    this.autoSnapshots = false; // ticks got too slow, so low framerate is on until the tank settles
+  }
+
+  // ---- Telling the interface ------------------------------------------------
+
+  // Events: 'tank' (a new tank, so sizes may have changed), 'settings', 'history', 'playing', 'tool'.
+  on(type, fn) {
+    (this.listeners[type] ??= []).push(fn);
+    return () => { this.listeners[type] = this.listeners[type].filter((f) => f !== fn); };
+  }
+
+  emit(type, detail) {
+    for (const fn of this.listeners[type] ?? []) fn(detail);
+  }
+
+  // ---- Simulator ------------------------------------------------------------
+
+  model() { return MODELS.find((m) => m.id === this.settings.simulator); }
+  engine() { return this.model().engine ?? Marble; }
+  startingViscosity(model = this.model()) { return model?.viscosity ?? STANDARD_VISCOSITY; }
+
+  // What the chosen simulator can do, so an interface shows only what will work.
+  capabilities() {
+    const model = this.model();
+    const proto = this.engine().prototype;
+    const atFirst = model.repeatsAtFirst === true;
+    return {
+      erase: Boolean(proto.eraseSupported),
+      hearts: Boolean(proto.freezeSupported),
+      freeze: Boolean(proto.freezeSupported),
+      tile: Boolean(!model.spreading && proto.tileSupported),
+      tileOffset: Boolean(this.settings.tile && proto.tileOffsetSupported),
+      walls: !atFirst, // Grid ink's sides are solid whenever it isn't repeating
+      flow: FLOWING.includes(model.id),
+    };
+  }
+
+  // Changing simulator moves the viscosity to the new one's starting value, unless it holds the user's own.
+  syncViscosity() {
+    const was = MODELS.find((m) => m.id === this.viscositySimulator);
+    if (Number(this.settings.visc) === this.startingViscosity(was)) this.settings.visc = this.startingViscosity();
+    this.viscositySimulator = this.model().id;
+  }
+
+  // A script's openWater() shows here too, so the setting always says what's really running.
+  showSpreading(on) {
+    this.settings.simulator = MODELS.find((m) => m.spreading === on).id;
+  }
+
+  // Puts settings the chosen simulator can't use back in line.
+  syncTile() {
+    const s = this.settings;
+    const model = this.model();
+    const proto = this.engine().prototype;
+    if (!proto.eraseSupported && this.tool === 'erase') this.setTool('drop');
+    if (!proto.freezeSupported && this.tool === 'hearts') this.setTool('drop');
+    if (!proto.freezeSupported) this.freezeMode = 'off';
+    const atFirst = model.repeatsAtFirst === true;
+    const supported = !model.spreading && proto.tileSupported;
+    if (!supported) s.tile = false;
+    // Grid ink starts out repeating, once on arriving at it, and that doesn't count as asking other
+    // simulators to repeat. After that the tick is the user's.
+    if (this.tileSimulator !== model.id) {
+      this.tileSimulator = model.id;
+      if (atFirst) { s.tile = true; s.tileForced = true; }
+      else if (s.tileForced) { s.tile = false; s.tileForced = false; }
+    }
+    if (atFirst) s.walls = false;
+    if (s.tile && s.walls) s.walls = false;
+    if (!proto.tileOffsetSupported) s.tileOffset = '';
+    this.emit('settings');
+  }
+
+  // Sets the simulator without touching the tank, as choosing an example does before it runs.
+  setSimulator(id) {
+    this.settings.simulator = id;
+    this.syncViscosity();
+    this.syncTile();
+  }
+
+  // After settings.simulator changes. An empty tank simply becomes the new simulator; with ink
+  // in it, the change waits for a clear.
+  commitSimulator() {
+    this.syncViscosity();
+    this.syncTile();
+    const m = this.marble;
+    const Engine = this.engine();
+    if (!(m instanceof Engine && m.constructor === Engine) && !m.polys.length && !m.active.length && !m.log.some((e) => !['openWater', 'walls', 'tile'].includes(e.fn))) {
+      this.newTank();
+      this.resetHistory();
+      return;
+    }
+    this.act(() => m.live(() => m.openWater({ on: this.model().spreading, at: m.time })));
+  }
+
+  // ---- Values -----------------------------------------------------------------
+
+  // Tool settings are in page units, like scripts. This gives a tool's values in mm.
+  inMm(name, tank = this.marble) {
+    const k = tank.width / 100;
+    const scale = { w: k, tenth: k / 10, w2: k * k, q: toMm('drop', { quantity: 1 }, tank).quantity };
+    const out = { ...this.values[name] };
+    for (const [key, unit] of Object.entries(PAGE_UNITS)) if (key in out) out[key] *= scale[unit];
+    return out;
+  }
+
+  // On a repeating tank a slanted full rake runs at the nearest angle that joins up.
+  fullRakeAngle() {
+    const wanted = this.values.fullRake.angle;
+    return this.settings.tile ? Math.round(closedDirection(wanted, this.marble.width, this.marble.height, this.tileOffset()).angle) : wanted;
+  }
+
+  // No base colour by default: the tank shows an empty grid and exports stay transparent.
+  bathColor() { return this.settings.useBath ? this.settings.bath : 'rgba(0,0,0,0)'; }
+
+  // After useBath or bath change. Takes effect straight away.
+  commitBath() {
+    this.marble.bath = this.bathColor();
+    this.dirty = true;
+  }
+
+  // ---- Ink --------------------------------------------------------------------
+
+  // Ink colours are #rrggbb, or #rrggbbaa when translucent.
+  inkRgb() { return this.color.slice(0, 7); }
+  inkAlpha() { return this.color.length > 7 ? parseInt(this.color.slice(7), 16) / 255 : 1; }
+  setInk(rgb, alpha) {
+    const a = Math.round(alpha * 255);
+    this.color = (a === 255 ? rgb : rgb + a.toString(16).padStart(2, '0')).toLowerCase();
+  }
+
+  // Swaps the inks and bath colour straight away, without clearing the tank.
+  usePalette(name) {
+    const p = palette(name);
+    this.inks = p.inks.map((ink) => ({ ...ink }));
+    this.color = this.inks[0].color;
+    this.shimmer = this.inks[0].shimmer;
+    this.settings.bath = p.bath.toLowerCase(); // as a colour field would hold it
+    this.marble.bath = this.bathColor();
+    this.dirty = true;
+    this.emit('settings');
+    return p;
+  }
+
+  // Edits to the palette's inks. The chosen ink follows the one being edited.
+  setPaletteInk(i, { rgb, shimmer }) {
+    const ink = this.inks[i];
+    const chosen = this.color === ink.color;
+    if (rgb !== undefined) ink.color = rgb + ink.color.slice(7); // keeps any transparency
+    if (shimmer !== undefined) ink.shimmer = shimmer;
+    if (chosen) {
+      if (rgb !== undefined) this.color = ink.color;
+      if (shimmer !== undefined) this.shimmer = ink.shimmer;
+    }
+  }
+
+  removePaletteInk(i) {
+    this.inks.splice(i, 1);
+    if (!this.inks.some((k) => k.color === this.color)) { this.color = this.inks[0].color; this.shimmer = this.inks[0].shimmer; }
+  }
+
+  addPaletteInk() { this.inks.push({ color: '#808080', shimmer: 0 }); }
+
+  // ---- Tools ------------------------------------------------------------------
+
+  setTool(name) {
+    const changed = name !== this.tool;
+    if (changed) this.freezeMode = 'off';
+    this.tool = name;
+    this.stroke = null;
+    this.emit('tool', { changed });
+  }
+
+  // Freeze or Unfreeze, or off when it's picked again.
+  pickFreezeMode(mode) {
+    this.freezeMode = this.freezeMode === mode ? 'off' : mode;
+  }
+
+  freezeAt([x, y]) {
+    const m = this.marble;
+    const unfreezing = this.freezeMode === 'unfreeze';
+    if (!m.shapeAt(x, y, { frozen: unfreezing })) return;
+    this.act(() => {
+      m.live(() => (unfreezing ? m.unfreeze({ x, y, at: m.time }) : m.freeze({ x, y, at: m.time })));
+      m.applyNow();
+    });
+    this.dirty = true;
+  }
+
+  unfreezeAll() {
+    const m = this.marble;
+    if (!m.polys.some((p) => p.frozen)) return;
+    this.act(() => {
+      m.live(() => m.unfreezeAll({ at: m.time }));
+      m.applyNow();
+    });
+    this.dirty = true;
+  }
+
+  // Contours centred on the origin, traced once per distinct text setting.
+  currentText() {
+    const { string, font, size } = this.inMm('text');
+    const key = JSON.stringify([string, font, size]);
+    if (key !== this.traced.key) this.traced = { key, contours: string.trim() ? this.trace({ text: string, font, size }) : [] };
+    return this.traced.contours;
+  }
+
+  // Decides when an action starts, then calls fn(at). at is undefined when the action
+  // should follow the script timeline, behind a settle point.
+  place(isTool, fn) {
+    const m = this.marble;
+    const s = this.settings;
+    const mode = this.playing ? 'together' : s.queueMode;
+    const growing = [...m.active, ...m.queued].some((op) => op.kind === 'drop');
+    if (mode === 'settled' || (isTool && s.toolsWait && growing)) {
+      m.settle();
+      return fn(undefined);
+    }
+    const gap = Number(s.queueGap) || 0;
+    if (mode === 'order' && m.gates.length) {
+      m.wait(gap);
+      return fn(undefined);
+    }
+    const at = mode === 'order' ? Math.max(this.queueEnd, m.time) : m.time;
+    const op = m.live(() => fn(at));
+    if (mode === 'order') this.queueEnd = at + (op?.duration ?? (op?.total ? op.total / op.speed : 0)) + gap;
+    return op;
+  }
+
+  sprayAt(x, y, share = 1) {
+    const m = this.marble;
+    const v = this.inMm('spray');
+    const colors = v.sprayColors === 'one' ? [{ color: this.color, shimmer: this.shimmer }] : this.inks;
+    this.place(false, (at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min: Math.min(v.min, v.max), max: v.max, colors, at }));
+  }
+
+  // What a click does with the current tool, at a point in tank mm.
+  clickAction([x, y]) {
+    const m = this.marble;
+    const { tool, color, shimmer } = this;
+    const v = this.inMm(tool);
+    if (tool === 'text') {
+      const contours = this.currentText();
+      if (contours.length) this.place(false, (at) => m.print({ contours: moveContours(contours, x, y), color, shimmer, at }));
+    } else if (tool === 'drop') {
+      for (let i = 0; i < v.count; i++) {
+        const r = v.scatter * Math.sqrt(m.random());
+        const a = m.random() * 2 * Math.PI;
+        const jitter = v.count > 1 ? m.random() * 0.5 : 0;
+        this.place(false, (at) => m.drop({
+          x: x + r * Math.cos(a), y: y + r * Math.sin(a),
+          quantity: v.quantity, dispersion: v.dispersion, color, shimmer,
+          at: at === undefined || this.settings.queueMode !== 'together' ? at : at + jitter,
+        }));
+      }
+    } else if (tool === 'spray') {
+      this.sprayAt(x, y);
+    } else if (tool === 'erase') {
+      if (m.eraseSupported) this.place(false, (at) => m.erase({ x, y, ...v, at }));
+    } else if (tool === 'wriggle') {
+      const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
+      this.place(true, (at) => m.wriggle({ x, y, period: v.period, degrees, duration: v.duration, at }));
+    } else if (tool === 'stir') {
+      const opposed = (i) => v.direction === 'alternate' && i % 2;
+      const radii = Array.from({ length: v.rings }, (_, i) => (opposed(i) ? -1 : 1) * (i + 1) * v.ringSpacing);
+      const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
+      this.place(true, (at) => m.stir({ x, y, radii, degrees, rate: v.rate, D: v.D, at }));
+    } else if (tool === 'vortex') {
+      const circulation = v.direction === 'cw' ? -v.circulation : v.circulation;
+      this.place(true, (at) => m.vortex({ x, y, circulation, duration: v.duration, at }));
+    }
+  }
+
+  // A press on the tank, at a point in tank mm.
+  press(p) {
+    if (this.tool === 'fullRake' && this.freezeMode !== 'off') {
+      this.freezeAt(p);
+      return;
+    }
+    this.stroke = null; // a press that never saw its release must not carry over into this one
+    this.lastSpray = null;
+    const { tool } = this;
+    if (tool === 'rake' || tool === 'stylus' || tool === 'paint') this.stroke = [p];
+    else if (!TOOLS[tool].whole) {
+      const before = this.undoMarks.length;
+      this.act(() => this.clickAction(p));
+      this.pressCounted = this.undoMarks.length > before;
+    }
+    if (tool === 'spray' || tool === 'erase') this.lastSpray = p;
+  }
+
+  // The pointer moved to p. buttons is false once the button is up, whatever we were told.
+  move(p, buttons) {
+    if (!buttons) this.endPress();
+    const { tool, lastSpray } = this;
+    // Dragging keeps spraying along the way, a little at a time.
+    // Lifting cuts a hard edge, so it needs closer spots to make a smooth stroke.
+    if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > this.inMm(tool).radius * (this.values.erase.mode === 'lift' && tool === 'erase' ? 0.3 : 0.75)) {
+      this.lastSpray = p;
+      // A whole drag is one undo step, so only the first spot of it needs to start one.
+      const more = () => (tool === 'erase' ? this.clickAction(p) : this.sprayAt(p[0], p[1], 0.25));
+      if (this.pressCounted) more();
+      else {
+        const before = this.undoMarks.length;
+        this.act(more);
+        this.pressCounted = this.undoMarks.length > before;
+      }
+    }
+    if (!this.stroke) return;
+    if (tool === 'rake') this.stroke[1] = p;
+    else this.stroke.push(p);
+  }
+
+  release() {
+    this.lastSpray = null;
+    if (!this.stroke) return;
+    const m = this.marble;
+    const path = this.stroke;
+    this.stroke = null;
+    if (path.length < 2) return;
+    if (this.tool === 'paint') {
+      this.act(() => this.place(false, (at) => m.paint({ path, ...this.inMm('paint'), color: this.color, shimmer: this.shimmer, at })));
+      return;
+    }
+    this.act(() => this.place(true, (at) => (this.tool === 'rake'
+      ? m.rake({ from: path[0], to: path[1], ...this.inMm('rake'), at })
+      : m.stylus({ path, ...this.inMm('stylus'), at }))));
+  }
+
+  // The system can take the pointer away mid-press, with no release, so a press also ends here.
+  endPress() {
+    this.stroke = null;
+    this.lastSpray = null;
+  }
+
+  fillDotsNow() {
+    const m = this.marble;
+    const { sprayColors, over, ...v } = this.inMm('fillDots');
+    const options = { ...v, over: over === 'over', colors: sprayColors === 'one' ? [{ color: this.color, shimmer: this.shimmer }] : this.inks };
+    // Rings go on one at a time, each waiting for the last to settle, and that needs the script's timeline.
+    if (v.rings > 1) {
+      m.settle();
+      return m.fillDots(options);
+    }
+    return this.place(false, (at) => m.fillDots({ ...options, at }));
+  }
+
+  // The Apply button, for tools that work on the whole tank.
+  applyTool() {
+    const m = this.marble;
+    const { tool } = this;
+    this.act(() => (tool === 'fillDots'
+      ? this.fillDotsNow()
+      : tool === 'hearts'
+      ? this.place(true, (at) => m.hearts({ ...this.inMm('hearts'), at }))
+      : tool === 'stripes'
+      ? this.place(false, (at) => {
+        const { over, ...v } = this.inMm('stripes');
+        return m.stripes({ ...v, over: over === 'over', colors: this.inks, at });
+      })
+      : this.place(true, (at) => (tool === 'air' ? m.air({ ...this.inMm('air'), at }) : tool === 'fullRake'
+      ? m.fullRake({ ...this.inMm('fullRake'), at })
+      : m.jiggle({ ...this.inMm('jiggle'), at })))));
+  }
+
+  // ---- History ----------------------------------------------------------------
+
+  get canUndo() { return this.undoMarks.length > 0; }
+  get canRedo() { return this.redoGroups.length > 0; }
+
+  act(fn) {
+    const m = this.marble;
+    const before = m.log.length;
+    const state = m.saveState();
+    fn();
+    if (m.log.length > before) {
+      this.undoMarks.push(before);
+      this.undoStates.push(state);
+      if (this.undoStates.length > KEPT_UNDO_STATES) this.undoStates[this.undoStates.length - KEPT_UNDO_STATES - 1] = null;
+      this.trimUndo();
+      this.redoGroups = [];
+      this.redoStates = [];
+      this.emit('history');
+    }
+  }
+
+  // Big tanks are expensive to copy. Older steps lose their copy and are replayed if undone.
+  trimUndo() {
+    let bytes = 0;
+    for (let i = this.undoStates.length - 1; i >= 0; i--) {
+      if (!this.undoStates[i]) continue;
+      bytes += stateBytes(this.undoStates[i]);
+      if (bytes > KEPT_UNDO_BYTES && i < this.undoStates.length - 1) this.undoStates[i] = null;
+    }
+  }
+
+  resetHistory() {
+    this.undoMarks = [];
+    this.redoGroups = [];
+    this.undoStates = [];
+    this.redoStates = [];
+    this.emit('history');
+  }
+
+  // Sets the settings to whatever a log leaves in place.
+  syncToggles(entries) {
+    const s = this.settings;
+    const last = (fn) => entries.filter((e) => e.fn === fn).at(-1);
+    const water = last('openWater');
+    if (water) this.showSpreading(water.args.on);
+    s.walls = last('walls')?.args.on ?? false;
+    s.tile = last('tile')?.args.on ?? this.model().repeatsAtFirst === true;
+    s.tileOffset = last('tile')?.args.offset ?? '';
+    this.syncTile();
+    // A script's bath() shows in the settings, and so carries over to the next run like a chosen setting.
+    const thickness = last('setViscosity');
+    s.visc = thickness ? thickness.args.value : this.marble.startViscosity ?? s.visc;
+    const flow = last('setFlow');
+    if (flow) this.showFlow(flow.args);
+    const bath = last('setBath');
+    if (bath) {
+      s.useBath = bath.args.color !== null;
+      if (parseHex(bath.args.color ?? '')?.rgb) s.bath = parseHex(bath.args.color).rgb;
+    }
+    this.emit('settings');
+  }
+
+  // Rebuilds the tank from log entries, so seeded randomness replays identically.
+  rebuild(entries) {
+    // The tank starts at the viscosity it first had, whatever the setting says now.
+    if (this.marble.startViscosity) this.settings.visc = this.marble.startViscosity;
+    this.settings.walls = false;
+    this.settings.tile = this.model().repeatsAtFirst === true;
+    const m = this.newTank();
+    m.replay(entries);
+    this.syncToggles(entries);
+    this.finishing = true; // catch up over several frames rather than freezing on a big tank
+    this.emit('history');
+  }
+
+  showState(state) {
+    this.marble.loadState(state);
+    this.applyDetail(this.marble);
+    this.syncToggles(this.marble.log);
+    this.finishing = false;
+    this.owed = 0;
+    this.dirty = true;
+    this.emit('history');
+  }
+
+  undo() {
+    if (this.locked || !this.undoMarks.length) return;
+    const at = this.undoMarks.pop();
+    this.redoGroups.push(this.marble.log.slice(at));
+    this.redoStates.push(this.marble.saveState());
+    // Puts the tank straight back. Only actions older than the kept states need replaying.
+    const state = this.undoStates.pop();
+    if (state) this.showState(state);
+    else this.rebuild(this.marble.log.slice(0, at));
+  }
+
+  redo() {
+    if (this.locked || !this.redoGroups.length) return;
+    const group = this.redoGroups.pop();
+    this.undoMarks.push(this.marble.log.length);
+    this.undoStates.push(this.marble.saveState());
+    const state = this.redoStates.pop();
+    if (state) this.showState(state);
+    else this.rebuild([...this.marble.log, ...group]);
+  }
+
+  // ---- Tank settings ----------------------------------------------------------
+
+  pointLimit() {
+    return Math.min(MOST_LIMIT, Math.max(LEAST_LIMIT, Number(this.settings.pointLimit) || STANDARD_LIMIT));
+  }
+
+  // Above the standard limit, detail holds until about a fifth of the way there, then slowly coarsens.
+  applyDetail(m) {
+    const limit = this.pointLimit();
+    m.maxVertices = limit;
+    m.pointBudget = limit > STANDARD_LIMIT ? limit / 5 : null;
+  }
+
+  setPointLimit(limit) {
+    this.settings.pointLimit = limit;
+    this.applyDetail(this.marble);
+    this.emit('settings');
+    return this.pointLimit();
+  }
+
+  newTank() {
+    const s = this.settings;
+    const prev = this.marble;
+    const model = this.model();
+    const Engine = this.engine();
+    const m = new Engine({
+      width: Number(s.tankW) || prev.width,
+      height: Number(s.tankH) || prev.height,
+      viscosity: Number(s.visc) || prev.viscosity,
+      bath: this.bathColor(),
+      seed: prev.seed,
+      gridCell: Number(s.gridCell) || undefined,
+    });
+    this.marble = m;
+    m.startViscosity = m.viscosity; // for putting the setting back when undo reaches the start
+    m.flowTuning = this.flow(); // a setting like viscosity, so not in the log
+    this.applyDetail(m);
+    this.queueEnd = 0;
+    if (model.spreading) m.openWater({ on: true, at: 0 });
+    if (s.walls) m.walls({ on: true, at: 0 });
+    this.syncTile(); // the tick may not have caught up yet, on the first tank after a reload
+    if (s.tile && this.capabilities().tile && (!model.repeatsAtFirst || this.tileOffset())) m.tile({ on: true, offset: this.tileOffset(), at: 0 });
+    if (!s.tile && model.repeatsAtFirst) m.tile({ on: false, at: 0 });
+    this.dirty = true;
+    this.emit('tank');
+    return m;
+  }
+
+  // Clear, or Apply to the tank's size: a new tank and no history.
+  clear() {
+    this.newTank();
+    this.resetHistory();
+  }
+
+  setPlaying(p) {
+    this.playing = p;
+    this.emit('playing');
+  }
+
+  // After settings.visc changes. Takes effect straight away, on everything from here on, without clearing the tank.
+  commitViscosity() {
+    const m = this.marble;
+    const value = Number(this.settings.visc);
+    if (!Number.isFinite(value) || value <= 0) {
+      this.settings.visc = m.viscosity;
+      this.emit('settings');
+      return;
+    }
+    if (value === m.viscosity) return;
+    m.startViscosity ??= m.viscosity;
+    this.act(() => m.setViscosity({ value }));
+    this.settings.visc = m.viscosity; // it may have been held to the allowed range
+    this.emit('settings');
+  }
+
+  flow() {
+    return Object.fromEntries(Object.entries(FLOW_FIELDS).map(([key, id]) => [key, Number(this.settings[id])]));
+  }
+
+  showFlow(flow) {
+    for (const [key, id] of Object.entries(FLOW_FIELDS)) this.settings[id] = flow[key];
+    const match = Object.entries(FLOW_PRESETS).find(([, p]) => Object.keys(FLOW_FIELDS).every((k) => p[k] === flow[k]));
+    this.settings.flowPreset = match ? match[0] : 'custom';
+  }
+
+  // After settings.flowPreset changes.
+  commitFlowPreset() {
+    const preset = FLOW_PRESETS[this.settings.flowPreset];
+    if (!preset) return;
+    const m = this.marble;
+    this.showFlow(preset);
+    this.settings.visc = preset.viscosity;
+    m.startViscosity ??= m.viscosity;
+    this.act(() => {
+      m.setViscosity({ value: preset.viscosity });
+      m.setFlow(this.flow());
+    });
+    this.emit('settings');
+  }
+
+  // After one of the flow settings changes.
+  commitFlow() {
+    this.showFlow(this.flow());
+    this.act(() => this.marble.setFlow(this.flow()));
+    this.emit('settings');
+  }
+
+  tileOffset() { return (this.settings.tile && this.settings.tileOffset) || null; }
+
+  // Takes effect at once, so it shows even on a paused tank.
+  setRepeat(on, offset) {
+    const m = this.marble;
+    this.act(() => m.live(() => m.tile({ on, offset, at: m.time })));
+    m.applyNow();
+    this.dirty = true;
+  }
+
+  // After settings.tile changes.
+  commitTile() {
+    this.setRepeat(this.settings.tile, this.tileOffset());
+    this.syncTile();
+  }
+
+  // After settings.tileOffset changes.
+  commitTileOffset() {
+    this.setRepeat(true, this.tileOffset());
+    this.emit('settings');
+  }
+
+  // After settings.walls changes.
+  commitWalls() {
+    const m = this.marble;
+    this.act(() => m.live(() => m.walls({ on: this.settings.walls, at: m.time })));
+    if (this.settings.walls && this.settings.tile) { this.settings.tile = false; this.syncTile(); }
+  }
+
+  // ---- Scripts ----------------------------------------------------------------
+
+  // Runs a script, on a fresh tank or on top of the ink. Returns the error if it failed, or null.
+  runScript(source, { clearing = this.settings.clearFirst } = {}) {
+    const m = clearing ? this.newTank() : this.marble;
+    if (clearing) this.resetHistory();
+    // An earlier script's inOrder() shouldn't reach into this one.
+    else if (m.orderGap !== null) m.orderGap = null;
+    const before = m.log.length;
+    let failed = null;
+    this.act(() => {
+      try {
+        runScript(m, source, {
+          // Lives here because tracing needs a canvas, which the engine must not depend on.
+          text: (o = {}) => {
+            const { string, x, y, size, font, color: c, shimmer: sh, at } = toMm('text', o, m);
+            return m.print({ contours: this.trace({ text: string, x, y, size, font }), color: c, shimmer: sh, at });
+          },
+        }, { fromNow: !clearing });
+      } catch (err) {
+        failed = err;
+      }
+    });
+    // Half a script shouldn't land on work you wanted to keep, or leave a redo that brings it back.
+    if (failed && !clearing && this.marble.log.length > before) {
+      this.undo();
+      this.redoGroups.pop();
+      this.redoStates.pop();
+      this.emit('history');
+    }
+    // A script may change these settings itself, so they follow whatever it left in place.
+    this.syncToggles(this.marble.log);
+    this.setPlaying(true);
+    return failed;
+  }
+
+  // ---- Saved tanks ------------------------------------------------------------
+
+  // What a saved tank needs from here, besides its picture and script.
+  saveData() {
+    const s = this.settings;
+    return { simulator: s.simulator, useBath: s.useBath, bath: s.bath, visc: s.visc, state: this.marble.saveState() };
+  }
+
+  restore(save) {
+    const s = this.settings;
+    s.simulator = save.simulator;
+    s.useBath = save.useBath;
+    s.bath = save.bath;
+    s.visc = save.visc;
+    s.tankW = save.state.width;
+    s.tankH = save.state.height;
+    this.newTank();
+    this.resetHistory();
+    this.marble.loadState(save.state);
+    this.applyDetail(this.marble);
+    this.queueEnd = 0;
+    this.syncToggles(this.marble.log);
+    s.simulator = save.simulator;
+    this.finishing = false;
+    this.owed = 0;
+    this.dirty = true;
+    this.emit('settings');
+    this.emit('tank');
+  }
+
+  // ---- Running ----------------------------------------------------------------
+
+  finish() { this.finishing = true; }
+
+  snapshotting() {
+    return this.playing && this.marble.busy && (this.settings.lowFramerate || this.autoSnapshots);
+  }
+
+  // Runs ticks until the budget is spent, and notes how long they take.
+  runTicks(budgetMs, start, canRun) {
+    while (canRun() && performance.now() < start + budgetMs) {
+      const t = performance.now();
+      this.marble.step();
+      this.stepMs += (performance.now() - t - this.stepMs) * 0.1;
+      this.onTick?.(performance.now() - t);
+      this.dirty = true;
+    }
+  }
+
+  // One frame of simulation. wall is the real time since the last frame, in seconds, and start
+  // is when this frame's work began, from performance.now().
+  advance(wall, start) {
+    const m = this.marble;
+    if (this.finishing) {
+      this.runTicks(FINISH_BUDGET_MS, start, () => m.busy);
+      if (!m.busy) this.finishing = false;
+    } else if (this.snapshotting()) {
+      // Nothing to keep in step with, so it runs as fast as the machine allows.
+      this.runTicks(SNAPSHOT_STEP_MS, start, () => m.busy);
+      this.owed = 0;
+    } else if (this.playing && m.busy) {
+      this.owed += wall * Number(this.settings.speed);
+      this.runTicks(STEP_BUDGET_MS, start, () => {
+        if (this.owed < m.dt) return false;
+        this.owed -= m.dt;
+        return true;
+      });
+      this.owed = Math.min(this.owed, 0.5); // run slower than real time rather than freezing
+    } else if (this.playing) {
+      m.time += wall; // idle time passes, so new actions start now
+      this.owed = 0;
+    }
+  }
+
+  // Ticks or redraws too slow to keep up turn low framerate on, until the tank settles.
+  noteLoad(lastDrawMs) {
+    if (this.marble.busy && (this.stepMs > SLOW_STEP_MS || lastDrawMs > SLOW_TANK_DRAW_MS)) this.autoSnapshots = true;
+    if (!this.marble.busy) {
+      this.autoSnapshots = false;
+      this.stepMs = 0;
+    }
+  }
+}

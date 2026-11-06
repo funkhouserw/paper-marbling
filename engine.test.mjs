@@ -681,8 +681,8 @@ test('api.js options match the engine', () => {
   }
 });
 
-test('api.js text options match the wrapper in ui.js', async () => {
-  const ui = await readFile(new URL('./ui.js', import.meta.url), 'utf8');
+test('api.js text options match the wrapper in controller.js', async () => {
+  const ui = await readFile(new URL('./controller.js', import.meta.url), 'utf8');
   const options = ui.match(/const \{ (.*?) \} = toMm\('text'/)[1];
   const names = splitParams(options).map((p) => p.split(/[=:]/)[0].trim()).sort();
   assert.deepEqual(COMMANDS.find((c) => c.name === 'text').params.map((p) => p[0]).sort(), names);

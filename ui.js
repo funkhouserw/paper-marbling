@@ -1,312 +1,22 @@
-import { Marble, runScript, maxRadius, WEAVE_POINTS, WEAVE_SHAPES } from './engine.js';
+import { Marble, maxRadius, WEAVE_POINTS, WEAVE_SHAPES } from './engine.js';
 import { toMm, dialToValue, valueToDial } from './api.js';
-import { TOOLS, TURNS, PAGE_UNITS, isDial } from './tools.js';
-import { closedDirection, latticeShifts } from './tile.js';
+import { TOOLS, isDial } from './tools.js';
+import { latticeShifts } from './tile.js';
 import { MODELS } from './models.js';
 import { renderPrint, PRINT_DEFAULTS } from './print.js';
 import { makeProfiler } from './profile.js';
 import { listSaves, addSave, deleteSave } from './saves.js';
 import { keptList } from './kept.js';
-import { PALETTES, palette, setSavedPalettes, isBuiltInPalette, validPalette, cleanPalette, MAX_INKS } from './palettes.js';
+import { PALETTES, setSavedPalettes, isBuiltInPalette, validPalette, cleanPalette, MAX_INKS } from './palettes.js';
 import { addInfo, infoIcon } from './info.js';
-import { FONTS, textContours, moveContours } from './text.js';
+import { FONTS, textContours } from './text.js';
 import { TINTS, PULL_SECONDS, LAY_SECONDS, pullPrint, drawSweep, savePull, listPulls, deletePull } from './paper.js';
+import { TankController, DEFAULT_SETTINGS, FLOW_FIELDS, START_PALETTE, STANDARD_LIMIT, parseHex } from './controller.js';
+import { EXAMPLES, EXAMPLE_SIMULATOR } from './examples.js';
 
 const $ = (id) => document.getElementById(id);
-const START_PALETTE = 'Dark Academia';
-
-const EXAMPLES = {
-  'Lapis bullseyes': `// Drops stacked on one spot in order, each pushing the last outward.
-viscosity({ value: 1000 });
-const inks = palette('Lapis & Gilt').inks;
-const spots = [[16, 25.7], [44, 72.9], [73, 24.3], [93, 74.3], [7, 80]];
-inOrder({ gap: 0.4 });
-for (const [x, y] of spots) {
-  for (let i = 0; i < 8; i++) {
-    drop({ x, y, quantity: 3.1, dispersion: 2, color: inks[i % inks.length] });
-  }
-}
-allAtOnce();
-settle();
-wait(0.5);
-fullRake({ angle: 0, teeth: 6, speed: 22, D: 0.8 });
-settle();
-fullRake({ angle: 180, teeth: 6, offset: 5.8, speed: 22, D: 0.8 });
-`,
-  'Blue & gold feather': `// Rows of alternating bullseyes, combed one way and back, then feathered.
-viscosity({ value: 1000 });
-const inks = palette('Lapis & Gilt').inks;
-allAtOnce();
-for (let r = 0; r < 4; r++) {
-  for (let c = 0; c < 6; c++) {
-    const x = 10 + c * 16 + (r % 2) * 8;
-    const y = 86.4 - r * 24.3;
-    drop({ x, y, quantity: 1.6, dispersion: 1.8, color: inks[(r + c) % 2 ? 0 : 1] });
-  }
-}
-settle();
-for (let r = 0; r < 4; r++) {
-  for (let c = 0; c < 6; c++) {
-    const x = 10 + c * 16 + (r % 2) * 8;
-    const y = 86.4 - r * 24.3;
-    drop({ x, y, quantity: 1.9, dispersion: 2.5, color: inks[4] });
-  }
-}
-settle();
-for (let r = 0; r < 4; r++) {
-  for (let c = 0; c < 6; c++) {
-    const x = 10 + c * 16 + (r % 2) * 8;
-    const y = 86.4 - r * 24.3;
-    drop({ x, y, quantity: 0.6, dispersion: 2.5, color: inks[3] });
-  }
-}
-settle();
-fullRake({ angle: 90, teeth: 8, speed: 24, D: 0.7 });
-settle();
-fullRake({ angle: 270, teeth: 8, offset: 6.2, speed: 24, D: 0.7 });
-settle();
-fullRake({ angle: 0, teeth: 30, speed: 32, D: 0.4 });
-`,
-  'Emerald peacock': `// Emerald and gold, combed both ways with a fine weaving rake.
-viscosity({ value: 1000 });
-const inks = palette('Emerald & Gold').inks;
-for (let i = 0; i < 40; i++) {
-  drop({ x: 5 + (i % 8) * 12.8, y: 90 - Math.floor(i / 8) * 20,
-         quantity: 1.7, dispersion: 1.6, color: inks[(i * 3) % inks.length] });
-}
-settle();
-fullRake({ angle: 90, teeth: 10, speed: 24, D: 0.7 });
-settle();
-fullRake({ angle: 270, teeth: 10, offset: 5, speed: 24, D: 0.7 });
-settle();
-fullRake({ angle: 0, teeth: 16, speed: 26, D: 0.6, waveAmp: 2.2, waveLength: 9 });
-`,
-  'Gilded stone': `// A thick scatter of dark inks, then fine gold spatter over the top.
-viscosity({ value: 1000 });
-const dark = palette('Dark Academia').inks;
-drops({ n: 90, quantity: 1.4, spread: 0.6, stagger: 2.5, dispersion: 1.4, colors: dark.slice(0, 5) });
-settle();
-wait(0.5);
-drops({ n: 70, quantity: 0.07, spread: 0.7, stagger: 2, dispersion: 2, colors: [dark[5]] });
-`,
-  'Oxblood whirl': `// Rings poured in order at the centre, then stirred in opposite directions.
-viscosity({ value: 1000 });
-const inks = palette('Oxblood & Gilt').inks;
-inOrder({ gap: 0.35 });
-for (let i = 0; i < 18; i++) {
-  drop({ x: 50, y: 50, quantity: 12.9, dispersion: 2.5, color: inks[i % inks.length] });
-}
-allAtOnce();
-settle();
-stir({ radii: [7, -13, 19, -25], degrees: 120, rate: 60, D: 4 });
-settle();
-wriggle({ period: 12, degrees: 12, duration: 2 });
-`,
-  'Library endpaper': `// Printed text settled onto a marbled sheet, then gently combed with it.
-viscosity({ value: 1000 });
-const inks = palette('Ravenwood Library').inks;
-for (let i = 0; i < 48; i++) {
-  drop({ x: 5 + (i % 8) * 12.8 + (Math.floor(i / 8) % 2) * 6.4, y: 91.4 - Math.floor(i / 8) * 16.6,
-         quantity: 1.3, dispersion: 1.8, color: inks[i % inks.length] });
-}
-settle();
-fullRake({ angle: 0, teeth: 7, speed: 24, D: 0.7 });
-settle();
-text({ string: 'Ex Libris', font: 'serif', size: 17, color: '#f2e8d5' });
-wait(1);
-fullRake({ angle: 90, teeth: 9, speed: 9, D: 0.3 });
-`,
-  'Dot garden': `// Big dots first, small ones tucked into the gaps.
-viscosity({ value: 1000 });
-const p = palette('Old Dutch');
-fillDots({ count: 220, min: 0.8, max: 9, colors: p.inks.slice(0, 4) });
-settle();
-`,
-  'Bead field': `// Dots of stacked rings, each layer settling before the next.
-viscosity({ value: 1000 });
-fillDots({ count: 60, min: 1.5, max: 10, gap: 0.8, rings: 3, colors: palette('Copper & Verdigris').inks });
-settle();
-`,
-  'Chevrons': `// Bands of colour combed one way, then back between the first lines.
-viscosity({ value: 1000 });
-const inks = palette('Old Dutch').inks;
-stripes({ count: 30, colors: inks, slivers: 1 });
-fullRake({ angle: 90, teeth: 8, speed: 24, D: 0.7 });
-fullRake({ angle: 270, teeth: 8, offset: 6.25, speed: 24, D: 0.7 });
-fullRake({ angle: 0, teeth: 40, speed: 30, D: 0.3 });`,
-  'Ribbons': `// Stripes combed back and forth with a few wide teeth, until they stretch into ribbons.
-viscosity({ value: 1000 });
-const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
-bath({ color: '#c8d8c0' });
-stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
-for (let i = 0; i < 3; i++) {
-  fullRake({ angle: 90, teeth: 4, speed: 40, D: 2 });
-  fullRake({ angle: 270, teeth: 4, offset: 12.5, speed: 40, D: 2 });
-}`,
-  'Big waves': `// One slow, very wide pass each way bends stripes into broad waves.
-viscosity({ value: 1000 });
-const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
-bath({ color: '#c8d8c0' });
-stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
-fullRake({ angle: 90, teeth: 3, speed: 60, D: 3 });
-fullRake({ angle: 270, teeth: 3, offset: 16.7, speed: 60, D: 3 });`,
-  'Flames': `// Wide combing up and down, twice, draws stripes out into flames.
-viscosity({ value: 1000 });
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-bath({ color: '#f7e1b5' });
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-for (let i = 0; i < 2; i++) {
-  fullRake({ angle: 90, teeth: 7, speed: 30, D: 1.4 });
-  fullRake({ angle: 270, teeth: 7, offset: 7.14, speed: 30, D: 1.4 });
-}`,
-  'Two-way feathers': `// Combed up and down, across, then up and down again, so the feathers point both ways.
-viscosity({ value: 1000 });
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-bath({ color: '#f7e1b5' });
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-fullRake({ angle: 90, teeth: 6, speed: 30, D: 1 });
-fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
-fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
-fullRake({ angle: 90, teeth: 6, speed: 20, D: 0.8 });
-fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 20, D: 0.8 });`,
-  'Whorls': `// In a thin bath with a strong push, the wake behind each tine rolls up into spirals.
-viscosity({ value: 10 });
-flow({ friction: 0.05, coast: 120, push: 3 });
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-bath({ color: '#f7e1b5' });
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-settle();
-fullRake({ angle: 0, teeth: 5, speed: 30 });
-settle();`,
-  'Repeating whorls': `// Whorls on a repeating tank: swirls roll across the seams. Press See it repeat to check.
-tile();
-viscosity({ value: 10 });
-flow({ friction: 0.05, coast: 120, push: 3 });
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-bath({ color: '#f7e1b5' });
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-settle();
-fullRake({ angle: 0, teeth: 5, speed: 30 });
-settle();`,
-  'Grid ink spirals': `// Spirals in soft, blended colour. Runs for minutes on the grid ink simulator.
-viscosity({ value: 10 });
-flow({ friction: 0.05, coast: 40, push: 3 });
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-bath({ color: '#f7e1b5' });
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-settle();
-air({ scale: 20, speed: 8 });
-settle();`,
-  'Storm': `// Two strong passes leave a swirling storm. A higher point limit in Detail lets it run longer.
-viscosity({ value: 10 });
-flow({ friction: 0.05, coast: 40, push: 3 });
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-bath({ color: '#f7e1b5' });
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-settle();
-fullRake({ angle: 90, teeth: 5, speed: 30, D: 1 });
-fullRake({ angle: 270, teeth: 5, offset: 10, speed: 30, D: 1 });
-settle();`,
-  'Italian marble': `// One breath of air over stripes, with no comb at all.
-viscosity({ value: 1000 });
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-bath({ color: '#f7e1b5' });
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-air({ scale: 20, speed: 8 });`,
-  'Spiral field': `// A breath of air in a whorling bath fills the page with spirals. Heavy: it makes a lot of points.
-viscosity({ value: 10 });
-flow({ friction: 0.05, coast: 40, push: 3 });
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-bath({ color: '#f7e1b5' });
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-settle();
-air({ scale: 20, speed: 8 });
-settle();`,
-  'Seamless wallpaper': `// One tile of a repeating pattern. Press See it repeat to check it joins up.
-viscosity({ value: 1000 });
-tile();
-const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
-stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-fullRake({ angle: 90, teeth: 6, speed: 30, D: 1 });
-fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
-fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
-air({ scale: 25, speed: 6 });`,
-  'Starry spray': `// Dark dots with fine metallic spray over the top.
-viscosity({ value: 1000 });
-const p = palette('Lapis & Gilt');
-bath({ color: p.bath });
-fillDots({ count: 40, min: 2, max: 12, gap: 1, colors: p.inks.slice(0, 3) });
-settle();
-spray({ x: 30, y: 40, radius: 40, n: 300, colors: [p.inks[4]] });
-spray({ x: 70, y: 65, radius: 40, n: 300, colors: [p.inks[3], p.inks[4]] });
-settle();
-`,
-  'Wave comb': `// A traced surf wave as the rake's path. Try it on any simulator.
-viscosity({ value: 1000 });
-const p = palette('Old Dutch');
-for (let i = 0; i < 8; i++) {
-  for (let j = 0; j < 11; j++) drop({ x: 4 + j * 9.2, y: 6 + i * 12.5, quantity: 1.6, color: p.inks[i % 4] });
-}
-settle();
-fullRake({ angle: 0, teeth: 5, speed: 25, D: 1, waveAmp: 5, waveLength: 18, waveShape: 'wave' });
-`,
-  'Verdigris waves': `// Copper and verdigris bands, shaken into waves.
-viscosity({ value: 1000 });
-const inks = palette('Copper & Verdigris').inks;
-for (let r = 0; r < 7; r++) {
-  for (let c = 0; c < 9; c++) {
-    drop({ x: 6 + c * 11, y: 92.9 - r * 14.3, quantity: 1.1, dispersion: 1.8,
-           color: inks[r % inks.length] });
-  }
-}
-settle();
-jiggle({ angle: 0, period: 21, amplitude: 4.5, duration: 2 });
-settle();
-fullRake({ angle: 0, teeth: 14, speed: 28, D: 0.5 });
-`,
-};
 
 const DIRECTIONS = [[0, '→', 'Right'], [180, '←', 'Left'], [90, '↑', 'Up'], [270, '↓', 'Down']];
-// Sidebar controls are in page units, like scripts. This gives a tool's values in mm.
-function inMm(name, tank = marble) {
-  const k = tank.width / 100;
-  const scale = { w: k, tenth: k / 10, w2: k * k, q: toMm('drop', { quantity: 1 }, tank).quantity };
-  const out = { ...values[name] };
-  for (const [key, unit] of Object.entries(PAGE_UNITS)) if (key in out) out[key] *= scale[unit];
-  return out;
-}
-
-// ---- State --------------------------------------------------------------
-
-let marble = new Marble();
-let playing = true;
-let tool = 'drop';
-let tileSimulator = null; // the simulator the Repeating tick was last set for
-let inks = palette(START_PALETTE).inks;
-let color = inks[0].color;
-let shimmer = inks[0].shimmer;
-const values = {};
-for (const [name, def] of Object.entries(TOOLS)) {
-  values[name] = Object.fromEntries(Object.entries(def.params).map(([k, p]) => [k, p[1]]));
-  for (const [k, c] of Object.entries(def.choices ?? {})) values[name][k] = c[2];
-}
-
-values.fullRake.angle = 0;
-values.stripes.angle = 0;
-
-const tank = $('tank');
-const overlay = $('overlay');
-const tctx = tank.getContext('2d');
-const octx = overlay.getContext('2d');
-let pxPerMm = 1;
-let dirty = true;
-let stroke = null;
-let hover = null; // pointer position in tank mm, for the text preview
-let pull = null;  // the pull in progress
-let tint = Object.values(TINTS)[0];
-let pullSeed = Date.now() % 1e9;
-values.text.string = 'Marbled';
-values.text.font = 'serif';
 
 // ---- Simulator ----------------------------------------------------------
 
@@ -317,22 +27,37 @@ for (const m of MODELS) {
 }
 $('simulator').value = MODELS.some((m) => m.id === localStorage.getItem('marbler.simulator'))
   ? localStorage.getItem('marbler.simulator') : MODELS[0].id;
-const currentModel = () => MODELS.find((m) => m.id === $('simulator').value);
-// Each simulator has its own starting viscosity. Grid ink's grid flow wants a thinner bath.
-const STANDARD_VISCOSITY = 1000;
-const startingViscosity = (model = currentModel()) => model?.viscosity ?? STANDARD_VISCOSITY;
-let viscositySimulator = currentModel().id; // whose starting viscosity the box was last given
-$('visc').value = startingViscosity();
-// Changing simulator moves the box to the new one's starting value, unless it holds the user's own.
-function syncViscosity() {
-  const was = MODELS.find((m) => m.id === viscositySimulator);
-  if (Number($('visc').value) === startingViscosity(was)) $('visc').value = startingViscosity();
-  viscositySimulator = currentModel().id;
+$('lowFramerate').checked = localStorage.getItem('marbler.lowFramerate') === '1';
+$('gridCell').value = localStorage.getItem('marbler.gridCell') || 2;
+$('clearFirst').checked = localStorage.getItem('marbler.runKeepsInk') !== '1';
+
+// ---- State --------------------------------------------------------------
+
+// The tank and what drives it live in the controller. The form fields named after its settings
+// hand every edit straight over, and are redrawn from the settings whenever it changes them.
+const FIELDS = Object.keys(DEFAULT_SETTINGS).filter((id) => $(id));
+const fieldValue = (el) => (el.type === 'checkbox' ? el.checked : el.value);
+// Viscosity and base colour start as the simulator and palette say, not as the page does.
+const c = new TankController({
+  settings: Object.fromEntries(FIELDS.filter((id) => id !== 'visc' && id !== 'bath').map((id) => [id, fieldValue($(id))])),
+  trace: textContours,
+});
+// Added before any other handler, so those always see the new value.
+for (const id of FIELDS) {
+  const take = () => { c.settings[id] = fieldValue($(id)); };
+  $(id).addEventListener('input', take);
+  $(id).addEventListener('change', take);
 }
-// A script's openWater() shows here too, so the control always says what's really running.
-function showSpreading(on) {
-  $('simulator').value = MODELS.find((m) => m.spreading === on).id;
-}
+
+const tank = $('tank');
+const overlay = $('overlay');
+const tctx = tank.getContext('2d');
+const octx = overlay.getContext('2d');
+let pxPerMm = 1;
+let hover = null; // pointer position in tank mm, for the text preview
+let pull = null;  // the pull in progress
+let tint = Object.values(TINTS)[0];
+let pullSeed = Date.now() % 1e9;
 
 // ---- Sidebar panels -----------------------------------------------------
 
@@ -349,26 +74,52 @@ for (const panel of document.querySelectorAll('.panel')) {
 function resize() {
   const box = $('wrap').getBoundingClientRect();
   const dpr = devicePixelRatio || 1;
-  const cssScale = Math.min(box.width / marble.width, box.height / marble.height);
+  const cssScale = Math.min(box.width / c.marble.width, box.height / c.marble.height);
   pxPerMm = cssScale * dpr;
-  for (const c of [tank, overlay]) {
-    c.width = Math.round(marble.width * pxPerMm);
-    c.height = Math.round(marble.height * pxPerMm);
-    c.style.width = `${marble.width * cssScale}px`;
-    c.style.height = `${marble.height * cssScale}px`;
+  for (const el of [tank, overlay]) {
+    el.width = Math.round(c.marble.width * pxPerMm);
+    el.height = Math.round(c.marble.height * pxPerMm);
+    el.style.width = `${c.marble.width * cssScale}px`;
+    el.style.height = `${c.marble.height * cssScale}px`;
   }
-  dirty = true;
+  c.dirty = true;
 }
 new ResizeObserver(resize).observe($('wrap'));
+c.on('tank', resize);
 
 function toTank(ev) {
   const r = overlay.getBoundingClientRect();
   return [
-    ((ev.clientX - r.left) / r.width - 0.5) * marble.width,
-    (0.5 - (ev.clientY - r.top) / r.height) * marble.height,
+    ((ev.clientX - r.left) / r.width - 0.5) * c.marble.width,
+    (0.5 - (ev.clientY - r.top) / r.height) * c.marble.height,
   ];
 }
-const toPx = ([x, y]) => [(x + marble.width / 2) * pxPerMm, (marble.height / 2 - y) * pxPerMm];
+const toPx = ([x, y]) => [(x + c.marble.width / 2) * pxPerMm, (c.marble.height / 2 - y) * pxPerMm];
+
+// ---- Settings -----------------------------------------------------------
+
+// Puts every setting back in its field, and shows only the controls the simulator can use.
+function renderSettings() {
+  const s = c.settings;
+  for (const id of FIELDS) {
+    const el = $(id);
+    if (el.type === 'checkbox') el.checked = s[id];
+    else el.value = s[id];
+  }
+  const can = c.capabilities();
+  $('tools').querySelector('[data-tool="erase"]').hidden = !can.erase;
+  $('tools').querySelector('[data-tool="hearts"]').hidden = !can.hearts;
+  if ($('freezeRow')) $('freezeRow').hidden = !can.freeze;
+  $('tile').disabled = !can.tile;
+  $('tile').closest('label').hidden = !can.tile;
+  $('walls').disabled = !can.walls;
+  $('walls').closest('label').hidden = !can.walls;
+  $('tileOffset').closest('label').hidden = !can.tileOffset;
+  $('bathPanel').hidden = !can.flow;
+  $('queueGapLabel').hidden = s.queueMode !== 'order';
+  showRunMode();
+  showAngleHint();
+}
 
 // ---- Tool panel ---------------------------------------------------------
 
@@ -397,46 +148,30 @@ function typeBox(range) {
   return box;
 }
 
-// Ink colours are #rrggbb, or #rrggbbaa when translucent.
-const inkRgb = () => color.slice(0, 7);
-const inkAlpha = () => (color.length > 7 ? parseInt(color.slice(7), 16) / 255 : 1);
-function setInk(rgb, alpha) {
-  const a = Math.round(alpha * 255);
-  color = (a === 255 ? rgb : rgb + a.toString(16).padStart(2, '0')).toLowerCase();
-}
-
-// Normalises #rgb, #rgba, #rrggbb and #rrggbbaa, with or without the #. Null if invalid.
-function parseHex(text) {
-  const h = text.trim().replace(/^#/, '').toLowerCase();
-  if (!/^[0-9a-f]+$/.test(h) || ![3, 4, 6, 8].includes(h.length)) return null;
-  const full = h.length < 6 ? [...h].map((c) => c + c).join('') : h;
-  return { rgb: `#${full.slice(0, 6)}`, alpha: full.length === 8 ? parseInt(full.slice(6), 16) / 255 : 1 };
-}
-
 // The same colour fully opaque, so previews stay visible however faint the ink is.
-function opaque(c) {
-  if (/^#[0-9a-f]{8}$/i.test(c)) return c.slice(0, 7);
-  if (/^#[0-9a-f]{4}$/i.test(c)) return c.slice(0, 4);
-  const m = /^rgba\(\s*([^,]+),\s*([^,]+),\s*([^,)]+)/i.exec(c);
-  return m ? `rgb(${m[1]},${m[2]},${m[3]})` : c;
+function opaque(color) {
+  if (/^#[0-9a-f]{8}$/i.test(color)) return color.slice(0, 7);
+  if (/^#[0-9a-f]{4}$/i.test(color)) return color.slice(0, 4);
+  const m = /^rgba\(\s*([^,]+),\s*([^,]+),\s*([^,)]+)/i.exec(color);
+  return m ? `rgb(${m[1]},${m[2]},${m[3]})` : color;
 }
 
 function colorPicker() {
   const box = document.createElement('div');
   const row = document.createElement('div');
   row.className = 'swatches';
-  const swatches = inks.map((ink, i) => {
+  const swatches = c.inks.map((ink, i) => {
     const b = document.createElement('button');
     b.style.background = ink.color;
     const name = ink.shimmer > 0 ? `${ink.color}, shimmer ${ink.shimmer}` : ink.color;
     b.title = i < 9 ? `${i + 1}: ${name}` : name;
     b.classList.toggle('metal', ink.shimmer > 0);
-    b.onclick = () => { setInk(ink.color, inkAlpha()); shimmer = ink.shimmer; sync(); };
+    b.onclick = () => { c.setInk(ink.color, c.inkAlpha()); c.shimmer = ink.shimmer; sync(); };
     return b;
   });
   const native = Object.assign(document.createElement('input'), { type: 'color', id: 'customColor' });
   native.style.width = '40px';
-  native.oninput = () => { setInk(native.value, inkAlpha()); sync(); };
+  native.oninput = () => { c.setInk(native.value, c.inkAlpha()); sync(); };
   row.append(...swatches, native, infoIcon('color.swatches'));
 
   const hex = Object.assign(document.createElement('input'), {
@@ -446,7 +181,7 @@ function colorPicker() {
   hex.oninput = () => {
     const parsed = parseHex(hex.value);
     hex.classList.toggle('invalid', !parsed);
-    if (parsed) { setInk(parsed.rgb, parsed.alpha); sync(hex); }
+    if (parsed) { c.setInk(parsed.rgb, parsed.alpha); sync(hex); }
   };
   hex.onblur = () => sync();
 
@@ -454,21 +189,21 @@ function colorPicker() {
     type: 'range', id: 'colorAlpha', min: 0, max: 100, step: 1,
   });
   const alphaValue = typeBox(alpha);
-  alpha.oninput = () => { setInk(inkRgb(), Number(alpha.value) / 100); sync(); };
+  alpha.oninput = () => { c.setInk(c.inkRgb(), Number(alpha.value) / 100); sync(); };
   const alphaLabel = document.createElement('label');
   alphaLabel.className = 'block';
   alphaLabel.append('Opacity (%)', infoIcon('color.alpha'), alphaValue, alpha);
 
   // Refreshes every control, leaving alone the one being typed in.
   function sync(typing) {
-    for (const [i, b] of swatches.entries()) b.classList.toggle('on', inks[i].color === inkRgb());
-    sheen.value = Math.round(shimmer * 100);
+    for (const [i, b] of swatches.entries()) b.classList.toggle('on', c.inks[i].color === c.inkRgb());
+    sheen.value = Math.round(c.shimmer * 100);
     sheenValue.refresh();
-    native.value = inkRgb();
-    alpha.value = Math.round(inkAlpha() * 100);
+    native.value = c.inkRgb();
+    alpha.value = Math.round(c.inkAlpha() * 100);
     alphaValue.refresh();
     if (typing !== hex) {
-      hex.value = color;
+      hex.value = c.color;
       hex.classList.remove('invalid');
     }
   }
@@ -476,7 +211,7 @@ function colorPicker() {
     type: 'range', id: 'colorShimmer', min: 0, max: 100, step: 5,
   });
   const sheenValue = typeBox(sheen);
-  sheen.oninput = () => { shimmer = Number(sheen.value) / 100; sync(); };
+  sheen.oninput = () => { c.shimmer = Number(sheen.value) / 100; sync(); };
   const sheenLabel = document.createElement('label');
   sheenLabel.className = 'block';
   sheenLabel.append('Shimmer (%)', infoIcon('color.shimmer'), sheenValue, sheen);
@@ -490,65 +225,48 @@ function colorPicker() {
 let angleHint = null;
 function showAngleHint() {
   if (!angleHint) return;
-  const wanted = values.fullRake.angle;
-  const runs = $('tile').checked ? Math.round(closedDirection(wanted, marble.width, marble.height, tileOffset()).angle) : wanted;
+  const wanted = c.values.fullRake.angle;
+  const runs = c.fullRakeAngle();
   angleHint.textContent = runs % 360 === wanted % 360 ? '' : `On this repeating tank it runs at ${runs}°, the nearest angle that joins up.`;
 }
 
-// Full rake's clicks on the tank are free, so they can pick ink to freeze. off, 'freeze' or 'unfreeze'.
-let freezeMode = 'off';
+// Full rake's clicks on the tank are free, so they can pick ink to freeze.
 function freezeRow(box) {
   const row = document.createElement('div');
   row.id = 'freezeRow';
   row.className = 'row freezes';
-  row.hidden = !(currentModel().engine ?? Marble).prototype.freezeSupported;
+  row.hidden = !c.capabilities().freeze;
   const label = document.createElement('span');
   label.append('Freeze ink', infoIcon('freeze'));
   row.append(label);
   const pick = (mode, text) => {
     const b = document.createElement('button');
     b.textContent = text;
-    b.classList.toggle('on', freezeMode === mode);
+    b.classList.toggle('on', c.freezeMode === mode);
     b.onclick = () => {
-      freezeMode = freezeMode === mode ? 'off' : mode;
+      c.pickFreezeMode(mode);
       for (const s of row.querySelectorAll('button')) s.classList.remove('on');
-      b.classList.toggle('on', freezeMode === mode);
-      overlay.style.cursor = freezeMode === 'off' ? '' : 'crosshair';
+      b.classList.toggle('on', c.freezeMode === mode);
+      overlay.style.cursor = c.freezeMode === 'off' ? '' : 'crosshair';
     };
     return b;
   };
   const clear = document.createElement('button');
   clear.textContent = 'Clear all';
-  clear.onclick = () => {
-    if (!marble.polys.some((p) => p.frozen)) return;
-    act(() => {
-      marble.live(() => marble.unfreezeAll({ at: marble.time }));
-      marble.applyNow();
-    });
-    dirty = true;
-  };
+  clear.onclick = () => c.unfreezeAll();
   row.append(pick('freeze', 'Freeze'), pick('unfreeze', 'Unfreeze'), clear);
   box.append(row);
 }
 
-function freezeAt([x, y]) {
-  const unfreezing = freezeMode === 'unfreeze';
-  if (!marble.shapeAt(x, y, { frozen: unfreezing })) return;
-  act(() => {
-    marble.live(() => (unfreezing ? marble.unfreeze({ x, y, at: marble.time }) : marble.freeze({ x, y, at: marble.time })));
-    marble.applyNow();
-  });
-  dirty = true;
-}
-
 // Where each heart's tine will run, dashed like the rake previews, in every copy that shows.
 function drawHeartLines() {
-  if (tool !== 'hearts' || !marble.heartPaths || marble.busy) return;
+  const m = c.marble;
+  if (c.tool !== 'hearts' || !m.heartPaths || m.busy) return;
   const px = devicePixelRatio || 1;
   octx.save();
   octx.lineWidth = px;
   octx.setLineDash([5 * px, 4 * px]);
-  const paths = marble.heartPaths(inMm('hearts'));
+  const paths = m.heartPaths(c.inMm('hearts'));
   const line = (from, to, sx, sy) => {
     const [ax, ay] = toPx([from[0] + sx, from[1] + sy]);
     const [bx, by] = toPx([to[0] + sx, to[1] + sy]);
@@ -559,20 +277,21 @@ function drawHeartLines() {
     octx.beginPath();
     octx.strokeStyle = colour;
     octx.lineDashOffset = phase;
-    for (const { from, to, loops } of paths) for (const [sx, sy] of marble.tileShifts(loops)) line(from, to, sx, sy);
+    for (const { from, to, loops } of paths) for (const [sx, sy] of m.tileShifts(loops)) line(from, to, sx, sy);
     octx.stroke();
   }
   octx.restore();
 }
 
 function drawFrozen() {
-  if (!marble.polys.some((p) => p.frozen)) return;
-  const masked = tool === 'fullRake';
+  const m = c.marble;
+  if (!m.polys.some((p) => p.frozen)) return;
+  const masked = c.tool === 'fullRake';
   const px = devicePixelRatio || 1;
   const pathFor = (loops) => {
     const path = new Path2D();
     for (const poly of loops) {
-      for (const [sx, sy] of marble.tileShifts([poly])) {
+      for (const [sx, sy] of m.tileShifts([poly])) {
         for (let i = 0; i < poly.n; i++) {
           const [x, y] = toPx([poly.xy[i * 2] + sx, poly.xy[i * 2 + 1] + sy]);
           if (i) path.lineTo(x, y);
@@ -586,7 +305,7 @@ function drawFrozen() {
   octx.save();
   octx.lineWidth = px;
   octx.setLineDash([5 * px, 4 * px]);
-  for (const poly of marble.polys) {
+  for (const poly of m.polys) {
     if (!poly.frozen) continue;
     const path = pathFor([poly]);
     if (masked) {
@@ -602,25 +321,25 @@ function drawFrozen() {
   }
   octx.restore();
   // What a click would pick.
-  if (tool === 'fullRake' && freezeMode !== 'off' && hover) {
-    const loops = marble.shapeAt(hover[0], hover[1], { frozen: freezeMode === 'unfreeze' });
+  if (c.tool === 'fullRake' && c.freezeMode !== 'off' && hover) {
+    const loops = m.shapeAt(hover[0], hover[1], { frozen: c.freezeMode === 'unfreeze' });
     if (loops) {
       octx.save();
       octx.lineWidth = 2 * px;
-      octx.strokeStyle = freezeMode === 'freeze' ? '#ff3058' : '#fff';
+      octx.strokeStyle = c.freezeMode === 'freeze' ? '#ff3058' : '#fff';
       octx.stroke(pathFor(loops));
       octx.restore();
     }
   }
 }
 
-function showTool(name) {
-  if (name !== tool) {
-    freezeMode = 'off';
-    overlay.style.cursor = '';
-  }
-  tool = name;
-  stroke = null;
+const showTool = (name) => c.setTool(name);
+
+// Builds the panel for the chosen tool.
+function renderTool({ changed }) {
+  if (changed) overlay.style.cursor = '';
+  const name = c.tool;
+  const values = c.values;
   const def = TOOLS[name];
   for (const b of $('tools').children) b.classList.toggle('on', b.dataset.tool === name);
   $('hint').textContent = `${def.hint} `;
@@ -693,8 +412,8 @@ function showTool(name) {
         return;
       }
       if (name !== 'drop' || key !== 'quantity') return;
-      const mL = toMm('drop', { quantity: values[name][key] }, marble).quantity;
-      hint.textContent = `${Math.round((200 * maxRadius(mL, marble.film)) / marble.width)}% of the tank's width across`;
+      const mL = toMm('drop', { quantity: values[name][key] }, c.marble).quantity;
+      hint.textContent = `${Math.round((200 * maxRadius(mL, c.marble.film)) / c.marble.width)}% of the tank's width across`;
     };
     const input = document.createElement('input');
     Object.assign(input, dial
@@ -721,6 +440,7 @@ function showTool(name) {
     box.append(wrap);
   }
 }
+c.on('tool', renderTool);
 
 // Two repeats of a weave, drawn from the same curve the rake follows.
 function weaveIcon(shape) {
@@ -742,6 +462,7 @@ function weaveIcon(shape) {
 const DEFAULT_WEAVE_HEIGHT = 30;
 
 function weavePicker(name, label, options) {
+  const values = c.values;
   const wrap = document.createElement('div');
   wrap.className = 'block';
   wrap.append(label, infoIcon(`${name}.waveShape`));
@@ -777,15 +498,8 @@ function weavePicker(name, label, options) {
 
 // Swaps the swatches and bath colour straight away, without clearing the tank.
 function applyPalette(name) {
-  const p = palette(name);
-  // A copy, so changing colours in the editor can't change the palette it started from.
-  inks = p.inks.map((ink) => ({ ...ink }));
-  color = inks[0].color;
-  shimmer = inks[0].shimmer;
-  $('bath').value = p.bath;
-  marble.bath = bathColor();
-  dirty = true;
-  showTool(tool);
+  const p = c.usePalette(name);
+  showTool(c.tool);
   $('palette').value = p.name;
   $('paletteName').value = isBuiltInPalette(p.name) ? '' : p.name;
   renderPaletteEditor();
@@ -795,36 +509,31 @@ const myPalettes = keptList('marbler.palettes', validPalette);
 
 // The current palette's inks, each with its colour, shimmer and a button to remove it.
 function renderPaletteEditor() {
-  $('paletteInks').replaceChildren(...inks.map((ink, i) => {
+  $('paletteInks').replaceChildren(...c.inks.map((ink, i) => {
     const row = document.createElement('div');
     row.className = 'paletteInk';
     const pick = Object.assign(document.createElement('input'), { type: 'color', value: ink.color.slice(0, 7), title: `Ink ${i + 1}` });
     pick.setAttribute('aria-label', `Ink ${i + 1} colour`);
     pick.oninput = () => {
-      const chosen = color === ink.color;
-      ink.color = pick.value + ink.color.slice(7); // keeps any transparency
-      if (chosen) color = ink.color;
-      showTool(tool);
+      c.setPaletteInk(i, { rgb: pick.value });
+      showTool(c.tool);
     };
     const metal = Object.assign(document.createElement('input'), { type: 'range', min: 0, max: 1, step: 0.05, value: ink.shimmer, title: 'Shimmer: 0 is matte, 1 is metallic' });
     metal.setAttribute('aria-label', `Ink ${i + 1} shimmer`);
     metal.oninput = () => {
-      const chosen = color === ink.color;
-      ink.shimmer = Number(metal.value);
-      if (chosen) shimmer = ink.shimmer;
-      showTool(tool);
+      c.setPaletteInk(i, { shimmer: Number(metal.value) });
+      showTool(c.tool);
     };
-    const remove = Object.assign(document.createElement('button'), { textContent: '✕', title: 'Remove this ink', disabled: inks.length < 2 });
+    const remove = Object.assign(document.createElement('button'), { textContent: '✕', title: 'Remove this ink', disabled: c.inks.length < 2 });
     remove.onclick = () => {
-      inks.splice(i, 1);
-      if (!inks.some((k) => k.color === color)) { color = inks[0].color; shimmer = inks[0].shimmer; }
-      showTool(tool);
+      c.removePaletteInk(i);
+      showTool(c.tool);
       renderPaletteEditor();
     };
     row.append(pick, metal, remove);
     return row;
   }));
-  $('addInk').disabled = inks.length >= MAX_INKS;
+  $('addInk').disabled = c.inks.length >= MAX_INKS;
   $('deletePalette').disabled = isBuiltInPalette($('palette').value);
 }
 
@@ -845,15 +554,15 @@ function renderPalettes(chosen) {
 renderPalettes(START_PALETTE);
 $('palette').onchange = () => applyPalette($('palette').value);
 $('addInk').onclick = () => {
-  inks.push({ color: '#808080', shimmer: 0 });
-  showTool(tool);
+  c.addPaletteInk();
+  showTool(c.tool);
   renderPaletteEditor();
 };
 $('savePalette').onclick = () => {
   const name = $('paletteName').value.trim();
   if (!name) { $('paletteName').focus(); return; }
   if (isBuiltInPalette(name)) { showError(`"${name}" is a built-in palette, so choose another name.`); return; }
-  const entry = { name, bath: $('bath').value, inks };
+  const entry = { name, bath: c.settings.bath, inks: c.inks };
   if (!validPalette(entry)) { showError('A palette name can be up to 40 characters.'); return; }
   const existing = myPalettes.list().find((p) => p.name.toLowerCase() === name.toLowerCase());
   if (existing && existing.name !== $('palette').value && !confirm(`Replace the saved palette "${existing.name}"?`)) return;
@@ -888,9 +597,6 @@ function applyPaletteActions(actions = []) {
     }
   }
 }
-$('bath').value = palette(START_PALETTE).bath;
-marble.bath = bathColor();
-inks = palette(START_PALETTE).inks.map((ink) => ({ ...ink }));
 renderPaletteEditor();
 
 for (const name of Object.keys(TOOLS)) {
@@ -901,350 +607,67 @@ for (const name of Object.keys(TOOLS)) {
   $('tools').append(b);
 }
 
-// No base colour by default: the tank shows an empty grid and exports stay transparent.
-function bathColor() { return $('useBath').checked ? $('bath').value : 'rgba(0,0,0,0)'; }
+// From here on the fields follow the settings, which already hold the starting viscosity and bath.
+c.on('settings', renderSettings);
+renderSettings();
 
 // ---- History ---------------------------------------------------------------
 
-// Each user action is one undo step, however many log entries it adds. undoMarks
-// holds the log length before each action; the log before the first mark (settings
-// the tank started with) can't be undone.
-let undoMarks = [];
-let redoGroups = [];
-
-function act(fn) {
-  const before = marble.log.length;
-  const state = marble.saveState();
-  fn();
-  if (marble.log.length > before) {
-    undoMarks.push(before);
-    undoStates.push(state);
-    if (undoStates.length > KEPT_UNDO_STATES) undoStates[undoStates.length - KEPT_UNDO_STATES - 1] = null;
-    trimUndo();
-    redoGroups = [];
-    redoStates = [];
-    updateHistoryButtons();
-  }
-}
-
-// Sets the transport toggles to whatever a log leaves in place.
-function syncToggles(entries) {
-  const water = entries.filter((e) => e.fn === 'openWater').at(-1);
-  if (water) showSpreading(water.args.on);
-  $('walls').checked = entries.filter((e) => e.fn === 'walls').at(-1)?.args.on ?? false;
-  $('tile').checked = entries.filter((e) => e.fn === 'tile').at(-1)?.args.on ?? currentModel().repeatsAtFirst === true;
-  $('tileOffset').value = entries.filter((e) => e.fn === 'tile').at(-1)?.args.offset ?? '';
-  syncTile();
-  // A script's bath() shows in the sidebar, and so carries over to the next run like a sidebar choice.
-  const thickness = entries.filter((e) => e.fn === 'setViscosity').at(-1);
-  $('visc').value = thickness ? thickness.args.value : marble.startViscosity ?? $('visc').value;
-  const flow = entries.filter((e) => e.fn === 'setFlow').at(-1);
-  if (flow) showFlow(flow.args);
-  syncBathPanel();
-  const bath = entries.filter((e) => e.fn === 'setBath').at(-1);
-  if (bath) {
-    $('useBath').checked = bath.args.color !== null;
-    if (parseHex(bath.args.color ?? '')?.rgb) $('bath').value = parseHex(bath.args.color).rgb;
-  }
-}
-
-const KEPT_UNDO_STATES = 30;
-const KEPT_UNDO_BYTES = 500e6;
-const stateBytes = (state) => state.polys.reduce((sum, p) => sum + p.xy.byteLength, 0)
-  + Object.values(state.grid ?? {}).flat().reduce((sum, f) => sum + (f?.byteLength ?? 0), 0);
-// Big tanks are expensive to copy. Older steps lose their copy and are replayed if undone.
-function trimUndo() {
-  let bytes = 0;
-  for (let i = undoStates.length - 1; i >= 0; i--) {
-    if (!undoStates[i]) continue;
-    bytes += stateBytes(undoStates[i]);
-    if (bytes > KEPT_UNDO_BYTES && i < undoStates.length - 1) undoStates[i] = null;
-  }
-}
-let undoStates = [];
-let redoStates = [];
-
-function resetHistory() {
-  undoMarks = [];
-  redoGroups = [];
-  undoStates = [];
-  redoStates = [];
-  updateHistoryButtons();
-}
-
 function updateHistoryButtons() {
-  $('undo').disabled = !undoMarks.length;
-  $('redo').disabled = !redoGroups.length;
+  $('undo').disabled = !c.canUndo;
+  $('redo').disabled = !c.canRedo;
 }
-
-// Rebuilds the tank from log entries, so seeded randomness replays identically.
-function rebuild(entries) {
-  // The tank starts at the viscosity it first had, whatever the box says now.
-  if (marble.startViscosity) $('visc').value = marble.startViscosity;
-  $('walls').checked = false;
-  $('tile').checked = currentModel().repeatsAtFirst === true;
-  const m = newTank();
-  m.replay(entries);
-  syncToggles(entries);
-  finishing = true; // catch up over several frames rather than freezing on a big tank
-  updateHistoryButtons();
-}
-
-function showState(state) {
-  marble.loadState(state);
-  applyDetail(marble);
-  syncToggles(marble.log);
-  finishing = false;
-  owed = 0;
-  dirty = true;
-  updateHistoryButtons();
-}
-
-function undo() {
-  if (pull || !undoMarks.length) return;
-  const at = undoMarks.pop();
-  redoGroups.push(marble.log.slice(at));
-  redoStates.push(marble.saveState());
-  // Puts the tank straight back. Only actions older than the kept states need replaying.
-  const state = undoStates.pop();
-  if (state) showState(state);
-  else rebuild(marble.log.slice(0, at));
-}
-
-function redo() {
-  if (pull || !redoGroups.length) return;
-  const group = redoGroups.pop();
-  undoMarks.push(marble.log.length);
-  undoStates.push(marble.saveState());
-  const state = redoStates.pop();
-  if (state) showState(state);
-  else rebuild([...marble.log, ...group]);
-}
+c.on('history', updateHistoryButtons);
 
 // ---- Canvas interaction -------------------------------------------------
 
-// Contours centred on the origin, traced once per distinct text setting.
-let traced = { key: null, contours: [] };
-function currentText() {
-  const { string, font, size } = inMm('text');
-  const key = JSON.stringify([string, font, size]);
-  if (key !== traced.key) traced = { key, contours: string.trim() ? textContours({ text: string, font, size }) : [] };
-  return traced.contours;
-}
-
-// Decides when an action starts, then calls fn(at). at is undefined when the action
-// should follow the script timeline, behind a settle point.
-let queueEnd = 0;
-function place(isTool, fn) {
-  const mode = playing ? 'together' : $('queueMode').value;
-  const growing = [...marble.active, ...marble.queued].some((op) => op.kind === 'drop');
-  if (mode === 'settled' || (isTool && $('toolsWait').checked && growing)) {
-    marble.settle();
-    return fn(undefined);
-  }
-  const gap = Number($('queueGap').value) || 0;
-  if (mode === 'order' && marble.gates.length) {
-    marble.wait(gap);
-    return fn(undefined);
-  }
-  const at = mode === 'order' ? Math.max(queueEnd, marble.time) : marble.time;
-  const op = marble.live(() => fn(at));
-  if (mode === 'order') queueEnd = at + (op?.duration ?? (op?.total ? op.total / op.speed : 0)) + gap;
-  return op;
-}
-
-function sprayAt(x, y, share = 1) {
-  const v = inMm('spray');
-  const colors = v.sprayColors === 'one' ? [{ color, shimmer }] : inks;
-  place(false, (at) => marble.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min: Math.min(v.min, v.max), max: v.max, colors, at }));
-}
-
-function clickAction([x, y]) {
-  const v = inMm(tool);
-  if (tool === 'text') {
-    const contours = currentText();
-    if (contours.length) place(false, (at) => marble.print({ contours: moveContours(contours, x, y), color, shimmer, at }));
-  } else if (tool === 'drop') {
-    for (let i = 0; i < v.count; i++) {
-      const r = v.scatter * Math.sqrt(marble.random());
-      const a = marble.random() * 2 * Math.PI;
-      const jitter = v.count > 1 ? marble.random() * 0.5 : 0;
-      place(false, (at) => marble.drop({
-        x: x + r * Math.cos(a), y: y + r * Math.sin(a),
-        quantity: v.quantity, dispersion: v.dispersion, color, shimmer,
-        at: at === undefined || $('queueMode').value !== 'together' ? at : at + jitter,
-      }));
-    }
-  } else if (tool === 'spray') {
-    sprayAt(x, y);
-  } else if (tool === 'erase') {
-    if (marble.eraseSupported) place(false, (at) => marble.erase({ x, y, ...v, at }));
-  } else if (tool === 'wriggle') {
-    const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
-    place(true, (at) => marble.wriggle({ x, y, period: v.period, degrees, duration: v.duration, at }));
-  } else if (tool === 'stir') {
-    const opposed = (i) => v.direction === 'alternate' && i % 2;
-    const radii = Array.from({ length: v.rings }, (_, i) => (opposed(i) ? -1 : 1) * (i + 1) * v.ringSpacing);
-    const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
-    place(true, (at) => marble.stir({ x, y, radii, degrees, rate: v.rate, D: v.D, at }));
-  } else if (tool === 'vortex') {
-    const circulation = v.direction === 'cw' ? -v.circulation : v.circulation;
-    place(true, (at) => marble.vortex({ x, y, circulation, duration: v.duration, at }));
-  }
-}
-
-let lastSpray = null;
-let pressCounted = false; // whether this press has already made an undo step
 overlay.addEventListener('pointerdown', (ev) => {
   if (pull) return;
   overlay.setPointerCapture(ev.pointerId);
-  const p = toTank(ev);
-  if (tool === 'fullRake' && freezeMode !== 'off') {
-    freezeAt(p);
-    return;
-  }
-  stroke = null; // a press that never saw its release must not carry over into this one
-  lastSpray = null;
-  if (tool === 'rake' || tool === 'stylus' || tool === 'paint') stroke = [p];
-  else if (!TOOLS[tool].whole) {
-    const before = undoMarks.length;
-    act(() => clickAction(p));
-    pressCounted = undoMarks.length > before;
-  }
-  if (tool === 'spray' || tool === 'erase') lastSpray = p;
+  c.press(toTank(ev));
 });
-overlay.addEventListener('pointerup', () => { lastSpray = null; });
 // The system can take the pointer away mid-press, with no pointerup, so a press also ends here.
-const dropPress = () => { stroke = null; lastSpray = null; };
-overlay.addEventListener('pointercancel', dropPress);
+overlay.addEventListener('pointercancel', () => c.endPress());
 overlay.addEventListener('pointerleave', () => { hover = null; });
 overlay.addEventListener('pointermove', (ev) => {
   const p = toTank(ev);
   hover = p;
-  if (!ev.buttons) dropPress(); // the button is up, whatever we were told
-  // Dragging keeps spraying along the way, a little at a time.
-  // Lifting cuts a hard edge, so it needs closer spots to make a smooth stroke.
-  if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > inMm(tool).radius * (values.erase.mode === 'lift' && tool === 'erase' ? 0.3 : 0.75)) {
-    lastSpray = p;
-    // A whole drag is one undo step, so only the first spot of it needs to start one.
-    const more = () => (tool === 'erase' ? clickAction(p) : sprayAt(p[0], p[1], 0.25));
-    if (pressCounted) more();
-    else {
-      const before = undoMarks.length;
-      act(more);
-      pressCounted = undoMarks.length > before;
-    }
-  }
-  if (!stroke) return;
-  if (tool === 'rake') stroke[1] = p;
-  else stroke.push(p);
+  c.move(p, Boolean(ev.buttons));
 });
-overlay.addEventListener('pointerup', () => {
-  if (!stroke) return;
-  const path = stroke;
-  stroke = null;
-  if (path.length < 2) return;
-  if (tool === 'paint') {
-    act(() => place(false, (at) => marble.paint({ path, ...inMm('paint'), color, shimmer, at })));
-    return;
-  }
-  act(() => place(true, (at) => (tool === 'rake'
-    ? marble.rake({ from: path[0], to: path[1], ...inMm('rake'), at })
-    : marble.stylus({ path, ...inMm('stylus'), at }))));
-});
+overlay.addEventListener('pointerup', () => c.release());
 
-function fillDotsNow() {
-  const { sprayColors, over, ...v } = inMm('fillDots');
-  const options = { ...v, over: over === 'over', colors: sprayColors === 'one' ? [{ color, shimmer }] : inks };
-  // Rings go on one at a time, each waiting for the last to settle, and that needs the script's timeline.
-  if (v.rings > 1) {
-    marble.settle();
-    return marble.fillDots(options);
-  }
-  return place(false, (at) => marble.fillDots({ ...options, at }));
-}
-
-$('apply').onclick = () => act(() => (tool === 'fillDots'
-  ? fillDotsNow()
-  : tool === 'hearts'
-  ? place(true, (at) => marble.hearts({ ...inMm('hearts'), at }))
-  : tool === 'stripes'
-  ? place(false, (at) => {
-    const { over, ...v } = inMm('stripes');
-    return marble.stripes({ ...v, over: over === 'over', colors: inks, at });
-  })
-  : place(true, (at) => (tool === 'air' ? marble.air({ ...inMm('air'), at }) : tool === 'fullRake'
-  ? marble.fullRake({ ...inMm('fullRake'), at })
-  : marble.jiggle({ ...inMm('jiggle'), at })))));
+$('apply').onclick = () => c.applyTool();
 
 // ---- Transport ----------------------------------------------------------
 
-// Point limits are a setting of the machine, not of the tank, so saved tanks and undo don't change them.
-const STANDARD_LIMIT = 400000;
-const LEAST_LIMIT = 50000;
-const MOST_LIMIT = 20000000;
-const pointLimit = () => Math.min(MOST_LIMIT, Math.max(LEAST_LIMIT, Number($('pointLimit').value) || STANDARD_LIMIT));
-// Above the standard limit, detail holds until about a fifth of the way there, then slowly coarsens.
-function applyDetail(m) {
-  const limit = pointLimit();
-  m.maxVertices = limit;
-  m.pointBudget = limit > STANDARD_LIMIT ? limit / 5 : null;
-}
+// Point limits are a setting of the machine, not of the tank, so they're kept between visits.
 function setPointLimit(limit) {
-  $('pointLimit').value = limit;
+  c.setPointLimit(limit);
   const preset = [...$('detailPreset').options].find((o) => Number(o.value) === limit);
   $('detailPreset').value = preset ? preset.value : 'custom';
-  localStorage.setItem('marbler.pointLimit', String(pointLimit()));
-  applyDetail(marble);
+  localStorage.setItem('marbler.pointLimit', String(c.pointLimit()));
 }
 $('detailPreset').onchange = () => {
   if ($('detailPreset').value !== 'custom') setPointLimit(Number($('detailPreset').value));
 };
-$('pointLimit').onchange = () => setPointLimit(pointLimit());
-$('lowFramerate').checked = localStorage.getItem('marbler.lowFramerate') === '1';
+$('pointLimit').onchange = () => setPointLimit(c.pointLimit());
 $('lowFramerate').onchange = () => {
-  localStorage.setItem('marbler.lowFramerate', $('lowFramerate').checked ? '1' : '0');
+  localStorage.setItem('marbler.lowFramerate', c.settings.lowFramerate ? '1' : '0');
   nextDraw = 0;
 };
 
 setPointLimit(Number(localStorage.getItem('marbler.pointLimit')) || STANDARD_LIMIT);
-$('gridCell').value = localStorage.getItem('marbler.gridCell') || 2;
 $('gridCell').onchange = () => localStorage.setItem('marbler.gridCell', $('gridCell').value);
 
-function newTank() {
-  const prev = marble;
-  const Engine = currentModel().engine ?? Marble;
-  marble = new Engine({
-    width: Number($('tankW').value) || prev.width,
-    height: Number($('tankH').value) || prev.height,
-    viscosity: Number($('visc').value) || prev.viscosity,
-    bath: bathColor(),
-    seed: prev.seed,
-    gridCell: Number($('gridCell').value) || undefined,
-  });
-  marble.startViscosity = marble.viscosity; // for putting the box back when undo reaches the start
-  marble.flowTuning = sidebarFlow(); // a sidebar setting like viscosity, so not in the log
-  applyDetail(marble);
-  queueEnd = 0;
-  if (currentModel().spreading) marble.openWater({ on: true, at: 0 });
-  if ($('walls').checked) marble.walls({ on: true, at: 0 });
-  syncTile(); // the tick may not have caught up yet, on the first tank after a reload
-  if ($('tile').checked && !$('tile').disabled && (!currentModel().repeatsAtFirst || tileOffset())) marble.tile({ on: true, offset: tileOffset(), at: 0 });
-  if (!$('tile').checked && currentModel().repeatsAtFirst) marble.tile({ on: false, at: 0 });
-  resize();
-  return marble;
-}
-
-function setPlaying(p) {
-  playing = p;
-  $('play').textContent = p ? 'Pause' : 'Play';
-  $('paused').hidden = p;
-}
+c.on('playing', () => {
+  $('play').textContent = c.playing ? 'Pause' : 'Play';
+  $('paused').hidden = c.playing;
+});
 // Keys 1 to 9 pick a palette ink. They only give way to fields being typed in, so they
 // still work after clicking a slider, button or dropdown in the sidebar.
 function pickInkByKey(ev) {
   if (!/^[1-9]$/.test(ev.key) || ev.metaKey || ev.ctrlKey || ev.altKey || ev.repeat) return false;
-  if (!TOOLS[tool].color || $('viewer').open) return false;
+  if (!TOOLS[c.tool].color || $('viewer').open) return false;
   if (ev.target.matches('textarea, input:not([type=range]):not([type=checkbox]):not([type=color])')) return false;
   ev.preventDefault(); // a focused dropdown would otherwise jump to an option starting with that digit
   $('params').querySelectorAll('.swatches button')[Number(ev.key) - 1]?.click();
@@ -1256,116 +679,29 @@ document.addEventListener('keydown', (ev) => {
   if ($('viewer').open) return;
   if ((ev.metaKey || ev.ctrlKey) && ev.code === 'KeyZ') {
     ev.preventDefault();
-    if (ev.shiftKey) redo(); else undo();
+    if (ev.shiftKey) c.redo(); else c.undo();
     return;
   }
   if (ev.code !== 'Space' || ev.repeat) return;
   ev.preventDefault();
-  setPlaying(!playing);
+  c.setPlaying(!c.playing);
 });
-// The Wake simulator's bath. Each preset is also a viscosity, since it needs a thin bath to show.
-const FLOW_PRESETS = {
-  calm: { viscosity: 1000, push: 1, friction: 0.25, coast: 25, cell: 7 },
-  curling: { viscosity: 30, push: 1, friction: 0.05, coast: 120, cell: 7 },
-  whorls: { viscosity: 10, push: 3, friction: 0.05, coast: 120, cell: 7 },
-  storm: { viscosity: 10, push: 10, friction: 0.05, coast: 40, cell: 7 },
-};
-const FLOW_FIELDS = { push: 'flowPush', friction: 'flowFriction', coast: 'flowCoast', cell: 'flowCell' };
-function sidebarFlow() {
-  return Object.fromEntries(Object.entries(FLOW_FIELDS).map(([key, id]) => [key, Number($(id).value)]));
-}
-function showFlow(flow) {
-  for (const [key, id] of Object.entries(FLOW_FIELDS)) $(id).value = flow[key];
-  const match = Object.entries(FLOW_PRESETS).find(([, p]) => Object.keys(FLOW_FIELDS).every((k) => p[k] === flow[k]));
-  $('flowPreset').value = match ? match[0] : 'custom';
-}
-function syncBathPanel() { $('bathPanel').hidden = !['wake', 'wakefast', 'gridink'].includes(currentModel().id); }
 // Takes effect straight away, on everything from here on, without clearing the tank.
-$('visc').onchange = () => {
-  const value = Number($('visc').value);
-  if (!Number.isFinite(value) || value <= 0) { $('visc').value = marble.viscosity; return; }
-  if (value === marble.viscosity) return;
-  marble.startViscosity ??= marble.viscosity;
-  act(() => marble.setViscosity({ value }));
-  $('visc').value = marble.viscosity; // it may have been held to the allowed range
-};
-$('flowPreset').onchange = () => {
-  const preset = FLOW_PRESETS[$('flowPreset').value];
-  if (!preset) return;
-  showFlow(preset);
-  $('visc').value = preset.viscosity;
-  marble.startViscosity ??= marble.viscosity;
-  act(() => {
-    marble.setViscosity({ value: preset.viscosity });
-    marble.setFlow(sidebarFlow());
-  });
-};
-for (const id of Object.values(FLOW_FIELDS)) {
-  $(id).onchange = () => {
-    showFlow(sidebarFlow());
-    act(() => marble.setFlow(sidebarFlow()));
-  };
-}
+$('visc').onchange = () => c.commitViscosity();
+$('flowPreset').onchange = () => c.commitFlowPreset();
+for (const id of Object.values(FLOW_FIELDS)) $(id).onchange = () => c.commitFlow();
 
-// Only some simulators can repeat, so the toggle follows the one chosen.
-const tileOffset = () => ($('tile').checked && $('tileOffset').value) || null;
-
-function syncTile() {
-  showAngleHint();
-  // Only some simulators can erase, and the sidebar shows only what will work.
-  const canErase = (currentModel().engine ?? Marble).prototype.eraseSupported;
-  $('tools').querySelector('[data-tool="erase"]').hidden = !canErase;
-  if (!canErase && tool === 'erase') showTool('drop');
-  const canFindLoops = (currentModel().engine ?? Marble).prototype.freezeSupported;
-  $('tools').querySelector('[data-tool="hearts"]').hidden = !canFindLoops;
-  if (!canFindLoops && tool === 'hearts') showTool('drop');
-  const row = $('freezeRow');
-  if (row) row.hidden = !(currentModel().engine ?? Marble).prototype.freezeSupported;
-  if (row?.hidden) freezeMode = 'off';
-  const atFirst = currentModel().repeatsAtFirst === true;
-  const supported = !currentModel().spreading && (currentModel().engine ?? Marble).prototype.tileSupported;
-  $('tile').disabled = !supported;
-  $('tile').closest('label').hidden = !supported;
-  if (!supported) $('tile').checked = false;
-  // Grid ink starts out repeating, once on arriving at it, and that doesn't count as asking other
-  // simulators to repeat. After that the tick is the user's.
-  if (tileSimulator !== currentModel().id) {
-    tileSimulator = currentModel().id;
-    if (atFirst) { $('tile').checked = true; $('tile').dataset.forced = '1'; }
-    else if ($('tile').dataset.forced) { $('tile').checked = false; delete $('tile').dataset.forced; }
-  }
-  // Grid ink's sides are solid whenever it isn't repeating, so it has no Hard edges to choose.
-  $('walls').disabled = atFirst;
-  $('walls').closest('label').hidden = atFirst;
-  if (atFirst) $('walls').checked = false;
-  if ($('tile').checked && $('walls').checked) $('walls').checked = false;
-  const canOffset = (currentModel().engine ?? Marble).prototype.tileOffsetSupported;
-  $('tileOffset').closest('label').hidden = !$('tile').checked || !canOffset;
-  if (!canOffset) $('tileOffset').value = '';
-}
-// Both take effect at once, so they show even on a paused tank.
-function setRepeat(on, offset) {
-  act(() => marble.live(() => marble.tile({ on, offset, at: marble.time })));
-  marble.applyNow();
-  dirty = true;
-}
-$('tile').onchange = () => {
-  setRepeat($('tile').checked, tileOffset());
-  syncTile();
-};
-$('tileOffset').onchange = () => {
-  setRepeat(true, tileOffset());
-  showAngleHint();
-};
+$('tile').onchange = () => c.commitTile();
+$('tileOffset').onchange = () => c.commitTileOffset();
 $('tilePreview').onclick = () => {
   // Three by three at the tank's own resolution, so the view can zoom out without losing detail.
-  const c = Object.assign(document.createElement('canvas'), { width: tank.width * 3, height: tank.height * 3 });
-  const ctx = c.getContext('2d');
+  const canvas = Object.assign(document.createElement('canvas'), { width: tank.width * 3, height: tank.height * 3 });
+  const ctx = canvas.getContext('2d');
   // With no base colour the tank's canvas is see-through, over whatever the page shows behind it.
   ctx.fillStyle = getComputedStyle(tank).backgroundColor;
-  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   // An offset shifts each row or column by half a tile. Page rows run down, the tank's y runs up.
-  const offset = marble.tileOn ? marble.tileOffset : null;
+  const offset = c.marble.tileOn ? c.marble.tileOffset : null;
   for (let i = -1; i < 4; i++) {
     for (let j = -1; j < 4; j++) {
       const x = (i + (offset === 'brick' ? (((j % 2) + 2) % 2) / 2 : 0)) * tank.width;
@@ -1373,84 +709,40 @@ $('tilePreview').onclick = () => {
       ctx.drawImage(tank, x, y);
     }
   }
-  c.toBlob((blob) => openViewer(blob, null, Date.now()));
+  canvas.toBlob((blob) => openViewer(blob, null, Date.now()));
 };
-$('simulator').onchange = () => {
-  localStorage.setItem('marbler.simulator', $('simulator').value);
-  syncViscosity();
-  syncTile();
-  syncBathPanel();
-  // An empty tank can simply become the new simulator. With ink in it, the change waits for a clear.
-  const Engine = currentModel().engine ?? Marble;
-  if (!(marble instanceof Engine && marble.constructor === Engine) && !marble.polys.length && !marble.active.length && !marble.log.some((e) => !['openWater', 'walls', 'tile'].includes(e.fn))) {
-    newTank();
-    resetHistory();
-    return;
-  }
-  act(() => marble.live(() => marble.openWater({ on: currentModel().spreading, at: marble.time })));
-};
-$('walls').onchange = () => {
-  act(() => marble.live(() => marble.walls({ on: $('walls').checked, at: marble.time })));
-  if ($('walls').checked && $('tile').checked) { $('tile').checked = false; syncTile(); }
-};
-$('queueMode').onchange = () => { $('queueGapLabel').hidden = $('queueMode').value !== 'order'; };
-$('useBath').onchange = $('bath').oninput = () => { marble.bath = bathColor(); dirty = true; };
-// On release only, so a drag adds one log entry.
-$('play').onclick = () => setPlaying(!playing);
-$('clear').onclick = () => { newTank(); resetHistory(); };
-$('applyTank').onclick = () => { newTank(); resetHistory(); };
+function onSimulatorChange() {
+  localStorage.setItem('marbler.simulator', c.settings.simulator);
+  c.commitSimulator();
+}
+$('simulator').onchange = onSimulatorChange;
+$('walls').onchange = () => c.commitWalls();
+$('queueMode').onchange = () => { $('queueGapLabel').hidden = c.settings.queueMode !== 'order'; };
+$('useBath').onchange = $('bath').oninput = () => c.commitBath();
+$('play').onclick = () => c.setPlaying(!c.playing);
+$('clear').onclick = () => c.clear();
+$('applyTank').onclick = () => c.clear();
 
-$('undo').onclick = undo;
-$('redo').onclick = redo;
+$('undo').onclick = () => c.undo();
+$('redo').onclick = () => c.redo();
 
-let finishing = false;
-$('finish').onclick = () => { finishing = true; };
+$('finish').onclick = () => c.finish();
 
-function runSource({ clearing = $('clearFirst').checked } = {}) {
+function runSource(options) {
   $('error').hidden = true;
-  const m = clearing ? newTank() : marble;
-  if (clearing) resetHistory();
-  // An earlier script's inOrder() shouldn't reach into this one.
-  else if (m.orderGap !== null) m.orderGap = null;
-  const before = m.log.length;
-  let failed = null;
-  act(() => {
-    try {
-      runScript(m, $('script').value, {
-        // Lives here because tracing needs a canvas, which the engine must not depend on.
-        text: (o = {}) => {
-          const { string, x, y, size, font, color: c, shimmer: sh, at } = toMm('text', o, m);
-          return m.print({ contours: textContours({ text: string, x, y, size, font }), color: c, shimmer: sh, at });
-        },
-      }, { fromNow: !clearing });
-    } catch (err) {
-      failed = err;
-    }
-  });
+  const failed = c.runScript($('script').value, options);
   if (failed) {
     $('error').textContent = String(failed);
     $('error').hidden = false;
-    // Half a script shouldn't land on work you wanted to keep, or leave a redo that brings it back.
-    if (!clearing && marble.log.length > before) {
-      undo();
-      redoGroups.pop();
-      redoStates.pop();
-      updateHistoryButtons();
-    }
   }
-  // A script may change these settings itself, so the controls follow whatever it left in place.
-  syncToggles(marble.log);
-  setPlaying(true);
 }
 $('run').onclick = () => runSource();
-const showRunMode = () => { $('run').textContent = $('clearFirst').checked ? 'Run (clears tank)' : 'Run (keeps ink)'; };
-$('clearFirst').checked = localStorage.getItem('marbler.runKeepsInk') !== '1';
-showRunMode();
+function showRunMode() { $('run').textContent = c.settings.clearFirst ? 'Run (clears tank)' : 'Run (keeps ink)'; }
 $('clearFirst').onchange = () => {
-  localStorage.setItem('marbler.runKeepsInk', $('clearFirst').checked ? '0' : '1');
+  localStorage.setItem('marbler.runKeepsInk', c.settings.clearFirst ? '0' : '1');
   showRunMode();
 };
-$('capture').onclick = () => { $('script').value = marble.toScript(); };
+$('capture').onclick = () => { $('script').value = c.marble.toScript(); };
 
 function showError(message) {
   $('error').textContent = message;
@@ -1496,7 +788,7 @@ async function sendChat() {
         messages: sending,
         script: $('script').value,
         palettes: myPalettes.list(),
-        currentPalette: { name: $('palette').value, bath: $('bath').value, inks },
+        currentPalette: { name: $('palette').value, bath: c.settings.bath, inks: c.inks },
       }),
     });
     if (res.status === 404 || res.status === 501) {
@@ -1561,19 +853,13 @@ if (Speech) {
 
 $('examples').add(new Option('Examples…', ''));
 for (const name of Object.keys(EXAMPLES)) $('examples').add(new Option(name, name));
-// Some examples only look right on one simulator, so choosing them chooses it too.
-const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink',
-};
 $('examples').onchange = () => {
   if (!$('examples').value) return;
+  // Some examples only look right on one simulator, so choosing them chooses it too.
   const simulator = EXAMPLE_SIMULATOR[$('examples').value];
   if (simulator) {
-    $('simulator').value = simulator;
     localStorage.setItem('marbler.simulator', simulator);
-    syncViscosity();
-    syncTile();
-    syncBathPanel();
+    c.setSimulator(simulator);
   }
   $('script').value = EXAMPLES[$('examples').value];
   $('myScripts').value = '';
@@ -1610,8 +896,8 @@ $('myScripts').onchange = () => {
   $('examples').value = '';
   $('error').hidden = true;
   if (script.simulator && [...$('simulator').options].some((o) => o.value === script.simulator)) {
-    $('simulator').value = script.simulator;
-    $('simulator').onchange();
+    c.settings.simulator = script.simulator;
+    onSimulatorChange();
   }
 };
 
@@ -1621,7 +907,7 @@ $('saveScript').onclick = () => {
   // Saving over the one that's open is the point of saving. Over any other, it asks.
   if (name !== $('myScripts').value && myScripts.list().some((s) => s.name === name) && !confirm(`Replace the saved script "${name}"?`)) return;
   try {
-    myScripts.save({ name, text: $('script').value, simulator: $('simulator').value, saved: Date.now() });
+    myScripts.save({ name, text: $('script').value, simulator: c.settings.simulator, saved: Date.now() });
     showError('');
   } catch (err) {
     showError(`Couldn't save the script: ${err.message}`);
@@ -1665,15 +951,16 @@ $('saveState').onclick = async () => {
   shot.width = 120;
   shot.height = Math.round((120 * tank.height) / tank.width) || 84;
   shot.getContext('2d').drawImage(tank, 0, 0, shot.width, shot.height);
+  const { simulator, useBath, bath, visc, state } = c.saveData();
   const saved = addSave({
     created: Date.now(),
     thumb: shot.toDataURL('image/png'),
-    simulator: $('simulator').value,
+    simulator,
     script: $('script').value,
-    useBath: $('useBath').checked,
-    bath: $('bath').value,
-    visc: $('visc').value,
-    state: marble.saveState(),
+    useBath,
+    bath,
+    visc,
+    state,
   });
   try {
     await saved;
@@ -1685,24 +972,8 @@ $('saveState').onclick = async () => {
 };
 
 function restoreSave(save) {
-  $('simulator').value = save.simulator;
   $('script').value = save.script;
-  $('useBath').checked = save.useBath;
-  $('bath').value = save.bath;
-  $('visc').value = save.visc;
-  $('tankW').value = save.state.width;
-  $('tankH').value = save.state.height;
-  newTank();
-  resetHistory();
-  marble.loadState(save.state);
-  applyDetail(marble);
-  queueEnd = 0;
-  syncToggles(marble.log);
-  $('simulator').value = save.simulator;
-  resize();
-  finishing = false;
-  owed = 0;
-  dirty = true;
+  c.restore(save);
 }
 renderSaves();
 
@@ -1716,14 +987,15 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 $('png').onclick = () => {
-  const scale = 3000 / Math.max(marble.width, marble.height);
-  const c = document.createElement('canvas');
-  c.width = Math.round(marble.width * scale);
-  c.height = Math.round(marble.height * scale);
-  marble.draw(c.getContext('2d'), scale);
-  c.toBlob((b) => download(b, 'marble.png'));
+  const m = c.marble;
+  const scale = 3000 / Math.max(m.width, m.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(m.width * scale);
+  canvas.height = Math.round(m.height * scale);
+  m.draw(canvas.getContext('2d'), scale);
+  canvas.toBlob((b) => download(b, 'marble.png'));
 };
-$('svg').onclick = () => download(new Blob([marble.toSVG()], { type: 'image/svg+xml' }), 'marble.svg');
+$('svg').onclick = () => download(new Blob([c.marble.toSVG()], { type: 'image/svg+xml' }), 'marble.svg');
 const MM_PER_SOFT = 0.06; // the top of the Soft edges slider is 6 mm
 $('printSoft').oninput = () => { $('printSoftValue').textContent = $('printSoft').value; };
 $('print').onclick = async () => {
@@ -1733,17 +1005,17 @@ $('print').onclick = async () => {
   bar.hidden = false;
   try {
     const texture = $('printTexture').checked;
-    const { width, height, data } = await renderPrint(marble, {
+    const { width, height, data } = await renderPrint(c.marble, {
       paleness: $('printPale').checked ? PRINT_DEFAULTS.paleness : 0,
       rim: texture ? PRINT_DEFAULTS.rim : 0,
       mottle: texture ? PRINT_DEFAULTS.mottle : 0,
       grain: texture ? PRINT_DEFAULTS.grain : 0,
       soft: Number($('printSoft').value) * MM_PER_SOFT,
-      paper: $('useBath').checked ? $('bath').value : PRINT_DEFAULTS.paper,
+      paper: c.settings.useBath ? c.settings.bath : PRINT_DEFAULTS.paper,
     }, (share) => { bar.value = share; });
-    const c = Object.assign(document.createElement('canvas'), { width, height });
-    c.getContext('2d').putImageData(new ImageData(data, width, height), 0, 0);
-    c.toBlob((blob) => {
+    const canvas = Object.assign(document.createElement('canvas'), { width, height });
+    canvas.getContext('2d').putImageData(new ImageData(data, width, height), 0, 0);
+    canvas.toBlob((blob) => {
       download(blob, 'marble-print.png');
       const img = $('printResult');
       URL.revokeObjectURL(img.src);
@@ -1762,21 +1034,23 @@ function startPull() {
   if (pull) return;
   pull = {
     start: performance.now(),
-    ...pullPrint(marble, {
-      tint: $('pullBase').checked && $('useBath').checked ? $('bath').value : tint,
+    ...pullPrint(c.marble, {
+      tint: $('pullBase').checked && c.settings.useBath ? c.settings.bath : tint,
       imperfection: Number($('imperfection').value) / 100,
       mirror: $('mirror').checked,
       seed: pullSeed++,
     }),
     cleared: false,
   };
+  c.locked = true; // no undo or redo under the sheet
   $('pull').disabled = true;
-  stroke = null;
+  c.stroke = null;
 }
 
 async function finishPull() {
   const { print } = pull;
   pull = null;
+  c.locked = false;
   $('pull').disabled = false;
   const blob = await new Promise((resolve) => print.toBlob(resolve));
   if ($('autoSave').checked) download(blob, `marble-pull-${stamp()}.png`);
@@ -1822,13 +1096,13 @@ $('pull').onclick = startPull;
 const imperfectionBox = typeBox($('imperfection'));
 $('imperfectionValue').replaceWith(imperfectionBox);
 $('imperfection').oninput = () => imperfectionBox.refresh();
-for (const [name, c] of Object.entries(TINTS)) {
+for (const [name, color] of Object.entries(TINTS)) {
   const b = document.createElement('button');
-  b.style.background = c;
+  b.style.background = color;
   b.title = name;
-  b.classList.toggle('on', c === tint);
+  b.classList.toggle('on', color === tint);
   b.onclick = () => {
-    tint = c;
+    tint = color;
     for (const s of $('tints').children) s.classList.toggle('on', s === b);
   };
   $('tints').append(b);
@@ -1838,22 +1112,22 @@ for (const [name, c] of Object.entries(TINTS)) {
 
 // Black or white guides, whichever stands out against the bath.
 function guideColor(alpha) {
-  const hex = parseHex(marble.bath);
+  const hex = parseHex(c.marble.bath);
   const n = hex ? parseInt(hex.rgb.slice(1), 16) : 0xffffff;
   const luma = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
   return `${luma < 110 ? 'rgba(255,255,255,' : 'rgba(0,0,0,'}${alpha})`;
 }
 
 function drawTextPreview() {
-  const contours = currentText();
+  const contours = c.currentText();
   if (!contours.length) return;
   octx.save();
   octx.globalAlpha = 0.55;
-  octx.fillStyle = inkRgb();
+  octx.fillStyle = c.inkRgb();
   octx.beginPath();
-  for (const c of contours) {
-    for (let i = 0; i < c.length; i += 2) {
-      const [x, y] = toPx([c[i] + hover[0], c[i + 1] + hover[1]]);
+  for (const contour of contours) {
+    for (let i = 0; i < contour.length; i += 2) {
+      const [x, y] = toPx([contour[i] + hover[0], contour[i + 1] + hover[1]]);
       i ? octx.lineTo(x, y) : octx.moveTo(x, y);
     }
     octx.closePath();
@@ -1883,6 +1157,7 @@ function dashedRakeLines(ctx, m, planned) {
         low = Math.min(low, p[1]); high = Math.max(high, p[1]);
       }
       // A tine past a repeating tank's edge is really at its copy here, so that's what shows.
+      const marble = c.marble;
       const { width: W, height: H } = marble;
       const shifts = (marble.tileWanted ?? marble.tileOn)
         ? latticeShifts(-W / 2 - right, W / 2 - left, -H / 2 - high, H / 2 - low, W, H, marble.tileOffsetWanted ?? marble.tileOffset)
@@ -1915,9 +1190,9 @@ function renderPreviewLayer(showQueued, fullRakeOp) {
   lctx.lineWidth = px;
   lctx.setLineDash([5, 4]);
   previewHasContent = false;
-  for (const op of showQueued ? marble.queued : []) {
+  for (const op of showQueued ? c.marble.queued : []) {
     if (op.kind === 'rake') {
-      dashedRakeLines(lctx, marble, op);
+      dashedRakeLines(lctx, c.marble, op);
       previewHasContent = true;
     } else if (op.kind === 'erase' || op.kind === 'lift') {
       const [x, y] = toPx([op.x, op.y]);
@@ -1933,9 +1208,9 @@ function renderPreviewLayer(showQueued, fullRakeOp) {
       previewHasContent = true;
     } else if (op.kind === 'drop') {
       const [x, y] = toPx([op.x, op.y]);
-      const c = opaque(op.color);
-      lctx.strokeStyle = c;
-      lctx.fillStyle = c;
+      const color = opaque(op.color);
+      lctx.strokeStyle = color;
+      lctx.fillStyle = color;
       lctx.beginPath();
       lctx.arc(x, y, Math.sqrt(op.maxArea) * pxPerMm, 0, 7);
       lctx.stroke();
@@ -1954,28 +1229,29 @@ function renderPreviewLayer(showQueued, fullRakeOp) {
 // The planned tines come from a throwaway tank, so the preview uses the engine's geometry.
 let plannedRake = { key: null, op: null };
 function plannedFullRake() {
+  const { tool, stroke, marble } = c;
   if (tool !== 'fullRake' && tool !== 'rake') return null;
   // Rake has no line until it's dragged, so until then it shows one straight across, at the pointer.
   const along = marble.width / 2 + 20;
   const y = hover ? hover[1] : 0;
   const line = tool === 'rake' ? (stroke?.length > 1 ? stroke : [[-along, y], [along, y]]) : null;
-  const key = JSON.stringify([tool, values[tool], line, marble.width, marble.height, marble.tileWanted ?? marble.tileOn, marble.tileOffsetWanted ?? marble.tileOffset]);
+  const key = JSON.stringify([tool, c.values[tool], line, marble.width, marble.height, marble.tileWanted ?? marble.tileOn, marble.tileOffsetWanted ?? marble.tileOffset]);
   if (key !== plannedRake.key) {
     const m = new Marble({ width: marble.width, height: marble.height });
     m.tileWanted = marble.tileWanted ?? marble.tileOn;
     m.tileOffsetWanted = marble.tileOffsetWanted ?? marble.tileOffset;
     const op = tool === 'rake'
-      ? m.rake({ from: line[0], to: line[1], ...inMm('rake', m), at: 0 })
-      : m.fullRake({ ...inMm('fullRake', m), at: 0 });
+      ? m.rake({ from: line[0], to: line[1], ...c.inMm('rake', m), at: 0 })
+      : m.fullRake({ ...c.inMm('fullRake', m), at: 0 });
     plannedRake = { key, op: op && { m, op } };
   }
   return plannedRake.op;
 }
 
 function drawPreviewLayer() {
-  const showQueued = !playing;
+  const showQueued = !c.playing;
   const planned = plannedFullRake();
-  const key = [showQueued, showQueued ? marble.log.length : 0, showQueued ? marble.queued.length : 0,
+  const key = [showQueued, showQueued ? c.marble.log.length : 0, showQueued ? c.marble.queued.length : 0,
     planned ? plannedRake.key : '', overlay.width, overlay.height].join('|');
   if (key !== previewKey) {
     renderPreviewLayer(showQueued, planned);
@@ -1990,6 +1266,7 @@ function drawOverlay() {
     drawSweep(octx, pull, (performance.now() - pull.start) / 1000);
     return;
   }
+  const { tool, stroke } = c;
   if (tool === 'text' && hover) drawTextPreview();
   octx.lineWidth = devicePixelRatio || 1;
   if (stroke && stroke.length > 1) {
@@ -2001,7 +1278,7 @@ function drawOverlay() {
       const [a, b] = stroke;
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
       const perp = [-(b[1] - a[1]) / len, (b[0] - a[0]) / len];
-      const { teeth, spacing } = inMm('rake');
+      const { teeth, spacing } = c.inMm('rake');
       octx.fillStyle = guideColor(0.75);
       for (let i = 0; i < teeth; i++) {
         const off = (i - (teeth - 1) / 2) * spacing;
@@ -2016,7 +1293,7 @@ function drawOverlay() {
   drawHeartLines();
   drawFrozen();
   octx.fillStyle = guideColor(0.8);
-  for (const p of marble.tinePositions()) {
+  for (const p of c.marble.tinePositions()) {
     const [x, y] = toPx(p);
     octx.beginPath();
     octx.arc(x, y, 2 * octx.lineWidth, 0, 7);
@@ -2024,14 +1301,9 @@ function drawOverlay() {
   }
 }
 
-const STEP_BUDGET_MS = 10;   // simulation per frame while playing, leaving room for input
-const FINISH_BUDGET_MS = 24; // Finish now asks for speed, so it gets more
 const GLINT_MS = 33;
 const SLOW_DRAW_MS = 25;
-const SNAPSHOT_STEP_MS = 150; // simulation per frame in low framerate mode
 const SNAPSHOT_EVERY_MS = 2000;
-const SLOW_STEP_MS = 66;      // a tick this slow can't reach half of real time
-const SLOW_TANK_DRAW_MS = 150;
 const LOADED_FRAME_MS = 28;  // average frame gap that counts as the page falling behind
 const BEHIND_FRAME_MS = 40;  // ...and that slows tank redraws too
 
@@ -2042,18 +1314,18 @@ let nextStats = 0;
 let frameGap = 16;      // smoothed time between frames; canvas work mostly lands here, not in draw()
 let glintResting = null; // the tank state the glint gave up on, until something changes
 let last = performance.now();
-let owed = 0;
-let stepMs = 0;              // smoothed time for one tick
-let autoSnapshots = false;   // ticks got too slow, so low framerate is on until the tank settles
 let drawnLog = 0;
 let wasSnapshotting = false;
-// Runs ticks until the budget is spent, and notes how long they take.
-const profiler = makeProfiler(() => ({
-  simulator: currentModel().id, engine: marble.constructor.name, simTime: Math.round(marble.time * 10) / 10,
-  points: marble.vertexCount, shapes: marble.polys.length, active: marble.active.length, activeKinds: [...new Set(marble.active.map((op) => op.kind))],
-  flowing: Boolean(marble.flowing), detail: marble.detail, capped: Boolean(marble.capped), gpuInUse: Boolean(marble.gpu), viscosity: marble.viscosity,
-  tank: [marble.width, marble.height], canvas: [tank.width, tank.height], lowFramerate: snapshotting(), speed: Number($('speed').value),
-}));
+const profiler = makeProfiler(() => {
+  const marble = c.marble;
+  return {
+    simulator: c.model().id, engine: marble.constructor.name, simTime: Math.round(marble.time * 10) / 10,
+    points: marble.vertexCount, shapes: marble.polys.length, active: marble.active.length, activeKinds: [...new Set(marble.active.map((op) => op.kind))],
+    flowing: Boolean(marble.flowing), detail: marble.detail, capped: Boolean(marble.capped), gpuInUse: Boolean(marble.gpu), viscosity: marble.viscosity,
+    tank: [marble.width, marble.height], canvas: [tank.width, tank.height], lowFramerate: c.snapshotting(), speed: Number(c.settings.speed),
+  };
+});
+c.onTick = (ms) => profiler.tick(ms);
 // A hosted build has no server behind it, so the features that need one go. See scripts/build.mjs.
 const hostedDemo = Boolean(document.querySelector('meta[name="marbler-demo"]'));
 if (hostedDemo) {
@@ -2068,19 +1340,9 @@ $('profiling').onchange = () => {
   localStorage.setItem('marbler.profiling', profiler.on ? '1' : '0');
 };
 
-function runTicks(budgetMs, start, canRun) {
-  while (canRun() && performance.now() < start + budgetMs) {
-    const t = performance.now();
-    marble.step();
-    stepMs += (performance.now() - t - stepMs) * 0.1;
-    profiler.tick(performance.now() - t);
-    dirty = true;
-  }
-}
-const snapshotting = () => playing && marble.busy && ($('lowFramerate').checked || autoSnapshots);
 function frame(now) {
   profiler.frame(now - last, now);
-  profiler.watch(marble);
+  profiler.watch(c.marble);
   const wall = Math.min((now - last) / 1000, 0.1);
   const gap = now - last;
   if (gap < 250) frameGap += (gap - frameGap) * 0.1; // longer gaps are a hidden tab, not load
@@ -2091,47 +1353,27 @@ function frame(now) {
     const elapsed = (now - pull.start) / 1000;
     if (!pull.cleared && elapsed > LAY_SECONDS && $('clearAfter').checked) {
       pull.cleared = true;
-      newTank();
-      resetHistory();
+      c.clear();
     }
     if (elapsed >= PULL_SECONDS) finishPull();
-  } else if (finishing) {
-    runTicks(FINISH_BUDGET_MS, start, () => marble.busy);
-    if (!marble.busy) finishing = false;
-  } else if (snapshotting()) {
-    // Nothing to keep in step with, so it runs as fast as the machine allows.
-    runTicks(SNAPSHOT_STEP_MS, start, () => marble.busy);
-    owed = 0;
-  } else if (playing && marble.busy) {
-    owed += wall * Number($('speed').value);
-    runTicks(STEP_BUDGET_MS, start, () => {
-      if (owed < marble.dt) return false;
-      owed -= marble.dt;
-      return true;
-    });
-    owed = Math.min(owed, 0.5); // run slower than real time rather than freezing
-  } else if (playing) {
-    marble.time += wall; // idle time passes, so new actions start now
-    owed = 0;
+  } else {
+    c.advance(wall, start);
   }
+  const marble = c.marble;
   // Metallic inks glint, but not under load. If the page can't keep up even when the
   // sim has settled, the glint rests until the tank next changes.
-  const underLoad = finishing || snapshotting() || owed > 0.1 || lastDrawMs > SLOW_DRAW_MS || frameGap > LOADED_FRAME_MS;
+  const underLoad = c.finishing || c.snapshotting() || c.owed > 0.1 || lastDrawMs > SLOW_DRAW_MS || frameGap > LOADED_FRAME_MS;
   const tankState = `${marble.seed}|${marble.log.length}|${marble.polys.length}`;
-  if (underLoad && !marble.busy && !finishing) glintResting = tankState;
+  if (underLoad && !marble.busy && !c.finishing) glintResting = tankState;
   else if (glintResting !== tankState) glintResting = null;
   if (!pull && !underLoad && !glintResting && now >= nextGlint && marble.polys.some((p) => p.shimmer > 0)) {
     marble.sheenPhase += Math.max(wall, GLINT_MS / 1000);
     nextGlint = now + GLINT_MS;
-    dirty = true;
+    c.dirty = true;
   }
-  if (marble.busy && (stepMs > SLOW_STEP_MS || lastDrawMs > SLOW_TANK_DRAW_MS)) autoSnapshots = true;
-  if (!marble.busy) {
-    autoSnapshots = false;
-    stepMs = 0;
-  }
+  c.noteLoad(lastDrawMs);
   // Show the finished or paused tank straight away, not at the next snapshot.
-  const snapshotsOn = snapshotting();
+  const snapshotsOn = c.snapshotting();
   if (wasSnapshotting && !snapshotsOn) nextDraw = 0;
   wasSnapshotting = snapshotsOn;
   // Anything the user just did shows straight away, even between snapshots.
@@ -2139,30 +1381,30 @@ function frame(now) {
   // A slow redraw waits twice its own length before the next, so most of the time stays free.
   // Drawing in the background: the page only posts the work, and shows it when it's ready.
   let drawnLive = false;
-  if (dirty && marble.drawLive && performance.now() >= nextDraw) {
+  if (c.dirty && marble.drawLive && performance.now() >= nextDraw) {
     const drawing = marble;
     const sent = marble.drawLive(tctx, pxPerMm, ({ ms }) => {
       lastDrawMs = ms;
       profiler.draw(ms);
-      return drawing === marble;
+      return drawing === c.marble;
     });
     if (sent === 'busy') drawnLive = true;
     else if (sent) {
       drawnLive = true;
-      dirty = false;
+      c.dirty = false;
       drawnLog = marble.log.length;
       nextDraw = performance.now() + 100;
     }
   }
-  if (!drawnLive && dirty && performance.now() >= nextDraw) {
+  if (!drawnLive && c.dirty && performance.now() >= nextDraw) {
     const drawStart = performance.now();
     marble.draw(tctx, pxPerMm);
     lastDrawMs = performance.now() - drawStart;
     profiler.draw(lastDrawMs);
     drawnLog = marble.log.length;
     nextDraw = drawStart + Math.max(lastDrawMs * 3, frameGap > BEHIND_FRAME_MS ? 100 : 0,
-      snapshotting() ? SNAPSHOT_EVERY_MS : 0);
-    dirty = false;
+      c.snapshotting() ? SNAPSHOT_EVERY_MS : 0);
+    c.dirty = false;
   }
   drawOverlay();
   if (now >= nextStats) {
@@ -2173,10 +1415,11 @@ function frame(now) {
 }
 
 function showStats() {
+  const marble = c.marble;
   // First, so that a warning still shows if the line runs out of room.
   const warn = marble.stoppedAtLimit ? '<span class="warn">point limit reached: the bath has stopped. A higher limit in Detail lets it run longer</span> '
     : marble.capped ? '<span class="warn">point limit reached: curls will look rough, so raise it in Detail</span> ' : '';
-  const snap = snapshotting() ? ` <span class="snap">low framerate${autoSnapshots && !$('lowFramerate').checked ? ' (automatic)' : ''}</span>` : '';
+  const snap = c.snapshotting() ? ` <span class="snap">low framerate${c.autoSnapshots && !c.settings.lowFramerate ? ' (automatic)' : ''}</span>` : '';
   $('stats').innerHTML = `${warn}t ${marble.time.toFixed(1)} s · ${marble.polys.length} shapes · `
     + `${marble.vertexCount.toLocaleString()} points · ${marble.active.length} active · ${marble.queued.length} queued${marble.busy && !marble.active.length && !marble.queued.length ? ' · bath still moving' : ''}${snap}`;
   $('stats').title = $('stats').textContent; // the whole line, if it's cut off
@@ -2186,13 +1429,11 @@ function showStats() {
 
 showTool('drop');
 // Opens on an empty tank; the examples only run when chosen.
-newTank();
-resetHistory();
+c.clear();
 showGallery();
 requestAnimationFrame(frame);
 
-window.marble = () => marble; // for use from the browser console
+window.marble = () => c.marble; // for use from the browser console
 
 for (const el of document.querySelectorAll('[data-info]')) addInfo(el, el.dataset.info);
-syncTile();
-syncBathPanel();
+c.syncTile();
