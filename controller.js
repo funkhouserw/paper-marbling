@@ -9,7 +9,6 @@ import { TOOLS, PAGE_UNITS } from './tools.js';
 import { closedDirection } from './tile.js';
 import { MODELS } from './models.js';
 import { palette } from './palettes.js';
-import { moveContours } from './text.js';
 
 export const START_PALETTE = 'Dark Academia';
 export const STANDARD_VISCOSITY = 1000;
@@ -482,48 +481,31 @@ export class TankController {
     return op;
   }
 
-  sprayAt(x, y, share = 1) {
-    const m = this.marble;
-    const v = this.inMm('spray');
-    const colors = v.sprayColors === 'one' ? [{ color: this.color, shimmer: this.shimmer }] : this.inks;
-    this.place(false, (at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min: Math.min(v.min, v.max), max: v.max, colors, at }));
+  // How a tool is used: 'click', 'stroke', 'line' or 'whole'. See tools.js.
+  toolInput(name = this.tool) {
+    const def = TOOLS[name];
+    return def.input ?? (def.whole ? 'whole' : 'click');
+  }
+
+  // Does what a tool does, with what its act() in tools.js is given. extra is its point or path,
+  // and share for drags. Returns what act() did.
+  runTool(name, extra = {}) {
+    const def = TOOLS[name];
+    return def.act({
+      m: this.marble,
+      v: this.inMm(name),
+      ink: { color: this.color, shimmer: this.shimmer },
+      inks: this.inks,
+      queueMode: this.settings.queueMode,
+      text: () => this.currentText(),
+      place: (fn) => this.place(Boolean(def.waits), fn),
+      ...extra,
+    });
   }
 
   // What a click does with the current tool, at a point in tank mm.
-  clickAction([x, y]) {
-    const m = this.marble;
-    const { tool, color, shimmer } = this;
-    const v = this.inMm(tool);
-    if (tool === 'text') {
-      const contours = this.currentText();
-      if (contours.length) this.place(false, (at) => m.print({ contours: moveContours(contours, x, y), color, shimmer, at }));
-    } else if (tool === 'drop') {
-      for (let i = 0; i < v.count; i++) {
-        const r = v.scatter * Math.sqrt(m.random());
-        const a = m.random() * 2 * Math.PI;
-        const jitter = v.count > 1 ? m.random() * 0.5 : 0;
-        this.place(false, (at) => m.drop({
-          x: x + r * Math.cos(a), y: y + r * Math.sin(a),
-          quantity: v.quantity, dispersion: v.dispersion, color, shimmer,
-          at: at === undefined || this.settings.queueMode !== 'together' ? at : at + jitter,
-        }));
-      }
-    } else if (tool === 'spray') {
-      this.sprayAt(x, y);
-    } else if (tool === 'erase') {
-      if (m.eraseSupported) this.place(false, (at) => m.erase({ x, y, ...v, at }));
-    } else if (tool === 'wriggle') {
-      const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
-      this.place(true, (at) => m.wriggle({ x, y, period: v.period, degrees, duration: v.duration, at }));
-    } else if (tool === 'stir') {
-      const opposed = (i) => v.direction === 'alternate' && i % 2;
-      const radii = Array.from({ length: v.rings }, (_, i) => (opposed(i) ? -1 : 1) * (i + 1) * v.ringSpacing);
-      const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
-      this.place(true, (at) => m.stir({ x, y, radii, degrees, rate: v.rate, D: v.D, at }));
-    } else if (tool === 'vortex') {
-      const circulation = v.direction === 'cw' ? -v.circulation : v.circulation;
-      this.place(true, (at) => m.vortex({ x, y, circulation, duration: v.duration, at }));
-    }
+  clickAction(point) {
+    if (this.toolInput() === 'click') this.runTool(this.tool, { point });
   }
 
   // A press on the tank, at a point in tank mm.
@@ -534,26 +516,26 @@ export class TankController {
     }
     this.stroke = null; // a press that never saw its release must not carry over into this one
     this.lastSpray = null;
-    const { tool } = this;
-    if (tool === 'rake' || tool === 'stylus' || tool === 'paint') this.stroke = [p];
-    else if (!TOOLS[tool].whole) {
+    const input = this.toolInput();
+    if (input === 'stroke' || input === 'line') this.stroke = [p];
+    else if (input === 'click') {
       const before = this.undoMarks.length;
       this.act(() => this.clickAction(p));
       this.pressCounted = this.undoMarks.length > before;
     }
-    if (tool === 'spray' || tool === 'erase') this.lastSpray = p;
+    if (TOOLS[this.tool].drag) this.lastSpray = p;
   }
 
   // The pointer moved to p. buttons is false once the button is up, whatever we were told.
   move(p, buttons) {
     if (!buttons) this.endPress();
     const { tool, lastSpray } = this;
-    // Dragging keeps spraying along the way, a little at a time.
-    // Lifting cuts a hard edge, so it needs closer spots to make a smooth stroke.
-    if (lastSpray && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > this.inMm(tool).radius * (this.values.erase.mode === 'lift' && tool === 'erase' ? 0.3 : 0.75)) {
+    const drag = TOOLS[tool].drag;
+    // Dragging some tools keeps them going along the way, a little at a time.
+    if (lastSpray && drag && Math.hypot(p[0] - lastSpray[0], p[1] - lastSpray[1]) > this.inMm(tool).radius * drag.spacing(this.values[tool])) {
       this.lastSpray = p;
       // A whole drag is one undo step, so only the first spot of it needs to start one.
-      const more = () => (tool === 'erase' ? this.clickAction(p) : this.sprayAt(p[0], p[1], 0.25));
+      const more = () => this.runTool(tool, { point: p, share: drag.share });
       if (this.pressCounted) more();
       else {
         const before = this.undoMarks.length;
@@ -562,24 +544,17 @@ export class TankController {
       }
     }
     if (!this.stroke) return;
-    if (tool === 'rake') this.stroke[1] = p;
+    if (this.toolInput() === 'line') this.stroke[1] = p;
     else this.stroke.push(p);
   }
 
   release() {
     this.lastSpray = null;
     if (!this.stroke) return;
-    const m = this.marble;
     const path = this.stroke;
     this.stroke = null;
     if (path.length < 2) return;
-    if (this.tool === 'paint') {
-      this.act(() => this.place(false, (at) => m.paint({ path, ...this.inMm('paint'), color: this.color, shimmer: this.shimmer, at })));
-      return;
-    }
-    this.act(() => this.place(true, (at) => (this.tool === 'rake'
-      ? m.rake({ from: path[0], to: path[1], ...this.inMm('rake'), at })
-      : m.stylus({ path, ...this.inMm('stylus'), at }))));
+    this.act(() => this.runTool(this.tool, { path }));
   }
 
   // The system can take the pointer away mid-press, with no release, so a press also ends here.
@@ -588,34 +563,10 @@ export class TankController {
     this.lastSpray = null;
   }
 
-  fillDotsNow() {
-    const m = this.marble;
-    const { sprayColors, over, ...v } = this.inMm('fillDots');
-    const options = { ...v, over: over === 'over', colors: sprayColors === 'one' ? [{ color: this.color, shimmer: this.shimmer }] : this.inks };
-    // Rings go on one at a time, each waiting for the last to settle, and that needs the script's timeline.
-    if (v.rings > 1) {
-      m.settle();
-      return m.fillDots(options);
-    }
-    return this.place(false, (at) => m.fillDots({ ...options, at }));
-  }
-
   // The Apply button, for tools that work on the whole tank.
   applyTool() {
-    const m = this.marble;
-    const { tool } = this;
-    this.act(() => (tool === 'fillDots'
-      ? this.fillDotsNow()
-      : tool === 'hearts'
-      ? this.place(true, (at) => m.hearts({ ...this.inMm('hearts'), at }))
-      : tool === 'stripes'
-      ? this.place(false, (at) => {
-        const { over, ...v } = this.inMm('stripes');
-        return m.stripes({ ...v, over: over === 'over', colors: this.inks, at });
-      })
-      : this.place(true, (at) => (tool === 'air' ? m.air({ ...this.inMm('air'), at }) : tool === 'fullRake'
-      ? m.fullRake({ ...this.inMm('fullRake'), at })
-      : m.jiggle({ ...this.inMm('jiggle'), at })))));
+    if (this.toolInput() !== 'whole') return;
+    this.act(() => this.runTool(this.tool));
   }
 
   // ---- History ----------------------------------------------------------------

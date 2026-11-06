@@ -66,7 +66,7 @@ test('a press that loses its button makes nothing on release', () => {
   c.press([0, 0]);
   c.move([10, 10], false);
   c.release();
-  assert.ok(!fns(c).includes('stylus'));
+  assert.ok(!fns(c).includes('rake'), 'a stylus logs as a rake');
 });
 
 test('paused, in-order actions queue one after another with the gap between', () => {
@@ -293,4 +293,42 @@ test('a simulator that can’t freeze turns freezing off and won’t take it', (
   assert.equal(c.freezeMode, 'off');
   c.setFreezeMode('freeze');
   assert.equal(c.freezeMode, 'off');
+});
+
+test('a new tool needs only its entry in tools.js: clicks, strokes, drags and Apply all find it', async () => {
+  const { TOOLS } = await import('./tools.js');
+  const added = {
+    dab: { hint: 'A test brush.', input: 'click', drag: { spacing: () => 0.5, share: 0.5 }, params: { radius: ['Size', 5, 1, 20, 1] }, act: (t) => t.place((at) => t.m.drop({ x: t.point[0], y: t.point[1], quantity: 0.2 * (t.share ?? 1), ...t.ink, at })) },
+    smear: { hint: 'A test stroke.', input: 'stroke', waits: true, params: {}, act: (t) => t.place((at) => t.m.stylus({ path: t.path, at })) },
+    shake: { hint: 'A test whole-tank tool.', whole: true, params: {}, act: (t) => t.place((at) => t.m.jiggle({ at })) },
+  };
+  Object.assign(TOOLS, added);
+  try {
+    const c = new TankController({ settings: { simulator: 'classic' } });
+    c.clear();
+    c.setTool('dab');
+    c.press([0, 0]);
+    for (let x = 0; x <= 200; x += 20) c.move([x, 0], true);
+    c.release();
+    assert.ok(fns(c).filter((f) => f === 'drop').length > 3);
+    assert.equal(c.undoMarks.length, 1, 'the whole drag is one step');
+    c.setTool('smear');
+    c.press([0, 0]); c.move([50, 50], true); c.move([100, 0], true); c.release();
+    assert.equal(fns(c).at(-1), 'rake'); // a stylus is a one-tine rake
+    c.setTool('shake');
+    assert.equal(c.toolInput(), 'whole');
+    c.applyTool();
+    assert.equal(fns(c).at(-1), 'jiggle');
+  } finally {
+    for (const k of Object.keys(added)) delete TOOLS[k];
+  }
+});
+
+test('every tool says how it is used and what it does', async () => {
+  const { TOOLS } = await import('./tools.js');
+  for (const [name, def] of Object.entries(TOOLS)) {
+    assert.ok(['click', 'stroke', 'line', 'whole'].includes(def.input), name);
+    assert.equal(typeof def.act, 'function', name);
+    assert.equal(def.input === 'whole', Boolean(def.whole), `${name}: whole tools have an Apply button`);
+  }
 });
