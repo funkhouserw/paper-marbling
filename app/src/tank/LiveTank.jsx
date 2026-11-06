@@ -16,6 +16,9 @@ export function LiveTank({ tank, className, onMenu }) {
     const v = mountTank(box.current, c, { leftOnly: true, onStats: tank.onStats });
     view.current = v;
     tank.setView(v);
+    // The same console handles as the old page, for looking at the tank and for browser tests.
+    window.marble = () => c.marble;
+    window.marbler = { controller: c, view: v };
     return () => { v.destroy(); tank.setView(null); view.current = null; };
     // The tank and its view live as long as the page.
   }, [c]); // eslint-disable-line react-hooks/exhaustive-deps
