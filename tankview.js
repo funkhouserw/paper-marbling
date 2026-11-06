@@ -254,10 +254,9 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
       octx.stroke(path);
     }
     octx.restore();
-    drawFreezePick();
   }
 
-  // What a click would freeze or unfreeze, once something is frozen.
+  // What a click would freeze or unfreeze, before anything is frozen too.
   function drawFreezePick() {
     if (c.freezeMode === 'off' || !view.hover) return;
     const loops = c.freezeTarget(view.hover);
@@ -444,6 +443,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     drawPreviewLayer();
     drawHeartLines();
     drawFrozen();
+    drawFreezePick();
     octx.fillStyle = guideColor(0.8);
     for (const p of c.marble.tinePositions()) {
       const [x, y] = toPx(p);
