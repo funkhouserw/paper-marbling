@@ -1,7 +1,6 @@
-import { Marble, maxRadius, WEAVE_POINTS, WEAVE_SHAPES } from './engine.js';
+import { maxRadius, WEAVE_SHAPES } from './engine.js';
 import { toMm, dialToValue, valueToDial } from './api.js';
 import { TOOLS, isDial } from './tools.js';
-import { latticeShifts } from './tile.js';
 import { MODELS } from './models.js';
 import { renderPrint, PRINT_DEFAULTS } from './print.js';
 import { makeProfiler } from './profile.js';
@@ -10,9 +9,10 @@ import { keptList } from './kept.js';
 import { PALETTES, setSavedPalettes, isBuiltInPalette, validPalette, cleanPalette, MAX_INKS } from './palettes.js';
 import { addInfo, infoIcon } from './info.js';
 import { FONTS, textContours } from './text.js';
-import { TINTS, PULL_SECONDS, LAY_SECONDS, pullPrint, drawSweep, savePull, listPulls, deletePull } from './paper.js';
+import { TINTS, savePull, listPulls, deletePull } from './paper.js';
 import { TankController, DEFAULT_SETTINGS, FLOW_FIELDS, START_PALETTE, STANDARD_LIMIT, parseHex } from './controller.js';
 import { EXAMPLES, EXAMPLE_SIMULATOR } from './examples.js';
+import { mountTank } from './tankview.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,13 +49,6 @@ for (const id of FIELDS) {
   $(id).addEventListener('change', take);
 }
 
-const tank = $('tank');
-const overlay = $('overlay');
-const tctx = tank.getContext('2d');
-const octx = overlay.getContext('2d');
-let pxPerMm = 1;
-let hover = null; // pointer position in tank mm, for the text preview
-let pull = null;  // the pull in progress
 let tint = Object.values(TINTS)[0];
 let pullSeed = Date.now() % 1e9;
 
@@ -68,33 +61,6 @@ for (const panel of document.querySelectorAll('.panel')) {
   if (saved !== null) panel.open = saved === 'open';
   panel.addEventListener('toggle', () => localStorage.setItem(key, panel.open ? 'open' : 'closed'));
 }
-
-// ---- Layout -------------------------------------------------------------
-
-function resize() {
-  const box = $('wrap').getBoundingClientRect();
-  const dpr = devicePixelRatio || 1;
-  const cssScale = Math.min(box.width / c.marble.width, box.height / c.marble.height);
-  pxPerMm = cssScale * dpr;
-  for (const el of [tank, overlay]) {
-    el.width = Math.round(c.marble.width * pxPerMm);
-    el.height = Math.round(c.marble.height * pxPerMm);
-    el.style.width = `${c.marble.width * cssScale}px`;
-    el.style.height = `${c.marble.height * cssScale}px`;
-  }
-  c.dirty = true;
-}
-new ResizeObserver(resize).observe($('wrap'));
-c.on('tank', resize);
-
-function toTank(ev) {
-  const r = overlay.getBoundingClientRect();
-  return [
-    ((ev.clientX - r.left) / r.width - 0.5) * c.marble.width,
-    (0.5 - (ev.clientY - r.top) / r.height) * c.marble.height,
-  ];
-}
-const toPx = ([x, y]) => [(x + c.marble.width / 2) * pxPerMm, (c.marble.height / 2 - y) * pxPerMm];
 
 // ---- Settings -----------------------------------------------------------
 
@@ -146,14 +112,6 @@ function typeBox(range) {
   };
   box.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); box.blur(); } };
   return box;
-}
-
-// The same colour fully opaque, so previews stay visible however faint the ink is.
-function opaque(color) {
-  if (/^#[0-9a-f]{8}$/i.test(color)) return color.slice(0, 7);
-  if (/^#[0-9a-f]{4}$/i.test(color)) return color.slice(0, 4);
-  const m = /^rgba\(\s*([^,]+),\s*([^,]+),\s*([^,)]+)/i.exec(color);
-  return m ? `rgb(${m[1]},${m[2]},${m[3]})` : color;
 }
 
 function colorPicker() {
@@ -247,7 +205,6 @@ function freezeRow(box) {
       c.pickFreezeMode(mode);
       for (const s of row.querySelectorAll('button')) s.classList.remove('on');
       b.classList.toggle('on', c.freezeMode === mode);
-      overlay.style.cursor = c.freezeMode === 'off' ? '' : 'crosshair';
     };
     return b;
   };
@@ -258,86 +215,10 @@ function freezeRow(box) {
   box.append(row);
 }
 
-// Where each heart's tine will run, dashed like the rake previews, in every copy that shows.
-function drawHeartLines() {
-  const m = c.marble;
-  if (c.tool !== 'hearts' || !m.heartPaths || m.busy) return;
-  const px = devicePixelRatio || 1;
-  octx.save();
-  octx.lineWidth = px;
-  octx.setLineDash([5 * px, 4 * px]);
-  const paths = m.heartPaths(c.inMm('hearts'));
-  const line = (from, to, sx, sy) => {
-    const [ax, ay] = toPx([from[0] + sx, from[1] + sy]);
-    const [bx, by] = toPx([to[0] + sx, to[1] + sy]);
-    octx.moveTo(ax, ay);
-    octx.lineTo(bx, by);
-  };
-  for (const [colour, phase] of [['#000c', 0], ['#fffc', 4.5 * px]]) {
-    octx.beginPath();
-    octx.strokeStyle = colour;
-    octx.lineDashOffset = phase;
-    for (const { from, to, loops } of paths) for (const [sx, sy] of m.tileShifts(loops)) line(from, to, sx, sy);
-    octx.stroke();
-  }
-  octx.restore();
-}
-
-function drawFrozen() {
-  const m = c.marble;
-  if (!m.polys.some((p) => p.frozen)) return;
-  const masked = c.tool === 'fullRake';
-  const px = devicePixelRatio || 1;
-  const pathFor = (loops) => {
-    const path = new Path2D();
-    for (const poly of loops) {
-      for (const [sx, sy] of m.tileShifts([poly])) {
-        for (let i = 0; i < poly.n; i++) {
-          const [x, y] = toPx([poly.xy[i * 2] + sx, poly.xy[i * 2 + 1] + sy]);
-          if (i) path.lineTo(x, y);
-          else path.moveTo(x, y);
-        }
-        path.closePath();
-      }
-    }
-    return path;
-  };
-  octx.save();
-  octx.lineWidth = px;
-  octx.setLineDash([5 * px, 4 * px]);
-  for (const poly of m.polys) {
-    if (!poly.frozen) continue;
-    const path = pathFor([poly]);
-    if (masked) {
-      octx.fillStyle = '#ff305866';
-      octx.fill(path, poly.group ? 'evenodd' : 'nonzero');
-    }
-    octx.strokeStyle = '#000c';
-    octx.lineDashOffset = 0;
-    octx.stroke(path);
-    octx.strokeStyle = '#fffc';
-    octx.lineDashOffset = 4.5 * px;
-    octx.stroke(path);
-  }
-  octx.restore();
-  // What a click would pick.
-  if (c.tool === 'fullRake' && c.freezeMode !== 'off' && hover) {
-    const loops = m.shapeAt(hover[0], hover[1], { frozen: c.freezeMode === 'unfreeze' });
-    if (loops) {
-      octx.save();
-      octx.lineWidth = 2 * px;
-      octx.strokeStyle = c.freezeMode === 'freeze' ? '#ff3058' : '#fff';
-      octx.stroke(pathFor(loops));
-      octx.restore();
-    }
-  }
-}
-
 const showTool = (name) => c.setTool(name);
 
 // Builds the panel for the chosen tool.
-function renderTool({ changed }) {
-  if (changed) overlay.style.cursor = '';
+function renderTool() {
   const name = c.tool;
   const values = c.values;
   const def = TOOLS[name];
@@ -619,23 +500,6 @@ function updateHistoryButtons() {
 }
 c.on('history', updateHistoryButtons);
 
-// ---- Canvas interaction -------------------------------------------------
-
-overlay.addEventListener('pointerdown', (ev) => {
-  if (pull) return;
-  overlay.setPointerCapture(ev.pointerId);
-  c.press(toTank(ev));
-});
-// The system can take the pointer away mid-press, with no pointerup, so a press also ends here.
-overlay.addEventListener('pointercancel', () => c.endPress());
-overlay.addEventListener('pointerleave', () => { hover = null; });
-overlay.addEventListener('pointermove', (ev) => {
-  const p = toTank(ev);
-  hover = p;
-  c.move(p, Boolean(ev.buttons));
-});
-overlay.addEventListener('pointerup', () => c.release());
-
 $('apply').onclick = () => c.applyTool();
 
 // ---- Transport ----------------------------------------------------------
@@ -653,7 +517,7 @@ $('detailPreset').onchange = () => {
 $('pointLimit').onchange = () => setPointLimit(c.pointLimit());
 $('lowFramerate').onchange = () => {
   localStorage.setItem('marbler.lowFramerate', c.settings.lowFramerate ? '1' : '0');
-  nextDraw = 0;
+  view.redrawNow();
 };
 
 setPointLimit(Number(localStorage.getItem('marbler.pointLimit')) || STANDARD_LIMIT);
@@ -693,24 +557,7 @@ for (const id of Object.values(FLOW_FIELDS)) $(id).onchange = () => c.commitFlow
 
 $('tile').onchange = () => c.commitTile();
 $('tileOffset').onchange = () => c.commitTileOffset();
-$('tilePreview').onclick = () => {
-  // Three by three at the tank's own resolution, so the view can zoom out without losing detail.
-  const canvas = Object.assign(document.createElement('canvas'), { width: tank.width * 3, height: tank.height * 3 });
-  const ctx = canvas.getContext('2d');
-  // With no base colour the tank's canvas is see-through, over whatever the page shows behind it.
-  ctx.fillStyle = getComputedStyle(tank).backgroundColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // An offset shifts each row or column by half a tile. Page rows run down, the tank's y runs up.
-  const offset = c.marble.tileOn ? c.marble.tileOffset : null;
-  for (let i = -1; i < 4; i++) {
-    for (let j = -1; j < 4; j++) {
-      const x = (i + (offset === 'brick' ? (((j % 2) + 2) % 2) / 2 : 0)) * tank.width;
-      const y = (j - (offset === 'halfDrop' ? (((i % 2) + 2) % 2) / 2 : 0)) * tank.height;
-      ctx.drawImage(tank, x, y);
-    }
-  }
-  canvas.toBlob((blob) => openViewer(blob, null, Date.now()));
-};
+$('tilePreview').onclick = () => view.tilePreview().then((blob) => openViewer(blob, null, Date.now()));
 function onSimulatorChange() {
   localStorage.setItem('marbler.simulator', c.settings.simulator);
   c.commitSimulator();
@@ -948,14 +795,11 @@ async function renderSaves() {
 }
 
 $('saveState').onclick = async () => {
-  const shot = document.createElement('canvas');
-  shot.width = 120;
-  shot.height = Math.round((120 * tank.height) / tank.width) || 84;
-  shot.getContext('2d').drawImage(tank, 0, 0, shot.width, shot.height);
+  const thumb = view.thumbnail(120);
   const { simulator, useBath, bath, visc, state } = c.saveData();
   const saved = addSave({
     created: Date.now(),
-    thumb: shot.toDataURL('image/png'),
+    thumb,
     simulator,
     script: $('script').value,
     useBath,
@@ -1032,26 +876,18 @@ $('print').onclick = async () => {
 // ---- Paper pull -----------------------------------------------------------
 
 function startPull() {
-  if (pull) return;
-  pull = {
-    start: performance.now(),
-    ...pullPrint(c.marble, {
-      tint: $('pullBase').checked && c.settings.useBath ? c.settings.bath : tint,
-      imperfection: Number($('imperfection').value) / 100,
-      mirror: $('mirror').checked,
-      seed: pullSeed++,
-    }),
-    cleared: false,
-  };
-  c.locked = true; // no undo or redo under the sheet
+  if (view.pulling) return;
   $('pull').disabled = true;
-  c.stroke = null;
+  view.startPull({
+    tint: $('pullBase').checked && c.settings.useBath ? c.settings.bath : tint,
+    imperfection: Number($('imperfection').value) / 100,
+    mirror: $('mirror').checked,
+    seed: pullSeed++,
+    clearAfter: () => $('clearAfter').checked,
+  }).then(finishPull);
 }
 
-async function finishPull() {
-  const { print } = pull;
-  pull = null;
-  c.locked = false;
+async function finishPull(print) {
   $('pull').disabled = false;
   const blob = await new Promise((resolve) => print.toBlob(resolve));
   if ($('autoSave').checked) download(blob, `marble-pull-${stamp()}.png`);
@@ -1111,219 +947,13 @@ for (const [name, color] of Object.entries(TINTS)) {
 
 // ---- Main loop ----------------------------------------------------------
 
-// Black or white guides, whichever stands out against the bath.
-function guideColor(alpha) {
-  const hex = parseHex(c.marble.bath);
-  const n = hex ? parseInt(hex.rgb.slice(1), 16) : 0xffffff;
-  const luma = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
-  return `${luma < 110 ? 'rgba(255,255,255,' : 'rgba(0,0,0,'}${alpha})`;
-}
-
-function drawTextPreview() {
-  const contours = c.currentText();
-  if (!contours.length) return;
-  octx.save();
-  octx.globalAlpha = 0.55;
-  octx.fillStyle = c.inkRgb();
-  octx.beginPath();
-  for (const contour of contours) {
-    for (let i = 0; i < contour.length; i += 2) {
-      const [x, y] = toPx([contour[i] + hover[0], contour[i + 1] + hover[1]]);
-      i ? octx.lineTo(x, y) : octx.moveTo(x, y);
-    }
-    octx.closePath();
-  }
-  octx.fill('evenodd');
-  octx.restore();
-}
-
-// Dashed previews are slow to draw, so they live on their own canvas, redrawn only
-// when what they show changes. Queued actions show only while paused.
-const previewLayer = document.createElement('canvas');
-const lctx = previewLayer.getContext('2d');
-let previewKey = '';
-let previewHasContent = false;
-
-function dashedRakeLines(ctx, m, planned) {
-  ctx.beginPath();
-  for (const op of planned.together ?? [planned]) {
-    const steps = op.waveAmp ? Math.ceil((op.total * WEAVE_POINTS) / op.waveLength) : 1;
-    for (const off of op.offs) {
-      const points = [];
-      let left = Infinity, right = -Infinity, low = Infinity, high = -Infinity;
-      for (let k = 0; k <= steps; k++) {
-        const p = m._rakePoint(op, (op.total * k) / steps, off);
-        points.push(p);
-        left = Math.min(left, p[0]); right = Math.max(right, p[0]);
-        low = Math.min(low, p[1]); high = Math.max(high, p[1]);
-      }
-      // A tine past a repeating tank's edge is really at its copy here, so that's what shows.
-      const marble = c.marble;
-      const { width: W, height: H } = marble;
-      const shifts = (marble.tileWanted ?? marble.tileOn)
-        ? latticeShifts(-W / 2 - right, W / 2 - left, -H / 2 - high, H / 2 - low, W, H, marble.tileOffsetWanted ?? marble.tileOffset)
-        : [[0, 0]];
-      for (const [sx, sy] of shifts) {
-        points.forEach(([px, py], k) => {
-          const [x, y] = toPx([px + sx, py + sy]);
-          k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-        });
-      }
-    }
-  }
-  // Alternating dark and light dashes show up on any bath or ink.
-  ctx.strokeStyle = '#000c';
-  ctx.lineDashOffset = 0;
-  ctx.stroke();
-  ctx.strokeStyle = '#fffc';
-  ctx.lineDashOffset = 4.5;
-  ctx.stroke();
-  ctx.lineDashOffset = 0;
-}
-
-function renderPreviewLayer(showQueued, fullRakeOp) {
-  if (previewLayer.width !== overlay.width || previewLayer.height !== overlay.height) {
-    previewLayer.width = overlay.width;
-    previewLayer.height = overlay.height;
-  }
-  const px = devicePixelRatio || 1;
-  lctx.clearRect(0, 0, previewLayer.width, previewLayer.height);
-  lctx.lineWidth = px;
-  lctx.setLineDash([5, 4]);
-  previewHasContent = false;
-  for (const op of showQueued ? c.marble.queued : []) {
-    if (op.kind === 'rake') {
-      dashedRakeLines(lctx, c.marble, op);
-      previewHasContent = true;
-    } else if (op.kind === 'erase' || op.kind === 'lift') {
-      const [x, y] = toPx([op.x, op.y]);
-      lctx.beginPath();
-      lctx.arc(x, y, op.radius * pxPerMm, 0, 7);
-      lctx.strokeStyle = '#000c';
-      lctx.lineDashOffset = 0;
-      lctx.stroke();
-      lctx.strokeStyle = '#fffc';
-      lctx.lineDashOffset = 4.5;
-      lctx.stroke();
-      lctx.lineDashOffset = 0;
-      previewHasContent = true;
-    } else if (op.kind === 'drop') {
-      const [x, y] = toPx([op.x, op.y]);
-      const color = opaque(op.color);
-      lctx.strokeStyle = color;
-      lctx.fillStyle = color;
-      lctx.beginPath();
-      lctx.arc(x, y, Math.sqrt(op.maxArea) * pxPerMm, 0, 7);
-      lctx.stroke();
-      lctx.beginPath();
-      lctx.arc(x, y, 3 * px, 0, 7);
-      lctx.fill();
-      previewHasContent = true;
-    }
-  }
-  if (fullRakeOp) {
-    dashedRakeLines(lctx, fullRakeOp.m, fullRakeOp.op);
-    previewHasContent = true;
-  }
-}
-
-// The planned tines come from a throwaway tank, so the preview uses the engine's geometry.
-let plannedRake = { key: null, op: null };
-function plannedFullRake() {
-  const { tool, stroke, marble } = c;
-  if (tool !== 'fullRake' && tool !== 'rake') return null;
-  // Rake has no line until it's dragged, so until then it shows one straight across, at the pointer.
-  const along = marble.width / 2 + 20;
-  const y = hover ? hover[1] : 0;
-  const line = tool === 'rake' ? (stroke?.length > 1 ? stroke : [[-along, y], [along, y]]) : null;
-  const key = JSON.stringify([tool, c.values[tool], line, marble.width, marble.height, marble.tileWanted ?? marble.tileOn, marble.tileOffsetWanted ?? marble.tileOffset]);
-  if (key !== plannedRake.key) {
-    const m = new Marble({ width: marble.width, height: marble.height });
-    m.tileWanted = marble.tileWanted ?? marble.tileOn;
-    m.tileOffsetWanted = marble.tileOffsetWanted ?? marble.tileOffset;
-    const op = tool === 'rake'
-      ? m.rake({ from: line[0], to: line[1], ...c.inMm('rake', m), at: 0 })
-      : m.fullRake({ ...c.inMm('fullRake', m), at: 0 });
-    plannedRake = { key, op: op && { m, op } };
-  }
-  return plannedRake.op;
-}
-
-function drawPreviewLayer() {
-  const showQueued = !c.playing;
-  const planned = plannedFullRake();
-  const key = [showQueued, showQueued ? c.marble.log.length : 0, showQueued ? c.marble.queued.length : 0,
-    planned ? plannedRake.key : '', overlay.width, overlay.height].join('|');
-  if (key !== previewKey) {
-    renderPreviewLayer(showQueued, planned);
-    previewKey = key;
-  }
-  if (previewHasContent) octx.drawImage(previewLayer, 0, 0);
-}
-
-function drawOverlay() {
-  octx.clearRect(0, 0, overlay.width, overlay.height);
-  if (pull) {
-    drawSweep(octx, pull, (performance.now() - pull.start) / 1000);
-    return;
-  }
-  const { tool, stroke } = c;
-  if (tool === 'text' && hover) drawTextPreview();
-  octx.lineWidth = devicePixelRatio || 1;
-  if (stroke && stroke.length > 1) {
-    octx.strokeStyle = guideColor(0.7);
-    octx.beginPath();
-    stroke.forEach((p, i) => { const [x, y] = toPx(p); i ? octx.lineTo(x, y) : octx.moveTo(x, y); });
-    octx.stroke();
-    if (tool === 'rake') {
-      const [a, b] = stroke;
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      const perp = [-(b[1] - a[1]) / len, (b[0] - a[0]) / len];
-      const { teeth, spacing } = c.inMm('rake');
-      octx.fillStyle = guideColor(0.75);
-      for (let i = 0; i < teeth; i++) {
-        const off = (i - (teeth - 1) / 2) * spacing;
-        const [x, y] = toPx([a[0] + perp[0] * off, a[1] + perp[1] * off]);
-        octx.beginPath();
-        octx.arc(x, y, 2.5 * octx.lineWidth, 0, 7);
-        octx.fill();
-      }
-    }
-  }
-  drawPreviewLayer();
-  drawHeartLines();
-  drawFrozen();
-  octx.fillStyle = guideColor(0.8);
-  for (const p of c.marble.tinePositions()) {
-    const [x, y] = toPx(p);
-    octx.beginPath();
-    octx.arc(x, y, 2 * octx.lineWidth, 0, 7);
-    octx.fill();
-  }
-}
-
-const GLINT_MS = 33;
-const SLOW_DRAW_MS = 25;
-const SNAPSHOT_EVERY_MS = 2000;
-const LOADED_FRAME_MS = 28;  // average frame gap that counts as the page falling behind
-const BEHIND_FRAME_MS = 40;  // ...and that slows tank redraws too
-
-let nextDraw = 0;
-let nextGlint = 0;
-let lastDrawMs = 0;
-let nextStats = 0;
-let frameGap = 16;      // smoothed time between frames; canvas work mostly lands here, not in draw()
-let glintResting = null; // the tank state the glint gave up on, until something changes
-let last = performance.now();
-let drawnLog = 0;
-let wasSnapshotting = false;
 const profiler = makeProfiler(() => {
   const marble = c.marble;
   return {
     simulator: c.model().id, engine: marble.constructor.name, simTime: Math.round(marble.time * 10) / 10,
     points: marble.vertexCount, shapes: marble.polys.length, active: marble.active.length, activeKinds: [...new Set(marble.active.map((op) => op.kind))],
     flowing: Boolean(marble.flowing), detail: marble.detail, capped: Boolean(marble.capped), gpuInUse: Boolean(marble.gpu), viscosity: marble.viscosity,
-    tank: [marble.width, marble.height], canvas: [tank.width, tank.height], lowFramerate: c.snapshotting(), speed: Number(c.settings.speed),
+    tank: [marble.width, marble.height], canvas: [view.tank.width, view.tank.height], lowFramerate: c.snapshotting(), speed: Number(c.settings.speed),
   };
 });
 c.onTick = (ms) => profiler.tick(ms);
@@ -1341,80 +971,6 @@ $('profiling').onchange = () => {
   localStorage.setItem('marbler.profiling', profiler.on ? '1' : '0');
 };
 
-function frame(now) {
-  profiler.frame(now - last, now);
-  profiler.watch(c.marble);
-  const wall = Math.min((now - last) / 1000, 0.1);
-  const gap = now - last;
-  if (gap < 250) frameGap += (gap - frameGap) * 0.1; // longer gaps are a hidden tab, not load
-  last = now;
-  const start = performance.now();
-  if (pull) {
-    // The tank holds still under the sheet. Clearing happens once it is fully covered.
-    const elapsed = (now - pull.start) / 1000;
-    if (!pull.cleared && elapsed > LAY_SECONDS && $('clearAfter').checked) {
-      pull.cleared = true;
-      c.clear();
-    }
-    if (elapsed >= PULL_SECONDS) finishPull();
-  } else {
-    c.advance(wall, start);
-  }
-  const marble = c.marble;
-  // Metallic inks glint, but not under load. If the page can't keep up even when the
-  // sim has settled, the glint rests until the tank next changes.
-  const underLoad = c.finishing || c.snapshotting() || c.owed > 0.1 || lastDrawMs > SLOW_DRAW_MS || frameGap > LOADED_FRAME_MS;
-  const tankState = `${marble.seed}|${marble.log.length}|${marble.polys.length}`;
-  if (underLoad && !marble.busy && !c.finishing) glintResting = tankState;
-  else if (glintResting !== tankState) glintResting = null;
-  if (!pull && !underLoad && !glintResting && now >= nextGlint && marble.polys.some((p) => p.shimmer > 0)) {
-    marble.sheenPhase += Math.max(wall, GLINT_MS / 1000);
-    nextGlint = now + GLINT_MS;
-    c.dirty = true;
-  }
-  c.noteLoad(lastDrawMs);
-  // Show the finished or paused tank straight away, not at the next snapshot.
-  const snapshotsOn = c.snapshotting();
-  if (wasSnapshotting && !snapshotsOn) nextDraw = 0;
-  wasSnapshotting = snapshotsOn;
-  // Anything the user just did shows straight away, even between snapshots.
-  if (marble.log.length !== drawnLog) nextDraw = 0;
-  // A slow redraw waits twice its own length before the next, so most of the time stays free.
-  // Drawing in the background: the page only posts the work, and shows it when it's ready.
-  let drawnLive = false;
-  if (c.dirty && marble.drawLive && performance.now() >= nextDraw) {
-    const drawing = marble;
-    const sent = marble.drawLive(tctx, pxPerMm, ({ ms }) => {
-      lastDrawMs = ms;
-      profiler.draw(ms);
-      return drawing === c.marble;
-    });
-    if (sent === 'busy') drawnLive = true;
-    else if (sent) {
-      drawnLive = true;
-      c.dirty = false;
-      drawnLog = marble.log.length;
-      nextDraw = performance.now() + 100;
-    }
-  }
-  if (!drawnLive && c.dirty && performance.now() >= nextDraw) {
-    const drawStart = performance.now();
-    marble.draw(tctx, pxPerMm);
-    lastDrawMs = performance.now() - drawStart;
-    profiler.draw(lastDrawMs);
-    drawnLog = marble.log.length;
-    nextDraw = drawStart + Math.max(lastDrawMs * 3, frameGap > BEHIND_FRAME_MS ? 100 : 0,
-      c.snapshotting() ? SNAPSHOT_EVERY_MS : 0);
-    c.dirty = false;
-  }
-  drawOverlay();
-  if (now >= nextStats) {
-    nextStats = now + 250;
-    showStats();
-  }
-  requestAnimationFrame(frame);
-}
-
 function showStats() {
   const marble = c.marble;
   // First, so that a warning still shows if the line runs out of room.
@@ -1428,11 +984,11 @@ function showStats() {
 
 // ---- Start --------------------------------------------------------------
 
+const view = mountTank({ wrap: $('wrap'), tank: $('tank'), overlay: $('overlay') }, c, { profiler, onStats: showStats });
 showTool('drop');
 // Opens on an empty tank; the examples only run when chosen.
 c.clear();
 showGallery();
-requestAnimationFrame(frame);
 
 window.marble = () => c.marble; // for use from the browser console
 
