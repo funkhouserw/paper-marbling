@@ -1,6 +1,7 @@
 // The sidebar's tools and sliders. The page uses these to build its controls, and the
 // server uses them to tell the assistant what slider numbers mean.
 import { COMMANDS, dialToValue } from './api.js';
+import { moveContours } from './text.js';
 
 export const TURNS = { ccw: 'Counter-clockwise', cw: 'Clockwise' };
 
@@ -13,8 +14,34 @@ const WEAVE_CHOICE = {
 // ink out of an open tank. Shorter strokes still use the extra reach.
 const FAR_DRAG = { top: 200, value: 6 };
 
+// Each tool says how it's used, and what it does to the tank:
+//   input: 'click' (at a point), 'stroke' (along a dragged path), 'line' (from where the drag
+//     starts to where it ends) or 'whole' (on the whole tank, from the Apply button).
+//   waits: it moves ink, so it waits for growing drops to settle when Tools wait is on.
+//   drag: a click tool that keeps going while dragged, every spacing × its radius, at share of
+//     its strength. spacing is given the tool's values.
+//   act(t): does it. t has m (the tank), v (the tool's values in mm), point or path, ink (the
+//     chosen { color, shimmer }), inks (the palette), text() (the Text tool's contours),
+//     queueMode, share for drags, and place(fn), which calls fn(at) with when the action
+//     should start (undefined: behind a settle point) and returns what fn did.
+// Adding a tool: its engine method, an entry here, its (i) text in info.js, and its script
+// command in api.js if scripts should use it. An interface gives it a place and an icon.
 export const TOOLS = {
   drop: {
+    input: 'click',
+    act(t) {
+      const { m, v, point: [x, y], ink } = t;
+      for (let i = 0; i < v.count; i++) {
+        const r = v.scatter * Math.sqrt(m.random());
+        const a = m.random() * 2 * Math.PI;
+        const jitter = v.count > 1 ? m.random() * 0.5 : 0;
+        t.place((at) => m.drop({
+          x: x + r * Math.cos(a), y: y + r * Math.sin(a),
+          quantity: v.quantity, dispersion: v.dispersion, ...ink,
+          at: at === undefined || t.queueMode !== 'together' ? at : at + jitter,
+        }));
+      }
+    },
     hint: 'Click to place drops. Each click can be a different quantity and colour. Keys 1 to 9 pick a palette ink.',
     color: true,
     params: {
@@ -25,6 +52,13 @@ export const TOOLS = {
     },
   },
   spray: {
+    input: 'click',
+    drag: { spacing: () => 0.75, share: 0.25 },
+    act(t) {
+      const { m, v, point: [x, y], share = 1 } = t;
+      const colors = v.sprayColors === 'one' ? [t.ink] : t.inks;
+      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min: Math.min(v.min, v.max), max: v.max, colors, at }));
+    },
     hint: 'Click, or drag, to spray fine dots. They use the colours chosen below.',
     color: true,
     choices: { sprayColors: ['Spray colours', { palette: 'All inks in the palette', one: 'Just the chosen ink' }, 'palette'] },
@@ -36,6 +70,18 @@ export const TOOLS = {
     },
   },
   fillDots: {
+    input: 'whole',
+    act(t) {
+      const { m } = t;
+      const { sprayColors, over, ...v } = t.v;
+      const options = { ...v, over: over === 'over', colors: sprayColors === 'one' ? [t.ink] : t.inks };
+      // Rings go on one at a time, each waiting for the last to settle, and that needs the script's timeline.
+      if (v.rings > 1) {
+        m.settle();
+        return m.fillDots(options);
+      }
+      return t.place((at) => m.fillDots({ ...options, at }));
+    },
     label: 'Fill dots',
     hint: 'Fills the open space with dots, largest holes first. Use the button below.',
     whole: true,
@@ -54,6 +100,12 @@ export const TOOLS = {
     },
   },
   text: {
+    input: 'click',
+    act(t) {
+      const { m, point: [x, y], ink } = t;
+      const contours = t.text();
+      if (contours.length) t.place((at) => m.print({ contours: moveContours(contours, x, y), ...ink, at }));
+    },
     hint: 'Click to print the text as ink. It never grows, but rakes and drops move it.',
     color: true,
     text: true,
@@ -62,6 +114,8 @@ export const TOOLS = {
     },
   },
   paint: {
+    input: 'stroke',
+    act: (t) => t.place((at) => t.m.paint({ path: t.path, ...t.v, ...t.ink, at })),
     hint: 'Drag to paint a line of ink. It doesn\'t spread, but later tools move it.',
     color: true,
     params: {
@@ -71,6 +125,11 @@ export const TOOLS = {
     },
   },
   stripes: {
+    input: 'whole',
+    act: (t) => t.place((at) => {
+      const { over, ...v } = t.v;
+      return t.m.stripes({ ...v, over: over === 'over', colors: t.inks, at });
+    }),
     label: 'Stripes',
     choices: { over: ['Existing ink', { over: 'Go on top of it', around: 'Go around it' }, 'over'] },
     hint: 'Fills the tank with bands of the palette\'s inks. Rake across them for chevrons. Use the button below.',
@@ -84,6 +143,9 @@ export const TOOLS = {
     },
   },
   rake: {
+    input: 'line',
+    waits: true,
+    act: (t) => t.place((at) => t.m.rake({ from: t.path[0], to: t.path[1], ...t.v, at })),
     hint: 'Drag across the tank: the rake travels along your line, teeth perpendicular to it.',
     choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'straight'] },
     params: {
@@ -97,6 +159,9 @@ export const TOOLS = {
     },
   },
   hearts: {
+    input: 'whole',
+    waits: true,
+    act: (t) => t.place((at) => t.m.hearts({ ...t.v, at })),
     label: 'Hearts',
     hint: 'A small tine through the middle of every dot that isn\'t frozen, which pulls them into hearts. Use the button below.',
     whole: true,
@@ -112,6 +177,9 @@ export const TOOLS = {
     },
   },
   fullRake: {
+    input: 'whole',
+    waits: true,
+    act: (t) => t.place((at) => t.m.fullRake({ ...t.v, at })),
     label: 'Full rake',
     choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'straight'] },
     hint: 'Teeth spread evenly across the whole page; offset slides them and wraps at the edges. Pick a direction, then use the button below.',
@@ -129,6 +197,9 @@ export const TOOLS = {
     },
   },
   stylus: {
+    input: 'stroke',
+    waits: true,
+    act: (t) => t.place((at) => t.m.stylus({ path: t.path, ...t.v, at })),
     hint: 'Draw freely: a single tine follows your stroke.',
     params: {
       speed: ['Speed', 15, 1, 80, 1],
@@ -137,6 +208,9 @@ export const TOOLS = {
     },
   },
   jiggle: {
+    input: 'whole',
+    waits: true,
+    act: (t) => t.place((at) => t.m.jiggle({ ...t.v, at })),
     hint: 'Shakes the whole tank into waves. Use the button below.',
     whole: true,
     params: {
@@ -147,6 +221,13 @@ export const TOOLS = {
     },
   },
   wriggle: {
+    input: 'click',
+    waits: true,
+    act(t) {
+      const { m, v, point: [x, y] } = t;
+      const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
+      t.place((at) => m.wriggle({ x, y, period: v.period, degrees, duration: v.duration, at }));
+    },
     hint: 'Click a centre: rings around it twist back and forth.',
     choices: { direction: ['Starts turning', TURNS, 'ccw'] },
     params: {
@@ -156,6 +237,15 @@ export const TOOLS = {
     },
   },
   stir: {
+    input: 'click',
+    waits: true,
+    act(t) {
+      const { m, v, point: [x, y] } = t;
+      const opposed = (i) => v.direction === 'alternate' && i % 2;
+      const radii = Array.from({ length: v.rings }, (_, i) => (opposed(i) ? -1 : 1) * (i + 1) * v.ringSpacing);
+      const degrees = v.direction === 'cw' ? -v.degrees : v.degrees;
+      t.place((at) => m.stir({ x, y, radii, degrees, rate: v.rate, D: v.D, at }));
+    },
     hint: 'Click a centre: circular tines turn around it.',
     choices: { direction: ['Direction', { alternate: 'Alternating rings', ...TURNS }, 'alternate'] },
     params: {
@@ -167,6 +257,9 @@ export const TOOLS = {
     },
   },
   air: {
+    input: 'whole',
+    waits: true,
+    act: (t) => t.place((at) => t.m.air({ ...t.v, at })),
     label: 'Air',
     hint: 'A breath of air across the whole tank. Each press is a different breath. Use the button below.',
     whole: true,
@@ -178,6 +271,13 @@ export const TOOLS = {
     },
   },
   erase: {
+    input: 'click',
+    // Lifting cuts a hard edge, so a drag needs closer spots to make a smooth stroke.
+    drag: { spacing: (values) => (values.mode === 'lift' ? 0.3 : 0.75) },
+    act(t) {
+      const { m, v, point: [x, y] } = t;
+      if (m.eraseSupported) t.place((at) => m.erase({ x, y, ...v, at }));
+    },
     label: 'Eraser',
     hint: 'Click or drag to take ink away. Pause first to mark several spots, then play to watch them go.',
     choices: { mode: ['Takes away', { drain: 'Ink and water: the surface closes up', lift: 'Just the ink: the water stays' }, 'drain'] },
@@ -187,6 +287,13 @@ export const TOOLS = {
     },
   },
   vortex: {
+    input: 'click',
+    waits: true,
+    act(t) {
+      const { m, v, point: [x, y] } = t;
+      const circulation = v.direction === 'cw' ? -v.circulation : v.circulation;
+      t.place((at) => m.vortex({ x, y, circulation, duration: v.duration, at }));
+    },
     hint: 'Click a centre: a swirl spins up around it.',
     choices: { direction: ['Direction', TURNS, 'ccw'] },
     params: {
