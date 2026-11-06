@@ -2,14 +2,16 @@ import { maxRadius, WEAVE_SHAPES } from './engine.js';
 import { toMm, dialToValue, valueToDial } from './api.js';
 import { TOOLS, isDial } from './tools.js';
 import { MODELS } from './models.js';
-import { renderPrint, PRINT_DEFAULTS } from './print.js';
 import { makeProfiler } from './profile.js';
-import { listSaves, addSave, deleteSave } from './saves.js';
-import { keptList } from './kept.js';
-import { PALETTES, setSavedPalettes, isBuiltInPalette, validPalette, cleanPalette, MAX_INKS } from './palettes.js';
+import { isBuiltInPalette, MAX_INKS } from './palettes.js';
 import { addInfo, infoIcon } from './info.js';
 import { FONTS, textContours } from './text.js';
-import { TINTS, savePull, listPulls, deletePull } from './paper.js';
+import { TINTS } from './paper.js';
+import {
+  download, stamp, pngBlob, svgBlob, printBlob, pullOptions, keepPull, listPulls, deletePull, listSaves, deleteSave,
+  saveTank, restoreTank, myScripts, saveScript, findScript, paletteChoices, savePalette, deletePalette,
+  applyPaletteActions, askAssistant,
+} from './pageactions.js';
 import { TankController, DEFAULT_SETTINGS, FLOW_FIELDS, START_PALETTE, STANDARD_LIMIT, parseHex } from './controller.js';
 import { EXAMPLES, EXAMPLE_SIMULATOR } from './examples.js';
 import { mountTank } from './tankview.js';
@@ -386,8 +388,6 @@ function applyPalette(name) {
   renderPaletteEditor();
 }
 
-const myPalettes = keptList('marbler.palettes', validPalette);
-
 // The current palette's inks, each with its colour, shimmer and a button to remove it.
 function renderPaletteEditor() {
   $('paletteInks').replaceChildren(...c.inks.map((ink, i) => {
@@ -420,14 +420,12 @@ function renderPaletteEditor() {
 
 // The dropdown and what scripts can reach both follow what's saved.
 function renderPalettes(chosen) {
-  const saved = myPalettes.list();
-  setSavedPalettes(saved);
+  const { saved, builtIn } = paletteChoices();
   const group = (label, list) => {
     const g = Object.assign(document.createElement('optgroup'), { label });
     g.append(...list.map((p) => new Option(p.name, p.name)));
     return g;
   };
-  const builtIn = PALETTES.slice(0, PALETTES.length - saved.length);
   $('palette').replaceChildren(...(saved.length ? [group('My palettes', saved), group('Built in', builtIn)] : builtIn.map((p) => new Option(p.name, p.name))));
   $('palette').value = chosen;
 }
@@ -440,44 +438,23 @@ $('addInk').onclick = () => {
   renderPaletteEditor();
 };
 $('savePalette').onclick = () => {
-  const name = $('paletteName').value.trim();
-  if (!name) { $('paletteName').focus(); return; }
-  if (isBuiltInPalette(name)) { showError(`"${name}" is a built-in palette, so choose another name.`); return; }
-  const entry = { name, bath: c.settings.bath, inks: c.inks };
-  if (!validPalette(entry)) { showError('A palette name can be up to 40 characters.'); return; }
-  const existing = myPalettes.list().find((p) => p.name.toLowerCase() === name.toLowerCase());
-  if (existing && existing.name !== $('palette').value && !confirm(`Replace the saved palette "${existing.name}"?`)) return;
-  try {
-    if (existing && existing.name !== name) myPalettes.remove(existing.name);
-    myPalettes.save(cleanPalette(entry));
-    showError('');
-  } catch (err) {
-    showError(`Couldn't save the palette: ${err.message}`);
-    return;
-  }
-  renderPalettes(name);
+  const saved = savePalette(c, {
+    name: $('paletteName').value,
+    current: $('palette').value,
+    confirmReplace: (name) => confirm(`Replace the saved palette "${name}"?`),
+  });
+  if (saved.needsName) { $('paletteName').focus(); return; }
+  if (saved.cancelled) return;
+  if (saved.error) { showError(saved.error); return; }
+  showError('');
+  renderPalettes(saved.name);
   renderPaletteEditor();
 };
 $('deletePalette').onclick = () => {
-  const name = $('palette').value;
-  if (isBuiltInPalette(name) || !confirm(`Delete the saved palette "${name}"?`)) return;
-  myPalettes.remove(name);
+  if (!deletePalette($('palette').value, (name) => confirm(`Delete the saved palette "${name}"?`))) return;
   renderPalettes(START_PALETTE);
   applyPalette(START_PALETTE);
 };
-// What the assistant did to palettes, applied only once its whole turn has succeeded.
-function applyPaletteActions(actions = []) {
-  for (const action of actions) {
-    if (action.type === 'save') {
-      const others = myPalettes.list().filter((p) => p.name.toLowerCase() === action.palette.name.toLowerCase() && p.name !== action.palette.name);
-      for (const other of others) myPalettes.remove(other.name);
-      myPalettes.save(action.palette);
-      renderPalettes($('palette').value);
-    } else if (action.type === 'use') {
-      applyPalette(action.name);
-    }
-  }
-}
 renderPaletteEditor();
 
 for (const name of Object.keys(TOOLS)) {
@@ -629,28 +606,14 @@ async function sendChat() {
   $('clearChat').disabled = true;
   $('generate').textContent = 'Working…';
   try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: sending,
-        script: $('script').value,
-        palettes: myPalettes.list(),
-        currentPalette: { name: $('palette').value, bath: c.settings.bath, inks: c.inks },
-      }),
-    });
-    if (res.status === 404 || res.status === 501) {
-      showError('The assistant needs the local server. Start with: node server.mjs');
-      return;
-    }
-    const data = await res.json().catch(() => ({ error: `Server replied ${res.status} with no usable JSON` }));
+    const data = await askAssistant(c, { messages: sending, script: $('script').value, paletteName: $('palette').value });
     if (data.error) {
       showError(data.error);
       return;
     }
     $('script').value = data.script;
     try {
-      applyPaletteActions(data.paletteActions);
+      applyPaletteActions(data.paletteActions, { onSaved: () => renderPalettes($('palette').value), use: applyPalette });
     } catch (err) {
       showError(`Couldn't save the palette: ${err.message}`);
     }
@@ -718,8 +681,6 @@ $('examples').onchange = () => {
 
 // ---- My scripts -----------------------------------------------------------
 
-const myScripts = keptList('marbler.scripts');
-
 function syncScriptButtons() { $('deleteScript').disabled = !$('myScripts').value; }
 
 function renderScripts(chosen = '') {
@@ -737,7 +698,7 @@ $('myScripts').onchange = () => {
   const name = $('myScripts').value;
   syncScriptButtons();
   if (!name) return;
-  const script = myScripts.list().find((s) => s.name === name);
+  const script = findScript(name);
   if (!script) return;
   $('script').value = script.text;
   $('scriptName').value = script.name;
@@ -750,19 +711,19 @@ $('myScripts').onchange = () => {
 };
 
 $('saveScript').onclick = () => {
-  const name = $('scriptName').value.trim();
-  if (!name) { $('scriptName').focus(); return; }
   // Saving over the one that's open is the point of saving. Over any other, it asks.
-  if (name !== $('myScripts').value && myScripts.list().some((s) => s.name === name) && !confirm(`Replace the saved script "${name}"?`)) return;
-  try {
-    myScripts.save({ name, text: $('script').value, simulator: c.settings.simulator, saved: Date.now() });
-    showError('');
-  } catch (err) {
-    showError(`Couldn't save the script: ${err.message}`);
-    return;
-  }
-  $('scriptName').value = name;
-  renderScripts(name);
+  const saved = saveScript(c, {
+    name: $('scriptName').value,
+    text: $('script').value,
+    open: $('myScripts').value,
+    confirmReplace: (name) => confirm(`Replace the saved script "${name}"?`),
+  });
+  if (saved.needsName) { $('scriptName').focus(); return; }
+  if (saved.cancelled) return;
+  if (saved.error) { showError(saved.error); return; }
+  showError('');
+  $('scriptName').value = saved.name;
+  renderScripts(saved.name);
 };
 
 $('deleteScript').onclick = () => {
@@ -795,53 +756,23 @@ async function renderSaves() {
 }
 
 $('saveState').onclick = async () => {
-  const thumb = view.thumbnail(120);
-  const { simulator, useBath, bath, visc, state } = c.saveData();
-  const saved = addSave({
-    created: Date.now(),
-    thumb,
-    simulator,
-    script: $('script').value,
-    useBath,
-    bath,
-    visc,
-    state,
-  });
-  try {
-    await saved;
-  } catch (err) {
-    $('hint').textContent = `This tank couldn't be saved, probably because it's too big for the browser's storage. ${err.message ?? ''}`;
+  const { error } = await saveTank(c, view, $('script').value);
+  if (error) {
+    $('hint').textContent = error;
     return;
   }
   renderSaves();
 };
 
 function restoreSave(save) {
-  $('script').value = save.script;
-  c.restore(save);
+  $('script').value = restoreTank(c, save);
 }
 renderSaves();
 
 // ---- Export -------------------------------------------------------------
 
-function download(blob, name) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-$('png').onclick = () => {
-  const m = c.marble;
-  const scale = 3000 / Math.max(m.width, m.height);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(m.width * scale);
-  canvas.height = Math.round(m.height * scale);
-  m.draw(canvas.getContext('2d'), scale);
-  canvas.toBlob((b) => download(b, 'marble.png'));
-};
-$('svg').onclick = () => download(new Blob([c.marble.toSVG()], { type: 'image/svg+xml' }), 'marble.svg');
-const MM_PER_SOFT = 0.06; // the top of the Soft edges slider is 6 mm
+$('png').onclick = () => pngBlob(c).then((blob) => download(blob, 'marble.png'));
+$('svg').onclick = () => download(svgBlob(c), 'marble.svg');
 $('printSoft').oninput = () => { $('printSoftValue').textContent = $('printSoft').value; };
 $('print').onclick = async () => {
   const button = $('print');
@@ -849,24 +780,12 @@ $('print').onclick = async () => {
   button.disabled = true;
   bar.hidden = false;
   try {
-    const texture = $('printTexture').checked;
-    const { width, height, data } = await renderPrint(c.marble, {
-      paleness: $('printPale').checked ? PRINT_DEFAULTS.paleness : 0,
-      rim: texture ? PRINT_DEFAULTS.rim : 0,
-      mottle: texture ? PRINT_DEFAULTS.mottle : 0,
-      grain: texture ? PRINT_DEFAULTS.grain : 0,
-      soft: Number($('printSoft').value) * MM_PER_SOFT,
-      paper: c.settings.useBath ? c.settings.bath : PRINT_DEFAULTS.paper,
-    }, (share) => { bar.value = share; });
-    const canvas = Object.assign(document.createElement('canvas'), { width, height });
-    canvas.getContext('2d').putImageData(new ImageData(data, width, height), 0, 0);
-    canvas.toBlob((blob) => {
-      download(blob, 'marble-print.png');
-      const img = $('printResult');
-      URL.revokeObjectURL(img.src);
-      img.src = URL.createObjectURL(blob);
-      img.hidden = false;
-    });
+    const blob = await printBlob(c, { pale: $('printPale').checked, texture: $('printTexture').checked, soft: $('printSoft').value }, (share) => { bar.value = share; });
+    download(blob, 'marble-print.png');
+    const img = $('printResult');
+    URL.revokeObjectURL(img.src);
+    img.src = URL.createObjectURL(blob);
+    img.hidden = false;
   } finally {
     button.disabled = false;
     bar.hidden = true;
@@ -878,25 +797,22 @@ $('print').onclick = async () => {
 function startPull() {
   if (view.pulling) return;
   $('pull').disabled = true;
-  view.startPull({
-    tint: $('pullBase').checked && c.settings.useBath ? c.settings.bath : tint,
-    imperfection: Number($('imperfection').value) / 100,
+  view.startPull(pullOptions(c, {
+    tint,
+    onBase: $('pullBase').checked,
+    imperfection: $('imperfection').value,
     mirror: $('mirror').checked,
     seed: pullSeed++,
     clearAfter: () => $('clearAfter').checked,
-  }).then(finishPull);
+  })).then(finishPull);
 }
 
 async function finishPull(print) {
   $('pull').disabled = false;
-  const blob = await new Promise((resolve) => print.toBlob(resolve));
-  if ($('autoSave').checked) download(blob, `marble-pull-${stamp()}.png`);
-  const id = await savePull(blob).catch(() => null);
+  const { blob, id } = await keepPull(print, { downloadIt: $('autoSave').checked });
   await showGallery();
   openViewer(blob, id);
 }
-
-const stamp = (date = Date.now()) => new Date(date).toISOString().slice(0, 19).replace(/[:T]/g, '-');
 
 let viewing = null;
 function openViewer(blob, id, date) {
