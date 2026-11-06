@@ -6,7 +6,9 @@ import { readFile } from 'node:fs/promises';
 import { SECTIONS, ACTIONS, FIXED, TOOL_GROUPS, infoKeysUsed, oldIdsCovered } from './src/ui/features.js';
 
 const page = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-const controls = JSON.parse(await readFile(new URL('./src/fixtures/controls.json', import.meta.url), 'utf8'));
+import { TOOLS, INFO } from './src/ui/live.js';
+
+const controls = { tools: TOOLS, info: INFO };
 
 test('every element id on the old page has a home', () => {
   const ids = [...page.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);

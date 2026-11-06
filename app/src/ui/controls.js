@@ -1,13 +1,14 @@
-// How the new interface arranges the real controls. Tool settings come from the fixture, which
-// is copied from tools.js, so every tool and setting has a place here.
+// How the new interface arranges the real controls, which come from the tank's own modules
+// through live.js, so every tool and setting has a place here.
 import {
   Droplet, SprayCan, Grip, Type, Brush, Rows3, Heart, PenTool, Waves, Activity, RefreshCw,
   Tornado, Wind, Eraser, Snowflake, Columns3, Spline, Sparkles,
 } from 'lucide-react';
-import controls from '../fixtures/controls.json';
 import { TOOL_GROUPS } from './features.js';
 
-export const { tools: TOOLS, info: INFO, simulators: SIMULATORS, palettes: PALETTES, examples: EXAMPLES, weaveIcons: WEAVE_ICONS, fonts: FONTS } = controls;
+import { TOOLS } from './live.js';
+
+export { TOOLS, INFO, SIMULATORS, PALETTES, EXAMPLES, WEAVE_ICONS, FONTS } from './live.js';
 
 // A tool in tools.js that isn't placed in TOOL_GROUPS (features.js) still appears, under More with a
 // sparkle icon, so a new brush is usable straight away; coverage.test.mjs then asks for a proper place.
