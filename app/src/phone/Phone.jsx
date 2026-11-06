@@ -53,7 +53,8 @@ function MenuSheet({ tank, commands, local, onClose, onScript }) {
             const Icon = SECTION_ICONS[s.icon];
             return (
               <button
-                key={s.id} type="button" role="tab" aria-selected={section?.id === s.id} onClick={() => setTab(s.id)}
+                key={s.id} type="button" role="tab" aria-selected={section?.id === s.id}
+                onClick={(e) => { setTab(s.id); e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' }); }}
                 className={cx('flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs', section?.id === s.id ? 'bg-ink-700 text-ink-100' : 'text-ink-400')}
               >
                 {Icon && <Icon size={12} />}{s.label}
@@ -122,16 +123,16 @@ export function Phone({ tank, local = false, landscape = false }) {
           </button>
         </div>
         {/* Settings: swipe sideways for more */}
-        <div className="no-scrollbar flex snap-x snap-mandatory scroll-px-4 gap-5 overflow-x-auto px-4 py-3">
+        <div className={cx('no-scrollbar flex gap-5 px-4 py-3', landscape ? 'flex-col gap-3 overflow-y-auto' : 'snap-x snap-mandatory scroll-px-4 overflow-x-auto')}>
           {params.map((p) => (
             <ParamSlider
               key={p.key} tool={state.tool} p={p} value={values[p.key]}
-              className="w-[calc(50%-10px)] shrink-0 snap-start"
+              className={landscape ? 'w-full' : 'w-[calc(50%-10px)] shrink-0 snap-start'}
               onChange={(value) => dispatch({ type: 'value', tool: state.tool, key: p.key, value })}
             />
           ))}
           {choices.map((c) => (
-            <div key={c.key} className="w-[calc(50%-10px)] shrink-0 snap-start">
+            <div key={c.key} className={landscape ? 'w-full' : 'w-[calc(50%-10px)] shrink-0 snap-start'}>
               <Choice label={c.label} value={values[c.key]} options={c.options} info={INFO[`${state.tool}.${c.key}`]} onChange={(value) => dispatch({ type: 'value', tool: state.tool, key: c.key, value })} />
             </div>
           ))}
