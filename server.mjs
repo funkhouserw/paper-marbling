@@ -27,7 +27,7 @@ const EFFORT = process.env.MARBLE_EFFORT || 'medium';
 const BASE_URL = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml',
+  '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg',
 };
 const PROFILE_DIR = process.env.MARBLE_PROFILE_DIR || join(ROOT, '..', 'profiles');
 const MAX_BODY = 1024 * 1024; // the browser sends the whole chat each time
@@ -319,7 +319,16 @@ export const server = createServer(async (req, res) => {
       await appendFile(join(PROFILE_DIR, 'marbler-profile.jsonl'), `${line}\n`);
       return json(res, 200, { ok: true });
     }
-    const rel = normalize(decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname));
+    // The new interface, once built with `npm run build` in app/, is at /new/. Its files ask for
+    // each other by relative paths, so /new needs its slash.
+    if (url.pathname === '/new') {
+      res.writeHead(301, { Location: '/new/' });
+      return res.end();
+    }
+    const path = url.pathname === '/' ? '/index.html'
+      : url.pathname === '/new/' ? '/app/dist/index.html'
+        : url.pathname.startsWith('/new/') ? `/app/dist/${url.pathname.slice('/new/'.length)}` : url.pathname;
+    const rel = normalize(decodeURIComponent(path));
     const file = join(ROOT, rel);
     const name = rel.split(sep).pop();
     if (!file.startsWith(ROOT) || !MIME[extname(file)] || rel.split(sep).some((p) => p.startsWith('.')) || name === 'server.mjs') {

@@ -46,3 +46,15 @@ input[type="range"].slider:focus-visible { outline: 2px solid var(--color-gilt);
 @keyframes bob { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-3px) scale(0.97, 1.03); } }
 .creature-bob { animation: bob 3.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .creature-bob { animation: none; } }
+
+/* The tank's own canvas, first in the box mountTank fills: paper with a faint grid, as on the old
+   page, so bare water reads as the tank. A base colour paints over it. tankview reads this
+   background colour for the repeat preview, so it has to sit on the canvas itself. */
+.tank-box > canvas:first-of-type {
+  background-color: #fbfaf6;
+  background-image: linear-gradient(#0000000d 1px, transparent 1px), linear-gradient(90deg, #0000000d 1px, transparent 1px);
+  background-size: 40px 40px;
+  box-shadow: 0 8px 30px #0009, 0 0 0 1px #0006;
+  border-radius: 2px;
+}
+.tank-box.freezing > canvas:first-of-type { box-shadow: 0 8px 30px #0009, 0 0 0 2px #7dd3fcb3; }

@@ -135,7 +135,7 @@ export function ToolRail({ tank, local }) {
     <nav aria-label="Tools" className="scroll-thin flex w-14 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-ink-700 bg-ink-900 py-2">
       {GROUPS.map((g, gi) => (
         <div key={g.id} className={cx('flex flex-col items-center gap-0.5', gi > 0 && 'mt-1 border-t border-ink-700 pt-1.5')}>
-          <span className="mb-0.5 text-[10px] uppercase tracking-wider text-ink-400">{g.label}</span>
+          <span className="mb-0.5 text-[10px] uppercase tracking-wider text-ink-400 [@media(max-height:860px)]:hidden">{g.label}</span>
           {g.tools.filter(usable).map((t) => {
             const Icon = iconFor(t);
             return (

@@ -162,6 +162,14 @@ test('serves the app but not the server source, dotfiles or parent paths', async
   assert.equal((await fetch(`${base}/%2e%2e/%2e%2e/etc/passwd`)).status, 404);
 });
 
+test('the new interface is at /new/, and can\'t reach outside its build', async () => {
+  const bare = await fetch(`${base}/new`, { redirect: 'manual' });
+  assert.equal(bare.status, 301);
+  assert.equal(bare.headers.get('location'), '/new/');
+  assert.equal((await fetch(`${base}/new/%2e%2e/%2e%2e/%2e%2e/server.mjs`)).status, 404);
+  assert.equal((await fetch(`${base}/new/%2e%2e/%2e%2e/.git/config`)).status, 404);
+});
+
 const inks = [{ color: '#112233', shimmer: 0.5 }];
 const mine = { name: 'Mine', bath: '#000000', inks };
 

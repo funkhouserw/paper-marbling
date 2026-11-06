@@ -29,7 +29,7 @@ export function LiveTank({ tank, className, onMenu }) {
     <div
       ref={box}
       aria-label="The tank"
-      className={cx('min-h-0 min-w-0', tank.state.freezeMode !== 'off' && 'freezing', className)}
+      className={cx('tank-box min-h-0 min-w-0', tank.state.freezeMode !== 'off' && 'freezing', className)}
       onContextMenu={(e) => { e.preventDefault(); open(e); }}
       onPointerDown={(e) => {
         if (e.pointerType !== 'touch') return;
