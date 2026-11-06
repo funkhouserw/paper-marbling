@@ -2,7 +2,7 @@
 // tool's settings under them, a tool rail on the left, panels on the right, transport below.
 // Menus, panels and the tank's right-click menu are all drawn from features.js.
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Code, FastForward, Pause, Play, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronRight, Code, FastForward, PanelRight, Pause, Play, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
 import { FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
 import { ACTIONS, FIXED, MENU_ORDER } from '../ui/features.js';
 import { Button, IconButton, Swatches, cx } from '../ui/widgets.jsx';
@@ -45,7 +45,7 @@ function useDismiss(open, close) {
   return ref;
 }
 
-export function MenuBar({ tank, commands }) {
+export function MenuBar({ tank, commands, narrow, panelsOpen, onPanels }) {
   const { state } = tank;
   const [open, setOpen] = useState(null);
   const ref = useDismiss(open !== null, () => setOpen(null));
@@ -95,6 +95,9 @@ export function MenuBar({ tank, commands }) {
       >
         Find a command <span className="font-mono">⌘K</span>
       </button>
+      {narrow && (
+        <IconButton size="sm" label="Panels" active={panelsOpen} onClick={onPanels} className="mr-1"><PanelRight size={15} /></IconButton>
+      )}
       {state.view === 'advanced' && (
         <Button onClick={() => commands.run('toggleScript')} className={state.drawer ? 'border-gilt' : ''}>
           <Code size={13} /> Script
@@ -157,12 +160,18 @@ export function ToolRail({ tank, local }) {
 }
 
 // The right-hand panels: every section features.js places there, each one collapsible.
-export function Panels({ tank, commands, local }) {
+export function Panels({ tank, commands, local, floating }) {
   const { state } = tank;
   const [shut, setShut] = useState(() => new Set(['detail', 'export']));
   const toggle = (id) => setShut((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   return (
-    <aside aria-label="Panels" className="scroll-thin w-72 shrink-0 overflow-y-auto border-l border-ink-700 bg-ink-900">
+    <aside
+      aria-label="Panels"
+      className={cx(
+        'scroll-thin w-72 shrink-0 overflow-y-auto border-l border-ink-700 bg-ink-900',
+        floating && 'absolute inset-y-0 right-0 z-30 shadow-2xl',
+      )}
+    >
       {sectionsFor('panel', 'desktop', state, local).map((section) => {
         const Icon = SECTION_ICONS[section.icon];
         const open = !shut.has(section.id);
@@ -213,7 +222,7 @@ export function TransportBar({ tank, commands }) {
       <span className="mx-1 h-6 w-px bg-ink-700" />
       <ViscositySlider c={visc} value={s.visc} info={INFO.viscosity} onChange={(value) => dispatch({ type: 'setting', key: 'visc', value })} />
       <span className="flex-1" />
-      <ToolHint tool={state.tool} />
+      <span className="hidden min-w-0 xl:flex"><ToolHint tool={state.tool} /></span>
       <span className="shrink-0 pl-3 font-mono text-xs tabular-nums text-ink-400">
         t {state.time.toFixed(1)} s · {state.shapes} shapes
       </span>
@@ -287,20 +296,38 @@ export function useOverlays(tank, local) {
   return { commands, openMenu: setMenu, overlays };
 }
 
+// Below this width the panels leave room for the tank and open over it from a button instead.
+const ROOMY = '(min-width: 1180px)';
+
+function useMedia(query) {
+  const [on, setOn] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const change = () => setOn(m.matches);
+    m.addEventListener('change', change);
+    return () => m.removeEventListener('change', change);
+  }, [query]);
+  return on;
+}
+
 export function Desktop({ tank, local = true }) {
   const { state } = tank;
   const { commands, openMenu, overlays } = useOverlays(tank, local);
+  const narrow = !useMedia(ROOMY);
+  const [panelsOpen, setPanelsOpen] = useState(false);
+  const drawer = state.drawer && state.view === 'advanced';
   return (
     <div className="flex h-full min-h-[600px] flex-col overflow-hidden bg-ink-950">
-      <MenuBar tank={tank} commands={commands} />
+      <MenuBar tank={tank} commands={commands} narrow={narrow && !drawer} panelsOpen={panelsOpen} onPanels={() => setPanelsOpen((o) => !o)} />
       <OptionsBar tank={tank} />
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <ToolRail tank={tank} local={local} />
-        <main className="relative flex min-w-0 flex-1 p-6">
+        <main className={cx('relative flex min-w-0 flex-1', narrow ? 'p-3' : 'p-6')}>
           <TankArea tank={tank} className="flex-1" onMenu={openMenu} />
           <Creature tank={tank} canWriteScripts={local} />
         </main>
-        {state.drawer && state.view === 'advanced' ? <ScriptDrawer tank={tank} commands={commands} /> : <Panels tank={tank} commands={commands} local={local} />}
+        {drawer && <ScriptDrawer tank={tank} commands={commands} />}
+        {!drawer && (!narrow || panelsOpen) && <Panels tank={tank} commands={commands} local={local} floating={narrow} />}
       </div>
       <TransportBar tank={tank} commands={commands} />
       {overlays}
