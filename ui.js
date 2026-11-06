@@ -907,6 +907,7 @@ c.clear();
 showGallery();
 
 window.marble = () => c.marble; // for use from the browser console
+window.marbler = { controller: c, view }; // likewise
 
 for (const el of document.querySelectorAll('[data-info]')) addInfo(el, el.dataset.info);
 c.syncTile();
