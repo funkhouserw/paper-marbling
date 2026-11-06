@@ -1,6 +1,6 @@
 # UI redesign plan
 
-**Status:** being discussed. Nothing is built yet. This lives on the `ui-redesign` branch, and `main` keeps the current interface until Ilse decides to switch.
+**Status (7 Nov 2026):** built and connected to the real tank on the `ui-connect` branch, which is `tank-controller` (the separated tank logic) with `ui-redesign` (the interface) merged in. `main` keeps the current interface until Ilse decides to switch. Not pushed. See "Where it stands" below.
 
 ## Goal
 A nicer interface for people to experiment and play with. It should work on a desktop and on a phone.
@@ -94,10 +94,24 @@ These are unmeasured so far, so they get checked first.
 8. **Phone layout and gestures,** with whatever step 1 showed is needed.
 9. **Check against the old interface.** Every control still has a home, and all tests pass. **Then Ilse decides whether to merge.**
 
+## Where it stands
+Steps 2–7 are done, and most of 8 and 9.
+- **Running it:** `npm run dev` in `app/` (port 8020 by default), or `npm run build` in `app/` and then `node server.mjs`, which serves it at `/new/` beside the old page. `?mock` shows the picture-only mockup, and `npm run storybook` shows every layout.
+- **The tank:** `controller.js` holds the tank logic, `tankview.js` draws it with all the old previews, and `pageactions.js` handles pulls, exports, saves, my scripts, palettes and the assistant. The old page uses the same three files, and a 49-step browser session shows it unchanged.
+- **Nothing left behind:** `app/coverage.test.mjs` fails if any old element id, info.js explanation, tools.js tool or controller setting has no home in the new interface.
+- **Adding things:** `app/README.md` says what a new setting, action, panel or tool takes. Tools are table-driven in `tools.js`, so a new brush needs no controller code, and it shows up in the interface on its own.
+- **Extras beyond the old page:** a right-click (long-press) tank menu, ⌘K to find any command, shortcuts listed in the menus, pictures for the weave shapes, panels that fold away on narrower screens, and an in-browser FAQ for the ink drop on the demo.
+- **Still to do:** two-finger pan and zoom and a two-finger tap for undo on phones (tankview's touch handling is being added); a full browser comparison against the old page (review 2); a real-phone speed check (step 1).
+
+## Decided along the way
+- CodeMirror for the script editor, JavaScript rather than TypeScript, and lucide icons.
+- The built interface is served by `node server.mjs` at `/new/`; `app/dist` isn't committed.
+- Wake is the new interface's default simulator unless one was chosen before.
+- Simple view keeps spray's colours, stir, vortex and wriggle direction, and the weave shape, because the tools need them.
+
 ## Open questions
-- Should the script editor be a plain text box, or add a code editor library such as CodeMirror for line numbers and colouring?
+- Should a phone start on a portrait tank? A 1000 × 700 tank leaves half a phone screen empty.
 - Should Simple use Wake (fast) underneath on phones?
-- Which settings make the 2–3 shown for each tool in Simple?
-- What's the creature's name and look?
-- JavaScript or TypeScript for the new interface? Leaning JavaScript, to match the rest of the code.
-- Does `node server.mjs` serve a committed build, or does the code require `npm run dev`?
+- Are the 2–3 settings Simple shows for each tool the right ones? They're `SIMPLE` in `app/src/ui/controls.js`.
+- What's the creature's name and look? It's a teal ink drop with eyes for now.
+- When to switch: make `/new/` the main page, keep the old one at a side address for a while, or replace it outright.
