@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { ACTIONS, SECTIONS } from './features.js';
 import { SETTINGS } from '../../../controller.js';
+import { TINTS as PAPER_TINTS } from '../../../paper.js';
 import { INFO, PALETTES, SIMULATORS } from './controls.js';
 import { Button, Choice, NumberField, Slider, Swatches, Toggle, cx } from './widgets.jsx';
 
@@ -75,7 +76,6 @@ export function ViscositySlider({ c, value, info, onChange, className = 'w-52' }
   );
 }
 
-const TINTS = ['#fbf7ee', '#f3e9d2', '#e8dcc0', '#d9e4e8', '#1b1b1b'];
 
 // One control from features.js.
 export function Control({ c: placed, tank, run }) {
@@ -98,15 +98,54 @@ export function Control({ c: placed, tank, run }) {
     }
     case 'actions':
       return <div className="flex gap-1.5">{c.actions.map((id) => <Button key={id} onClick={() => run(id)}>{action(id).label}</Button>)}</div>;
-    case 'status': return null; // filled in by the tank once connected
+    case 'status':
+      if (c.id === 'printProgress' && state.printing != null) {
+        return (
+          <div className="flex items-center gap-2 text-xs text-ink-300">
+            Printing
+            <progress value={state.printing} max={1} className="h-1.5 flex-1 accent-gilt" />
+          </div>
+        );
+      }
+      return null;
     case 'history': return <History_ state={state} />;
-    case 'gallery': return <p className="text-xs text-ink-400">{c.empty}</p>;
+    case 'gallery': {
+      if (c.id === 'saves') {
+        if (!state.saves?.length) return <p className="text-xs text-ink-400">{c.empty}</p>;
+        return (
+          <ul className="flex flex-col gap-1.5">
+            {state.saves.map((save) => (
+              <li key={save.id} className="flex items-center gap-2 text-xs text-ink-300">
+                <img src={save.thumb} alt="" className="h-9 w-12 rounded-sm object-cover ring-1 ring-ink-600" />
+                {new Date(save.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <span className="flex-1" />
+                <Button onClick={() => dispatch({ type: 'restoreSave', save })}>Restore</Button>
+                <button type="button" aria-label="Delete this save" onClick={() => dispatch({ type: 'deleteSave', id: save.id })} className="px-1 text-ink-400 hover:text-ink-100">×</button>
+              </li>
+            ))}
+          </ul>
+        );
+      }
+      if (!state.pulls?.length) return <p className="text-xs text-ink-400">{c.empty}</p>;
+      return (
+        <div className="grid grid-cols-3 gap-1.5">
+          {state.pulls.map((pull) => (
+            <button key={pull.id} type="button" title={new Date(pull.date).toLocaleString()} onClick={() => dispatch({ type: 'openPull', pull })} className="overflow-hidden rounded-sm ring-1 ring-ink-600 hover:ring-gilt">
+              <img src={pull.url} alt={`Print from ${new Date(pull.date).toLocaleString()}`} className="aspect-[10/7] w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      );
+    }
     case 'palette':
       return (
         <div className="flex flex-col gap-2.5">
           <Choice
             label="Palette" value={state.palette} info={info}
-            options={Object.fromEntries(PALETTES.map((p) => [p.name, p.name]))}
+            options={Object.fromEntries([
+              ...(state.palettes?.saved ?? []).map((p) => [p.name, `${p.name} (mine)`]),
+              ...(state.palettes?.builtIn ?? PALETTES).map((p) => [p.name, p.name]),
+            ])}
             onChange={(name) => dispatch({ type: 'set', patch: { palette: name, ink: 0 } })}
           />
           <Swatches palette={palette} ink={state.ink} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} />
@@ -153,9 +192,16 @@ export function Control({ c: placed, tank, run }) {
       );
     case 'tints':
       return (
-        <div className="flex items-center gap-1.5 text-xs text-ink-300">
+        <div role="radiogroup" aria-label={c.label} className="flex items-center gap-1.5 text-xs text-ink-300">
           {c.label}
-          {TINTS.map((t) => <button key={t} type="button" aria-label={`Paper ${t}`} className="size-5 rounded border border-ink-600" style={{ background: t }} />)}
+          {Object.entries(PAPER_TINTS).map(([name, color]) => (
+            <button
+              key={name} type="button" role="radio" aria-checked={state.tint === color} aria-label={name} title={name}
+              onClick={() => dispatch({ type: 'tint', color })}
+              className={cx('size-5 rounded border', state.tint === color ? 'border-gilt ring-1 ring-gilt' : 'border-ink-600')}
+              style={{ background: color }}
+            />
+          ))}
         </div>
       );
     case 'simulator':

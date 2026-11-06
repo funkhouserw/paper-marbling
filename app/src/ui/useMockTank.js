@@ -64,6 +64,10 @@ function reducer(s, a) {
     case 'tick': return s.playing ? { ...s, time: s.time + 0.1 * Number(s.settings.speed) } : s;
     case 'notice': return { ...s, notice: a.text };
     case 'ink': case 'paletteInk': return s; // the mockup's inks don't change
+    case 'tint': return { ...s, tint: a.color };
+    case 'restoreSave': case 'deleteSave': case 'openPull': case 'deletePull': case 'savePull':
+    case 'openScript': case 'saveScript': case 'deleteScript': return s; // nothing is kept in the mockup
+    case 'closeViewer': return { ...s, viewer: null };
     case 'example': return { ...s, example: a.name, script: EXAMPLES[a.name] ?? '', scriptError: null };
     case 'run': {
       if (/\bthrow\b|\)\s*\(/.test(s.script) || s.script.includes('oops')) {

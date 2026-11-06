@@ -293,6 +293,30 @@ export function Creature({ tank, local }) {
   );
 }
 
+// A pulled print or finished print, large, with Save and (for kept pulls) Delete.
+function Viewer({ tank }) {
+  const { viewer } = tank.state;
+  const close = () => tank.dispatch({ type: 'closeViewer' });
+  useEffect(() => {
+    const key = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6" onPointerDown={(e) => e.target === e.currentTarget && close()}>
+      <div role="dialog" aria-label="Print" className="flex max-h-full max-w-full flex-col gap-3 rounded-xl border border-ink-600 bg-ink-900 p-3 shadow-2xl">
+        <img src={viewer.url} alt="The print" className="min-h-0 max-w-[80vw] flex-1 rounded object-contain" style={{ maxHeight: '75vh' }} />
+        <div className="flex gap-2">
+          <Button primary onClick={() => tank.dispatch({ type: 'savePull', blob: viewer.blob, date: viewer.date })}>Save PNG</Button>
+          {viewer.id != null && <Button onClick={() => tank.dispatch({ type: 'deletePull', id: viewer.id })}>Delete</Button>}
+          <span className="flex-1" />
+          <Button onClick={close}>Close</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // What every layout needs on top: shortcuts, the right-click menu, ⌘K and notices.
 export function useOverlays(tank, local) {
   const commands = useCommands(tank, local);
@@ -303,6 +327,7 @@ export function useOverlays(tank, local) {
       {menu && <ContextMenu at={menu} commands={commands} onClose={() => setMenu(null)} />}
       {tank.state.commandOpen && <CommandPalette tank={tank} commands={commands} onClose={() => tank.dispatch({ type: 'set', patch: { commandOpen: false } })} />}
       <Notice tank={tank} />
+      {tank.state.viewer && <Viewer tank={tank} />}
     </>
   );
   return { commands, openMenu: setMenu, overlays };

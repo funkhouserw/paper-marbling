@@ -7,6 +7,12 @@ import { textContours } from '../../../text.js';
 import { EXAMPLES, EXAMPLE_SIMULATOR } from '../../../examples.js';
 import { PALETTES, palette as findPalette } from '../../../palettes.js';
 import { FIXED, SECTIONS } from '../ui/features.js';
+import { TINTS } from '../../../paper.js';
+import {
+  download, stamp, pngBlob, svgBlob, printBlob, pullOptions, keepPull, listPulls, deletePull, listSaves, deleteSave,
+  saveTank, restoreTank, myScripts, saveScript, findScript, paletteChoices, savePalette, deletePalette,
+  applyPaletteActions, askAssistant,
+} from '../../../pageactions.js';
 
 // Settings that belong to the page, not the tank (paper, export, views), held here with their defaults.
 const PAGE_SETTINGS = Object.fromEntries([...SECTIONS.flatMap((x) => x.controls), ...FIXED]
@@ -61,6 +67,17 @@ const START = {
   page: PAGE_SETTINGS,
   chat: [],
   chatBusy: false,
+  // Kept in this browser: saved tanks, pulled prints, my scripts and my palettes.
+  saves: [],
+  pulls: [],
+  scripts: [],
+  palettes: { saved: [], builtIn: PALETTES },
+  tint: Object.values(TINTS)[0],
+  printing: null, // 0 to 1 while a print is being made
+  viewer: null,   // { url, blob, id, date } for the print being looked at
+  openScript: '', // the saved script now in the editor
+  scriptName: '',
+  paletteName: '',
 };
 
 function uiReducer(s, a) {
@@ -86,6 +103,20 @@ export function useTank() {
     offs.push(c.on('notice', (msg) => setUi({ notice: msg || null })));
     return () => offs.forEach((off) => off());
   }, [c]);
+
+  // What's kept in this browser, read again after anything changes it.
+  const refresh = useCallback(async () => {
+    const [saves, pulls] = await Promise.all([listSaves().catch(() => []), listPulls().catch(() => [])]);
+    const old = latestUi.current.pulls;
+    old.forEach((p) => URL.revokeObjectURL(p.url));
+    setUi({
+      saves: saves.reverse(),
+      pulls: pulls.map((p) => ({ ...p, url: URL.createObjectURL(p.blob) })).reverse(),
+      scripts: myScripts.list(),
+      palettes: paletteChoices(),
+    });
+  }, []);
+  useEffect(() => { refresh(); }, [refresh]);
 
   // tankview.js, once LiveTank has mounted it. It reports the tank's numbers every 250 ms.
   const view = useRef(null);
@@ -194,9 +225,65 @@ export function useTank() {
         setUi({ example: a.name, script: EXAMPLES[a.name], scriptError: failed ? String(failed) : null });
         return;
       }
+      case 'tint': setUi({ tint: a.color }); return;
+      case 'restoreSave': {
+        const script = restoreTank(c, a.save);
+        setUi({ script: script ?? '', example: '', openScript: '', scriptError: null });
+        return;
+      }
+      case 'deleteSave': deleteSave(a.id).then(refresh); return;
+      case 'openPull': openViewer(a.pull.blob, a.pull.id, a.pull.date); return;
+      case 'deletePull': deletePull(a.id).then(() => { closeViewer(); refresh(); }); return;
+      case 'closeViewer': closeViewer(); return;
+      case 'savePull': download(a.blob, `marble-pull-${stamp(a.date)}.png`); return;
+      case 'openScript': {
+        // Opening only fills the editor, so it can't clear a tank you're working on. Run does that.
+        const found = findScript(a.name);
+        if (!a.name || !found) { setUi({ openScript: '' }); return; }
+        if (found.simulator && SETTINGS.simulator.options.some(([v]) => v === found.simulator)) {
+          c.settings.simulator = found.simulator;
+          c.commitSimulator();
+          storeSetting(localStorage, 'simulator', found.simulator);
+        }
+        setUi({ openScript: found.name, scriptName: found.name, script: found.text, example: '', scriptError: null });
+        return;
+      }
+      case 'saveScript': {
+        const now = latestUi.current;
+        const saved = saveScript(c, {
+          name: now.scriptName, text: now.script, open: now.openScript,
+          confirmReplace: (name) => window.confirm(`Replace the saved script "${name}"?`),
+        });
+        if (saved.needsName) { c.notice('Type a name for the script first.'); return; }
+        if (saved.cancelled) return;
+        if (saved.error) { c.notice(saved.error); return; }
+        setUi({ openScript: saved.name, scriptName: saved.name });
+        refresh();
+        return;
+      }
+      case 'deleteScript': {
+        const name = latestUi.current.openScript;
+        if (!name || !window.confirm(`Delete the saved script "${name}"?`)) return;
+        myScripts.remove(name);
+        setUi({ openScript: '', scriptName: '' });
+        refresh();
+        return;
+      }
       default: throw new Error(`Unknown action ${a.type}`);
     }
-  }, [c, pickInk]);
+  }, [c, pickInk, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openViewer = (blob, id, date) => {
+    const was = latestUi.current.viewer;
+    if (was) URL.revokeObjectURL(was.url);
+    setUi({ viewer: { blob, id, date, url: URL.createObjectURL(blob) } });
+  };
+  const closeViewer = () => {
+    const was = latestUi.current.viewer;
+    if (was) URL.revokeObjectURL(was.url);
+    setUi({ viewer: null });
+  };
+  const seed = useRef(Date.now() % 1e9);
 
   // What the layouts read. Built fresh on every change; the controller holds the truth.
   const { steps, current } = c.history();
@@ -226,31 +313,23 @@ export function useTank() {
     const messages = [...now.chat, { role: 'user', content }];
     setUi({ chat: messages, chatBusy: true });
     c.notice('');
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages,
-          script: latestUi.current.script,
-          palettes: tankRef.current?.savedPalettes?.() ?? [],
-          currentPalette: { name: latestUi.current.palette, bath: c.settings.bath, inks: c.inks },
-        }),
-      });
-      if (res.status === 404 || res.status === 501) throw new Error('The assistant needs the local server. Start with: node server.mjs');
-      const data = await res.json().catch(() => ({ error: `Server replied ${res.status} with no usable JSON` }));
-      if (data.error) throw new Error(data.error);
-      if (data.paletteActions?.length) tankRef.current?.applyPaletteActions?.(data.paletteActions);
-      setUi({ chat: [...messages, { role: 'assistant', content: data.reply }], script: data.script, example: '', chatBusy: false });
-      return true;
-    } catch (err) {
-      c.notice(err.message.startsWith('The assistant') ? err.message : `Couldn't reach the server: ${err.message}`);
+    const data = await askAssistant(c, { messages, script: latestUi.current.script, paletteName: latestUi.current.palette });
+    if (data.error) {
+      c.notice(data.error);
       setUi({ chat: now.chat, chatBusy: false });
       return false;
     }
-  }, [c]);
-  // Saved palettes and their storage arrive with pageactions.js; until then the assistant sees none.
-  const tankRef = useRef(null);
+    try {
+      applyPaletteActions(data.paletteActions, {
+        onSaved: () => setUi({ palettes: paletteChoices() }),
+        use: (name) => dispatch({ type: 'set', patch: { palette: name } }),
+      });
+    } catch (err) {
+      c.notice(`Couldn't save the palette: ${err.message}`);
+    }
+    setUi({ chat: [...messages, { role: 'assistant', content: data.reply }], script: data.script, example: '', chatBusy: false });
+    return true;
+  }, [c, dispatch]);
 
   // Actions from features.js that the real tank handles itself. The rest fall back to the
   // shared handlers in commands.jsx.
@@ -263,10 +342,58 @@ export function useTank() {
       case 'freezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'freeze'); return true;
       case 'unfreezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'unfreeze'); return true;
       case 'unfreezeAll': c.unfreezeAll(); return true;
+      case 'saveState':
+        saveTank(c, view.current, latestUi.current.script).then(({ error }) => { if (error) c.notice(error); else refresh(); });
+        return true;
+      case 'pull': {
+        const v = view.current;
+        if (!v || v.pulling) return true;
+        const page = latestUi.current.page;
+        v.startPull(pullOptions(c, {
+          tint: latestUi.current.tint,
+          onBase: page.pullBase,
+          imperfection: page.imperfection,
+          mirror: page.mirror,
+          seed: seed.current++,
+          clearAfter: () => latestUi.current.page.clearAfter,
+        })).then(async (print) => {
+          const { blob, id } = await keepPull(print, { downloadIt: latestUi.current.page.autoSave });
+          await refresh();
+          openViewer(blob, id, Date.now());
+        });
+        return true;
+      }
+      case 'exportPng': pngBlob(c).then((blob) => download(blob, 'marble.png')); return true;
+      case 'exportSvg': download(svgBlob(c), 'marble.svg'); return true;
+      case 'exportPrint': {
+        if (latestUi.current.printing !== null) return true;
+        const page = latestUi.current.page;
+        setUi({ printing: 0 });
+        printBlob(c, { pale: page.printPale, texture: page.printTexture, soft: page.printSoft }, (share) => setUi({ printing: share }))
+          .then((blob) => { download(blob, 'marble-print.png'); openViewer(blob, null, Date.now()); })
+          .catch((err) => c.notice(`Couldn't make the print: ${err.message}`))
+          .finally(() => setUi({ printing: null }));
+        return true;
+      }
+      case 'savePalette': {
+        const now = latestUi.current;
+        const saved = savePalette(c, { name: now.paletteName, current: now.palette, confirmReplace: (name) => window.confirm(`Replace the saved palette "${name}"?`) });
+        if (saved.needsName) { c.notice('Type a name for the palette first.'); return true; }
+        if (saved.cancelled) return true;
+        if (saved.error) { c.notice(saved.error); return true; }
+        setUi({ palette: saved.name, palettes: paletteChoices() });
+        return true;
+      }
+      case 'deletePalette': {
+        if (!deletePalette(latestUi.current.palette, (name) => window.confirm(`Delete the saved palette "${name}"?`))) return true;
+        setUi({ palettes: paletteChoices() });
+        dispatch({ type: 'set', patch: { palette: START.palette } });
+        return true;
+      }
       case 'copySession': setUi({ script: c.marble.toScript(), example: '', drawer: true, view: 'advanced' }); return true;
       default: return false;
     }
-  }, [c]);
+  }, [c, refresh, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     controller: c,

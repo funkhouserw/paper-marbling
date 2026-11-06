@@ -290,7 +290,11 @@ export function ScriptBody({ tank, onRun, onCapture }) {
           info={INFO.script}
           onChange={(name) => dispatch({ type: 'example', name })}
         />
-        <Choice label="My scripts" value="" options={{ '': 'None saved yet' }} info={INFO.myScripts} onChange={() => {}} />
+        <Choice
+          label="My scripts" value={state.openScript ?? ''} info={INFO.myScripts}
+          options={Object.fromEntries([['', state.scripts?.length ? 'Open a saved script…' : 'None saved yet'], ...(state.scripts ?? []).map((x) => [x.name, x.name])])}
+          onChange={(name) => dispatch({ type: 'openScript', name })}
+        />
       </div>
       <ScriptEditor
         className="flex-1"
@@ -313,7 +317,15 @@ export function ScriptBody({ tank, onRun, onCapture }) {
         />
         <span className="flex-1" />
         <Button onClick={onCapture}>Copy session to script</Button>
-        <Button>Save script</Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          aria-label="Script name" placeholder="Name to save as" value={state.scriptName ?? ''}
+          onChange={(e) => dispatch({ type: 'set', patch: { scriptName: e.target.value } })}
+          className="h-8 min-w-0 flex-1 rounded-md border border-ink-600 bg-ink-800 px-2 text-xs"
+        />
+        <Button onClick={() => dispatch({ type: 'saveScript' })}>Save script</Button>
+        {state.openScript && <Button onClick={() => dispatch({ type: 'deleteScript' })}>Delete</Button>}
       </div>
     </div>
   );
