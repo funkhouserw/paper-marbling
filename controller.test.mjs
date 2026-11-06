@@ -234,3 +234,33 @@ test('every example names a simulator that exists', () => {
     assert.ok(MODELS.some((m) => m.id === id), id);
   }
 });
+
+test('history names each step, keeps undone ones after the current, and labels script runs', () => {
+  const c = fresh();
+  c.press([0, 0]);
+  c.setTool('vortex');
+  c.press([10, 10]);
+  c.runScript('drop({ x: 20, y: 20 }); rake({ from: [0, 50], to: [100, 50] });', { clearing: false });
+  c.settings.visc = '400';
+  c.commitViscosity();
+  assert.deepEqual(c.history().steps.map((s) => s.label), ['Drop', 'Vortex', 'Script', 'Viscosity']);
+  c.undo();
+  c.undo();
+  const h = c.history();
+  assert.equal(h.current, 2);
+  assert.deepEqual(h.steps.map((s) => s.label), ['Drop', 'Vortex', 'Script', 'Viscosity']);
+  c.redo();
+  assert.equal(c.history().current, 3);
+  c.setTool('drop');
+  c.press([30, 30]);
+  assert.deepEqual(c.history().steps.map((s) => s.label), ['Drop', 'Vortex', 'Script', 'Drop']);
+});
+
+test('notices reach whoever listens', () => {
+  const c = fresh();
+  const heard = [];
+  c.on('notice', (m) => heard.push(m));
+  c.notice('Saved');
+  c.notice('');
+  assert.deepEqual(heard, ['Saved', '']);
+});

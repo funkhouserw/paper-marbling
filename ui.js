@@ -748,6 +748,7 @@ function showError(message) {
   $('error').textContent = message;
   $('error').hidden = !message;
 }
+c.on('notice', showError);
 
 // The chat lives only in this page. The assistant edits the script box through tools on the
 // server, and its changes only run once the user presses Run.

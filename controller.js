@@ -30,32 +30,98 @@ export const FLOW_FIELDS = { push: 'flowPush', friction: 'flowFriction', coast: 
 // Simulators whose bath can move, so the Moving bath settings mean something.
 const FLOWING = ['wake', 'wakefast', 'gridink'];
 
+// Every setting, once, for any interface to draw: what kind of control it is, where it starts,
+// its range, the (i) text in info.js, and the localStorage key for the few kept between visits.
+// The old page's fields match these, which settings.test.mjs checks.
+//   kind: 'number' (typed or slid), 'toggle', 'choice' or 'colour'. A choice's options are
+//   [value, label] pairs in order (an object would put number-like values first, in number order).
+//   when: a capabilities() key; the setting only shows while that is true.
+//   showIf: shown only while other settings have these values.
+// Numbers are kept as strings, as a form field holds them.
+const yes = (v) => (v ? '1' : '0');
+export const SETTINGS = {
+  simulator: {
+    kind: 'choice', label: 'Simulator', info: 'simulator', default: MODELS[0].id,
+    options: MODELS.map((m) => [m.id, m.label]),
+    store: 'marbler.simulator', save: String, load: (s) => (MODELS.some((m) => m.id === s) ? s : undefined),
+  },
+  // Starts at the chosen simulator's own viscosity, not at default; see startingViscosity().
+  visc: { kind: 'number', label: 'Viscosity (mm²/s)', info: 'viscosity', default: '1000', min: 5, max: 20000, step: 1 },
+  tankW: { kind: 'number', label: 'Width (mm)', info: 'tankSize', default: '1000', min: 100, max: 4000, step: 1 },
+  tankH: { kind: 'number', label: 'Height (mm)', info: 'tankSize', default: '700', min: 100, max: 4000, step: 1 },
+  useBath: { kind: 'toggle', label: 'Base colour', info: 'baseColour', default: false },
+  // Starts as the palette's bath; see usePalette().
+  bath: { kind: 'colour', label: 'Base colour', info: 'baseColour', default: '#f4efe2' },
+  walls: { kind: 'toggle', label: 'Hard edges', info: 'walls', default: false, when: 'walls' },
+  tile: { kind: 'toggle', label: 'Repeating', info: 'tile', default: false, when: 'tile' },
+  tileOffset: {
+    kind: 'choice', label: 'Offset', info: 'tileOffset', default: '', when: 'tileOffset',
+    options: [['', 'none'], ['brick', 'brick'], ['halfDrop', 'half-drop']],
+  },
+  toolsWait: { kind: 'toggle', label: 'Tools wait for ink to settle', info: 'toolsWait', default: true },
+  queueMode: {
+    kind: 'choice', label: 'While paused', info: 'queueMode', default: 'together',
+    options: [['together', 'all at once'], ['order', 'in order'], ['settled', 'each after the last settles']],
+  },
+  queueGap: { kind: 'number', label: 'gap (s)', default: '0.5', min: 0, max: 30, step: 0.1, showIf: { queueMode: 'order' } },
+  lowFramerate: {
+    kind: 'toggle', label: 'Low framerate', info: 'lowFramerate', default: false,
+    store: 'marbler.lowFramerate', save: yes, load: (s) => s === '1',
+  },
+  speed: { kind: 'choice', label: 'Speed', info: 'speed', default: '1', options: [['0.5', '0.5×'], ['1', '1×'], ['2', '2×'], ['5', '5×']] },
+  flowPreset: {
+    kind: 'choice', label: 'Moving bath', info: 'flowPreset', default: 'calm', when: 'flow',
+    options: [
+      ['calm', 'Calm: ink stops soon after the tool'], ['curling', 'Curling: long feathers and wobble'],
+      ['whorls', 'Whorls: wakes roll up into spirals'], ['storm', 'Storm: chaos, needs a high point limit'], ['custom', 'Custom'],
+    ],
+  },
+  flowPush: { kind: 'number', label: 'Rake push', info: 'flowPush', default: '1', min: 0, max: 20, step: 0.5, when: 'flow' },
+  flowFriction: { kind: 'number', label: 'Floor drag', info: 'flowFriction', default: '0.25', min: 0, max: 10, step: 0.05, when: 'flow' },
+  flowCoast: { kind: 'number', label: 'Longest coast (s)', info: 'flowCoast', default: '25', min: 1, max: 600, step: 5, when: 'flow' },
+  flowCell: { kind: 'number', label: 'Flow grid (mm)', info: 'flowCell', default: '7', min: 1.5, max: 20, step: 0.5, when: 'flow' },
+  // Held to LEAST_LIMIT–MOST_LIMIT when used; see pointLimit(). The presets are DETAIL_PRESETS.
+  pointLimit: {
+    kind: 'number', label: 'Point limit', info: 'pointLimit', default: String(STANDARD_LIMIT), min: LEAST_LIMIT, max: MOST_LIMIT, step: 50000,
+    store: 'marbler.pointLimit', save: String, load: (s) => (Number(s) ? s : undefined),
+  },
+  gridCell: {
+    kind: 'number', label: 'Grid ink cell (mm)', info: 'gridCell', default: '2', min: 0.5, max: 10, step: 0.5,
+    store: 'marbler.gridCell', save: String, load: (s) => s || undefined,
+  },
+  // Kept the other way round, as whether a run keeps the ink.
+  clearFirst: {
+    kind: 'toggle', label: 'Clear tank first', info: 'clearFirst', default: true,
+    store: 'marbler.runKeepsInk', save: (v) => (v ? '0' : '1'), load: (s) => s !== '1',
+  },
+};
+
+// The Detail presets, by point limit. Any other limit shows as custom.
+export const DETAIL_PRESETS = [['400000', 'Standard: smooth live play'], ['2000000', 'High'], ['5000000', 'Very high'], ['10000000', 'Extreme']];
+
 // What the page started with before anyone touched it.
 export const DEFAULT_SETTINGS = {
-  simulator: MODELS[0].id,
-  visc: '1000',
-  tankW: '1000',
-  tankH: '700',
-  useBath: false,
-  bath: '#f4efe2',
-  walls: false,
-  tile: false,
+  ...Object.fromEntries(Object.entries(SETTINGS).map(([id, s]) => [id, s.default])),
   tileForced: false, // the tick was set by arriving at a simulator that starts out repeating
-  tileOffset: '',
-  toolsWait: true,
-  queueMode: 'together',
-  queueGap: '0.5',
-  lowFramerate: false,
-  speed: '1',
-  flowPreset: 'calm',
-  flowPush: '1',
-  flowFriction: '0.25',
-  flowCoast: '25',
-  flowCell: '7',
-  pointLimit: String(STANDARD_LIMIT),
-  gridCell: '2',
-  clearFirst: true,
 };
+
+// The kept settings found in storage, such as localStorage, to pass as new TankController({ settings }).
+export function storedSettings(storage) {
+  const out = {};
+  for (const [id, s] of Object.entries(SETTINGS)) {
+    if (!s.store) continue;
+    const raw = storage.getItem(s.store);
+    const value = raw === null ? undefined : s.load(raw);
+    if (value !== undefined) out[id] = value;
+  }
+  return out;
+}
+
+// Keeps one setting for next time, if it's one that's kept.
+export function storeSetting(storage, id, value) {
+  const s = SETTINGS[id];
+  if (s?.store) storage.setItem(s.store, s.save(value));
+}
 
 const KEPT_UNDO_STATES = 30;
 const KEPT_UNDO_BYTES = 500e6;
@@ -74,6 +140,17 @@ export function parseHex(text) {
   if (!/^[0-9a-f]+$/.test(h) || ![3, 4, 6, 8].includes(h.length)) return null;
   const full = h.length < 6 ? [...h].map((c) => c + c).join('') : h;
   return { rgb: `#${full.slice(0, 6)}`, alpha: full.length === 8 ? parseInt(full.slice(6), 16) / 255 : 1 };
+}
+
+// What a step did, from its log entries: the first that isn't only timing.
+const STEP_NAMES = {
+  setViscosity: 'Viscosity', setFlow: 'Moving bath', openWater: 'Simulator', walls: 'Hard edges', tile: 'Repeating',
+  setBath: 'Base colour', freeze: 'Freeze', unfreeze: 'Unfreeze', unfreezeAll: 'Unfreeze all', print: 'Text',
+};
+const TIMING = new Set(['settle', 'wait']);
+function stepLabel(entries) {
+  const fn = entries.find((e) => !TIMING.has(e.fn))?.fn ?? entries[0]?.fn;
+  return STEP_NAMES[fn] ?? TOOLS[fn]?.label ?? (fn ? fn[0].toUpperCase() + fn.slice(1) : 'Step');
 }
 
 function startingValues() {
@@ -130,6 +207,7 @@ export class TankController {
     this.redoGroups = [];
     this.undoStates = [];
     this.redoStates = [];
+    this.stepLabels = new Map(); // by the log length the step started at
 
     this.queueEnd = 0;
     this.traced = { key: null, contours: [] };
@@ -151,6 +229,20 @@ export class TankController {
 
   emit(type, detail) {
     for (const fn of this.listeners[type] ?? []) fn(detail);
+  }
+
+  // One place for messages to the user, such as errors, from any part of the interface.
+  // An empty message clears the last one. Heard through on('notice').
+  notice(message) {
+    this.emit('notice', message);
+  }
+
+  // Whether a setting should show now, by its when and showIf rules.
+  shows(id) {
+    const s = SETTINGS[id];
+    if (!s) return true;
+    if (s.when && !this.capabilities()[s.when]) return false;
+    return Object.entries(s.showIf ?? {}).every(([k, v]) => this.settings[k] === v);
   }
 
   // ---- Simulator ------------------------------------------------------------
@@ -508,12 +600,15 @@ export class TankController {
   get canUndo() { return this.undoMarks.length > 0; }
   get canRedo() { return this.redoGroups.length > 0; }
 
-  act(fn) {
+  // label names the step in history(), for steps whose log entries don't say what they were.
+  act(fn, label) {
     const m = this.marble;
     const before = m.log.length;
     const state = m.saveState();
     fn();
     if (m.log.length > before) {
+      if (label) this.stepLabels.set(before, label);
+      else this.stepLabels.delete(before);
       this.undoMarks.push(before);
       this.undoStates.push(state);
       if (this.undoStates.length > KEPT_UNDO_STATES) this.undoStates[this.undoStates.length - KEPT_UNDO_STATES - 1] = null;
@@ -534,7 +629,26 @@ export class TankController {
     }
   }
 
+  // Every step, done and undone, oldest first. current is how many are done, so steps from
+  // current on are the ones redo brings back.
+  history() {
+    const log = this.marble.log;
+    const done = this.undoMarks.map((at, i) => ({ at, entries: log.slice(at, this.undoMarks[i + 1] ?? log.length) }));
+    let at = log.length;
+    const undone = [...this.redoGroups].reverse().map((entries) => {
+      const step = { at, entries };
+      at += entries.length;
+      return step;
+    });
+    const steps = [...done, ...undone].map(({ at: start, entries }) => ({
+      label: this.stepLabels.get(start) ?? stepLabel(entries),
+      fns: entries.map((e) => e.fn),
+    }));
+    return { steps, current: done.length };
+  }
+
   resetHistory() {
+    this.stepLabels = new Map();
     this.undoMarks = [];
     this.redoGroups = [];
     this.undoStates = [];
@@ -767,7 +881,7 @@ export class TankController {
       } catch (err) {
         failed = err;
       }
-    });
+    }, 'Script');
     // Half a script shouldn't land on work you wanted to keep, or leave a redo that brings it back.
     if (failed && !clearing && this.marble.log.length > before) {
       this.undo();
