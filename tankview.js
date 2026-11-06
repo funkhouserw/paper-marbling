@@ -4,7 +4,7 @@
 //   const view = mountTank(container, controller, { profiler, onStats });
 //
 // container is an element to fill, or { wrap, tank, overlay } for canvases the page already has.
-// The tank fits inside the wrap, which should be sized by the page.
+// The tank fits inside the wrap, which should be sized by the page. A static wrap is made relative.
 import { Marble, WEAVE_POINTS } from './engine.js';
 import { latticeShifts } from './tile.js';
 import { parseHex } from './controller.js';
@@ -40,7 +40,9 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     tank = document.createElement('canvas');
     overlay = document.createElement('canvas');
     for (const el of [tank, overlay]) Object.assign(el.style, { position: 'absolute', inset: '0', margin: 'auto' });
-    wrap.style.position ||= 'relative';
+    // The canvases sit absolutely inside, which needs a positioned box. Only a static one is
+    // changed, so a box the page already places (by a class, say) keeps its own position.
+    if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
     wrap.append(tank, overlay);
   }
   const tctx = tank.getContext('2d');
