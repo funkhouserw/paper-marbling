@@ -64,6 +64,30 @@ function Sheet({ title, onClose, height = 'half', children }) {
   );
 }
 
+// A handle that opens something when dragged up, or tapped. Swipe handlers can also go on a bigger
+// area (swipeUp) that keeps its own taps.
+function swipeUp(onOpen) {
+  return {
+    onPointerDown: (e) => {
+      const from = e.clientY;
+      // The release is watched on the window, since the finger has left the handle by then.
+      const up = (u) => { if (u.clientY - from < -40) onOpen(); };
+      window.addEventListener('pointerup', up, { once: true });
+    },
+  };
+}
+function Handle({ label, onOpen, tone = 'menu' }) {
+  const ref = useRef(null);
+  return (
+    <button
+      ref={ref} type="button" aria-label={label} title={label} onClick={onOpen} {...swipeUp(onOpen)}
+      className="flex w-full touch-none justify-center py-1.5"
+    >
+      <span className={cx('block h-1 rounded-full', tone === 'tool' ? 'w-8 bg-gilt/60' : 'w-12 bg-ink-400')} />
+    </button>
+  );
+}
+
 const visc = FIXED.find((c) => c.id === 'visc');
 
 // The ☰ sheet: view, viscosity, then each section as a tab.
@@ -149,6 +173,7 @@ export function Phone({ tank, local = false, landscape = false }) {
 
       {/* Thumb strip */}
       <div className={cx('shrink-0 border-ink-700 bg-ink-900', landscape ? 'flex w-72 flex-col border-l' : 'border-t')}>
+        {!landscape && <Handle tone="tool" label={`All ${def.label} settings`} onOpen={() => setSheet('more')} />}
         {def.color && (
           <div className="no-scrollbar flex items-center gap-3 overflow-x-auto px-4 pt-3">
             <Swatches palette={palette} ink={state.ink} size="lg" onPick={(ink) => set({ ink })} />
@@ -205,7 +230,7 @@ export function Phone({ tank, local = false, landscape = false }) {
           )}
         </div>
         {/* Groups */}
-        <nav aria-label="Tool groups" className="grid border-t border-ink-700 pb-[env(safe-area-inset-bottom)]" style={{ gridTemplateColumns: `repeat(${GROUPS.length}, 1fr)` }}>
+        <nav aria-label="Tool groups" {...swipeUp(() => setSheet('menu'))} className="grid border-t border-ink-700" style={{ gridTemplateColumns: `repeat(${GROUPS.length}, 1fr)` }}>
           {GROUPS.map((g) => (
             <button
               key={g.id} type="button" onClick={() => { setGroup(g.id); dispatch({ type: 'tool', tool: g.tools.find(usable) ?? g.tools[0] }); }}
@@ -216,6 +241,7 @@ export function Phone({ tank, local = false, landscape = false }) {
             </button>
           ))}
         </nav>
+        {!landscape && <div className="pb-[env(safe-area-inset-bottom)]"><Handle label="Open the menu" onOpen={() => setSheet('menu')} /></div>}
       </div>
 
       {sheet === 'more' && (
