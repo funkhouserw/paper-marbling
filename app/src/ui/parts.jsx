@@ -431,7 +431,7 @@ export function CreatureChat({ onClose, tank, local }) {
             : 'Hi! Ask me how anything works, or browse the questions below.'}
         </p>
         {chat.length === 0 && scripting && SCRIPT_IDEAS.map((idea) => (
-          <button key={idea} type="button" onClick={() => setText(idea)} className="block w-full rounded-lg border border-ink-700 px-3 py-2 text-left text-ink-200 hover:border-ink-500">
+          <button key={idea} type="button" onClick={() => setText(idea)} className="block w-full rounded-lg border border-ink-700 px-3 py-2 text-left text-ink-100 hover:border-ink-400">
             {idea}
           </button>
         ))}

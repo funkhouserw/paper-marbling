@@ -2,10 +2,10 @@
 // tool's settings under them, a tool rail on the left, panels on the right, transport below.
 // Menus, panels and the tank's right-click menu are all drawn from features.js.
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Code, FastForward, PanelRight, Pause, Play, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
-import { FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
+import { ChevronRight, Code, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
+import { FREEZE_INFO_KEY, FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
 import { ACTIONS, FIXED, MENU_ORDER } from '../ui/features.js';
-import { Button, IconButton, Swatches, cx } from '../ui/widgets.jsx';
+import { Button, IconButton, InfoTip, Swatches, cx } from '../ui/widgets.jsx';
 import { CreatureChat, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } from '../ui/parts.jsx';
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { CommandPalette, ContextMenu, Notice, useCommands, useShortcuts } from '../ui/commands.jsx';
@@ -126,33 +126,49 @@ export function OptionsBar({ tank }) {
 }
 
 // Tools by group. Tools the simulator can't use are hidden. Freeze sits under Lift as a mode,
-// since it works alongside whichever tool is chosen.
+// since it works alongside whichever tool is chosen. The rail widens to show each tool's name and
+// its (i), taking the room from the space around the tank; the choice is kept for next time.
+const RAIL_KEY = 'marbler.railWide';
 export function ToolRail({ tank, local }) {
   const { state, dispatch } = tank;
+  const [wide, setWide] = useState(() => localStorage.getItem(RAIL_KEY) === '1');
+  const widen = (on) => { setWide(on); localStorage.setItem(RAIL_KEY, on ? '1' : '0'); };
   const usable = (t) => !NEEDS[t] || applies({ when: NEEDS[t] }, state, local);
   const freezing = state.freezeMode !== 'off';
+  const row = (key, { label, Icon, active, onClick, info, className }) => (wide ? (
+    <div key={key} className="flex w-full items-center gap-0.5 pr-1">
+      <button
+        type="button" aria-pressed={active} onClick={onClick}
+        className={cx('flex h-8 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-gilt',
+          active ? 'bg-ink-700 text-gilt-soft' : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100', className)}
+      >
+        <Icon size={17} className="shrink-0" />
+        <span className="truncate">{label}</span>
+      </button>
+      <InfoTip text={info} label={label} />
+    </div>
+  ) : (
+    <IconButton key={key} size="rail" label={label} active={active} onClick={onClick} className={className}>
+      <Icon size={17} />
+    </IconButton>
+  ));
   return (
-    <nav aria-label="Tools" className="scroll-thin flex w-14 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-ink-700 bg-ink-900 py-2">
-      {GROUPS.map((g, gi) => (
-        <div key={g.id} className={cx('flex flex-col items-center gap-0.5', gi > 0 && 'mt-1 border-t border-ink-700 pt-1.5')}>
-          <span className="mb-0.5 text-[10px] uppercase tracking-wider text-ink-400 [@media(max-height:860px)]:hidden">{g.label}</span>
-          {g.tools.filter(usable).map((t) => {
-            const Icon = iconFor(t);
-            return (
-              <IconButton key={t} size="rail" label={toolDef(t).label} active={state.tool === t} onClick={() => dispatch({ type: 'tool', tool: t })}>
-                <Icon size={17} />
-              </IconButton>
-            );
+    <nav aria-label="Tools" className={cx('scroll-thin flex shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-ink-700 bg-ink-900 py-2', wide ? 'w-48 items-stretch px-1.5' : 'w-14 items-center')}>
+      <IconButton size="sm" label={wide ? 'Show icons only' : 'Show tool names'} onClick={() => widen(!wide)} className={wide ? 'self-end' : ''}>
+        {wide ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
+      </IconButton>
+      {GROUPS.map((g) => (
+        <div key={g.id} className={cx('flex flex-col gap-0.5 border-t border-ink-700 pt-1.5 mt-1', wide ? 'items-stretch' : 'items-center')}>
+          <span className={cx('mb-0.5 text-[10px] uppercase tracking-wider text-ink-400', wide ? 'px-2' : '[@media(max-height:860px)]:hidden')}>{g.label}</span>
+          {g.tools.filter(usable).map((t) => row(t, {
+            label: toolDef(t).label, Icon: iconFor(t), active: state.tool === t,
+            onClick: () => dispatch({ type: 'tool', tool: t }), info: INFO[`tool.${t}`] ?? INFO[t],
+          }))}
+          {g.id === 'lift' && applies({ when: 'freeze' }, state, local) && row('freeze', {
+            label: freezing ? 'Stop freezing' : 'Freeze ink', Icon: FreezeIcon, active: freezing,
+            onClick: () => dispatch({ type: 'set', patch: { freezeMode: freezing ? 'off' : 'freeze' } }),
+            info: INFO[FREEZE_INFO_KEY], className: freezing ? 'text-sky-200' : '',
           })}
-          {g.id === 'lift' && applies({ when: 'freeze' }, state, local) && (
-            <IconButton
-              size="rail" label={freezing ? 'Stop freezing' : 'Freeze ink'} active={freezing}
-              onClick={() => dispatch({ type: 'set', patch: { freezeMode: freezing ? 'off' : 'freeze' } })}
-              className={freezing ? 'text-sky-200' : ''}
-            >
-              <FreezeIcon size={17} />
-            </IconButton>
-          )}
         </div>
       ))}
     </nav>

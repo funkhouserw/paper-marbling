@@ -1,46 +1,101 @@
 // Small shared controls. Each setting can carry an (i) that opens its explanation from info.js.
-import { useEffect, useId, useRef, useState } from 'react';
-import { Info } from 'lucide-react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, ChevronDown, Info } from 'lucide-react';
 import { INFO } from './controls.js';
 
 const cx = (...c) => c.filter(Boolean).join(' ');
 export { cx };
 
-export function InfoTip({ text, label }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const id = useId();
+// Where a popover goes: under its anchor, or above when there's more room there, kept on screen.
+// Popovers render in a portal with fixed positions, so a scrolling panel or rail can't clip them.
+function usePlace(anchor, open, { width, align = 'start', gap = 4 } = {}) {
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return undefined; }
+    const place = () => {
+      const r = anchor.current?.getBoundingClientRect();
+      if (!r) return;
+      const w = width ?? r.width;
+      const want = align === 'center' ? r.left + r.width / 2 - w / 2 : r.left;
+      const left = Math.max(8, Math.min(want, window.innerWidth - w - 8));
+      const below = window.innerHeight - r.bottom - gap - 8;
+      const above = r.top - gap - 8;
+      const up = below < 220 && above > below;
+      setPos({
+        position: 'fixed', left, [width ? 'width' : 'minWidth']: w, maxWidth: Math.max(w, 340),
+        ...(up ? { bottom: window.innerHeight - r.top + gap, maxHeight: above } : { top: r.bottom + gap, maxHeight: below }),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
+  }, [open, anchor, width, align, gap]);
+  return pos;
+}
+
+// Closes a popover on a press outside both its anchor and itself, or on Escape.
+function useDismiss(open, setOpen, refs, onEscape) {
   useEffect(() => {
     if (!open) return undefined;
-    const close = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const key = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const close = (e) => { if (!refs.some((r) => r.current?.contains(e.target))) setOpen(false); };
+    const key = (e) => { if (e.key === 'Escape') { setOpen(false); onEscape?.(); } };
     document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', key);
     return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key); };
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// An (i) that explains a setting. A mouse shows it on hover; a click or tap pins it open until
+// the next press elsewhere. The touch target reaches well past the small icon.
+export function InfoTip({ text, label }) {
+  const [shown, setShown] = useState(false);   // hovering
+  const [pinned, setPinned] = useState(false); // clicked or tapped
+  const open = shown || pinned;
+  const button = useRef(null);
+  const tip = useRef(null);
+  const id = useId();
+  const hoverTimer = useRef(null);
+  useDismiss(pinned, (v) => { setPinned(v); if (!v) setShown(false); }, [button, tip]);
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+  const hover = (on) => (e) => {
+    if (e.pointerType !== 'mouse') return;
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setShown(on), on ? 250 : 150);
+  };
+  const pos = usePlace(button, open, { width: 256, align: 'center' });
   if (!text) return null;
   return (
-    <span ref={ref} className="relative inline-flex">
+    <>
       <button
+        ref={button}
         type="button"
         aria-label={`About ${label}`}
         aria-expanded={open}
         aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
-        className="rounded-full p-0.5 text-ink-400 hover:text-ink-100 focus-visible:outline-2 focus-visible:outline-gilt"
+        onClick={() => { clearTimeout(hoverTimer.current); setPinned((p) => !p); setShown(false); }}
+        onPointerEnter={hover(true)}
+        onPointerLeave={hover(false)}
+        className="relative inline-flex shrink-0 rounded-full p-0.5 text-ink-400 before:absolute before:-inset-2 before:content-[''] hover:text-ink-100 focus-visible:outline-2 focus-visible:outline-gilt"
       >
         <Info size={12} />
       </button>
-      {open && (
-        <span
+      {open && pos && createPortal(
+        <div
+          ref={tip}
           id={id}
           role="tooltip"
-          className="absolute left-1/2 top-6 z-50 w-64 -translate-x-1/2 rounded-lg border border-ink-600 bg-ink-850 p-3 text-xs leading-relaxed text-ink-300 shadow-xl"
+          style={pos}
+          onPointerEnter={hover(true)}
+          onPointerLeave={hover(false)}
+          className="z-[60] overflow-y-auto rounded-lg border border-ink-600 bg-ink-850 p-3 text-xs font-normal normal-case leading-relaxed tracking-normal text-ink-300 shadow-xl"
         >
           {text}
-        </span>
+        </div>,
+        document.body,
       )}
-    </span>
+    </>
   );
 }
 
@@ -143,22 +198,99 @@ export function NumberField({ label, value, min, max, step, onChange, info }) {
   );
 }
 
-export function Choice({ label, value, options, onChange, info }) {
+// A dropdown, drawn by us rather than the browser so it matches everywhere. Keyboard: arrows, Home,
+// End, Enter or Space to pick, Escape to close, and typing jumps to an option by its first letters.
+export function Choice({ label, value, options, onChange, info, hideLabel = false }) {
   const id = useId();
+  const entries = Object.entries(options);
+  const at = Math.max(0, entries.findIndex(([k]) => String(k) === String(value)));
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(at);
+  const button = useRef(null);
+  const list = useRef(null);
+  const typed = useRef({ text: '', time: 0 });
+  useDismiss(open, setOpen, [button, list], () => button.current?.focus());
+  const pos = usePlace(button, open);
+  useEffect(() => {
+    if (!open) return;
+    list.current?.focus({ preventScroll: true });
+    list.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [open, active, pos]);
+  const show = () => { setActive(at); setOpen(true); };
+  const pick = (i) => {
+    setOpen(false);
+    button.current?.focus();
+    if (entries[i] && String(entries[i][0]) !== String(value)) onChange(entries[i][0]);
+  };
+  const onListKey = (e) => {
+    const last = entries.length - 1;
+    const go = { ArrowDown: Math.min(last, active + 1), ArrowUp: Math.max(0, active - 1), Home: 0, End: last, PageDown: Math.min(last, active + 8), PageUp: Math.max(0, active - 8) }[e.key];
+    if (go !== undefined) { e.preventDefault(); setActive(go); return; }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(active); return; }
+    if (e.key === 'Tab') { setOpen(false); return; }
+    if (e.key.length === 1 && /\S/.test(e.key)) {
+      const now = performance.now();
+      const t = typed.current;
+      t.text = (now - t.time < 700 ? t.text : '') + e.key.toLowerCase();
+      t.time = now;
+      const from = t.text.length === 1 ? active + 1 : active;
+      const found = [...entries.slice(from), ...entries.slice(0, from)].findIndex(([, v]) => String(v).toLowerCase().startsWith(t.text));
+      if (found >= 0) setActive((from + found) % entries.length);
+    }
+  };
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <div className="flex items-center gap-1 text-xs text-ink-300">
-        <label htmlFor={id}>{label}</label>
-        <InfoTip text={info} label={label} />
-      </div>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-7 rounded-md border border-ink-600 bg-ink-800 px-2 text-xs text-ink-100 focus-visible:outline-2 focus-visible:outline-gilt"
+      {!hideLabel && (
+        <div className="flex items-center gap-1 text-xs text-ink-300">
+          <span id={`${id}-label`}>{label}</span>
+          <InfoTip text={info} label={label} />
+        </div>
+      )}
+      <button
+        ref={button}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={`${id}-list`}
+        aria-label={hideLabel ? label : undefined}
+        aria-labelledby={hideLabel ? undefined : `${id}-label ${id}-value`}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={(e) => { if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { e.preventDefault(); show(); } }}
+        className={cx('flex h-7 min-w-0 items-center gap-1.5 rounded-md border bg-ink-800 pl-2 pr-1.5 text-left text-xs text-ink-100 hover:border-ink-400 focus-visible:outline-2 focus-visible:outline-gilt', open ? 'border-gilt' : 'border-ink-600')}
       >
-        {Object.entries(options).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-      </select>
+        <span id={`${id}-value`} className="min-w-0 flex-1 truncate">{entries[at]?.[1]}</span>
+        <ChevronDown size={13} className={cx('shrink-0 text-ink-400 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && pos && createPortal(
+        <ul
+          ref={list}
+          id={`${id}-list`}
+          role="listbox"
+          tabIndex={-1}
+          aria-label={label}
+          aria-activedescendant={`${id}-o${active}`}
+          onKeyDown={onListKey}
+          style={pos}
+          className="scroll-thin z-[60] overflow-y-auto rounded-lg border border-ink-600 bg-ink-850 py-1 text-xs shadow-xl outline-none"
+        >
+          {entries.map(([k, v], i) => (
+            <li
+              key={k}
+              id={`${id}-o${i}`}
+              data-i={i}
+              role="option"
+              aria-selected={i === at}
+              onPointerMove={() => setActive(i)}
+              onClick={() => pick(i)}
+              className={cx('flex cursor-pointer items-center gap-2 px-2.5 py-1.5', i === active ? 'bg-ink-700 text-ink-100' : 'text-ink-100')}
+            >
+              <Check size={12} className={cx('shrink-0', i === at ? 'text-gilt' : 'invisible')} />
+              <span className="min-w-0">{v}</span>
+            </li>
+          ))}
+        </ul>,
+        document.body,
+      )}
     </div>
   );
 }
