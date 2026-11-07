@@ -1,5 +1,5 @@
-// The traditional marbling patterns, for the history and examples section (roadmap F21) and Carra
-// Jean's FAQ. Plain data, checked against sources in research/2026-11-07-f21-names-and-images.md:
+// The traditional marbling patterns, for the Traditional patterns window and Carra Jean's FAQ.
+// Plain data, checked against the sources listed in SOURCES below:
 // status says how well each definition is supported ('verified', 'partly', 'unverifiable'), and
 // nothing marked otherwise should be shown as settled fact. Images are only ones we may reuse.
 //

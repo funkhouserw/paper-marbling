@@ -1,5 +1,6 @@
-// The layout of a broom-straw throw, as partial semi-discrete optimal transport (Lévy 2022; see
-// research/2026-11-07-stone-layout-ot-gpu.md). Each drop i lands at a site xᵢ and will cover area Aᵢ.
+// The layout of a broom-straw throw, as partial semi-discrete optimal transport (Lévy 2022, "Partial
+// optimal transport for a constant-volume Lagrangian mesh with free boundaries", J. Comput. Phys.;
+// Kitagawa, Mérigot & Thibert 2019 for the Newton solver). Each drop i lands at a site xᵢ and will cover area Aᵢ.
 // Once the films have settled, drop i holds the power (Laguerre) cell
 //   Lagᵢ = { x : |x − xᵢ|² − ψᵢ ≤ |x − xⱼ|² − ψⱼ for all j },
 // clipped by the disc of radius √ψᵢ: a lone drop is a disc, packed drops share straight walls,
