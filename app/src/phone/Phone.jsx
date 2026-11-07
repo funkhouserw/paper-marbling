@@ -132,7 +132,12 @@ function MenuSheet({ tank, commands, local, onClose, onScript, peek, dropping })
           })}
         </div>
         {section && <SectionBody section={section} tank={tank} run={commands.run} local={local} />}
-        <button type="button" onClick={() => commands.run('resetAll')} className="mt-4 self-start text-xs text-red-300/80 underline-offset-2 hover:underline">
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs">
+          {[['patterns', 'Traditional patterns'], ['howItWorks', 'How it works'], ['credits', 'Thanks and credits'], ['sourceCode', 'Source code']].map(([id, label]) => (
+            <button key={id} type="button" onClick={() => { if (id === 'patterns' || id === 'credits') onClose(); commands.run(id); }} className="text-gilt-soft underline-offset-2 hover:underline">{label}</button>
+          ))}
+        </div>
+        <button type="button" onClick={() => commands.run('resetAll')} className="mt-3 self-start text-xs text-red-300/80 underline-offset-2 hover:underline">
           Clear everything…
         </button>
       </div>
