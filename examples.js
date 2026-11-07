@@ -313,6 +313,15 @@ settle();
 fullRake({ angle: 270, teeth: 24, offset: 2.08, speed: 22, D: 0.8 });
 settle();
 `,
+  'Nonpareil': `// Nonpareil: a ground drawn into fine parallel stripes, then combed across them with a fine comb, so
+// every stripe bends into a row of small pointed arches. A staple of 19th-century bookbinding.
+viscosity({ value: 1000 });
+const inks = palette('Lapis & Gilt').inks;
+stripes({ angle: 90, count: 70, colors: inks, variation: 0.5, slivers: 0.3 });
+settle();
+fullRake({ angle: 0, teeth: 40, speed: 30, D: 1.6 });
+settle();
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -333,5 +342,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic',
 };

@@ -72,6 +72,7 @@ export const PATTERNS = [
     id: 'nonpareil', family: 'combed', names: { en: 'Nonpareil' }, status: 'verified',
     summary: 'A get-gel combed through with a fine comb, giving tight parallel rows; a staple of 19th-century bookbinding.',
     sources: ['RE', 'UW', 'WOOL'], image: { title: 'Combed marbled endpaper dated 1826', url: commons('Combed_marbled_endpaper_dated_1826.jpg'), licence: 'Public domain' },
+    example: 'Nonpareil',
   },
   {
     id: 'old-dutch', family: 'combed', names: { en: 'Old Dutch' }, status: 'verified',
