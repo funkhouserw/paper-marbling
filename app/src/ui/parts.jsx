@@ -11,6 +11,7 @@ import { LiveTank } from '../tank/LiveTank.jsx';
 import tankImage from '../../../docs/images/teal-copper-swirls.jpg';
 import { EXAMPLES, FONTS, INFO, WEAVE_ICONS, shownChoices, shownParams, toolDef } from './controls.js';
 import { Button, Choice, IconButton, InfoTip, Slider, Swatches, Toggle, cx } from './widgets.jsx';
+import { FAQ, search, wantsScript } from './faq.js';
 
 // The real tank when there is one, or the mockup's picture.
 export function TankArea({ tank, className, onMenu }) {
@@ -352,51 +353,39 @@ export function InkDrop({ size = 40, color = '#2a6f66', shine = '#43b3a0' }) {
   );
 }
 
-const FAQ = [
-  { q: 'How do I make feathers?', a: 'Put drops down, let them settle, then use Full rake one way and back again with an offset. In Wake, a thin bath (viscosity 5 to 60) and a fast rake curl the feathers.' },
-  { q: 'Why does my ink stop moving?', a: 'Only the Wake simulators keep the bath moving after a tool. Lower viscosity, or choose Curling or Whorls under Moving bath, to keep it going longer.' },
-  { q: 'What does Repeating do?', a: INFO.tile },
+// Things to try saying to the script writer.
+const SCRIPT_IDEAS = [
+  'Five rows of drops in the palette colours, then a feather rake',
+  'Make the bath curl more after each rake',
+  'Change the script to use gold ink for the last row',
 ];
 
-// What the drop says. Questions search an FAQ in the browser, so it works on the demo without a key.
-// Answers from the explanations the page already has: the (i) texts and a few how-tos, ranked by
-// how many of the question's words they share. Works with no server and no key.
-const STOP = new Set('a an and are be can do does how i in is it make my of on or the to what when where which why with you your'.split(' '));
-const words = (t) => t.toLowerCase().match(/[a-z]+/g)?.filter((w) => w.length > 2 && !STOP.has(w)) ?? [];
-const ANSWERS = [...FAQ.map((f) => ({ title: f.q, text: f.a })), ...Object.entries(INFO).map(([k, text]) => ({ title: k, text }))];
-export function findAnswers(question, n = 2) {
-  const want = new Set(words(question).map((w) => w.replace(/s$/, '')));
-  if (!want.size) return [];
-  return ANSWERS
-    .map((a) => ({ a, score: words(`${a.title} ${a.title} ${a.text}`).reduce((n2, w) => n2 + (want.has(w.replace(/s$/, '')) ? 1 : 0), 0) }))
-    .filter((x) => x.score > 0)
-    .sort((x, y) => y.score - x.score)
-    .slice(0, n)
-    .map((x) => x.a.text);
-}
-
-// The ink drop's chat. Locally it talks to the assistant, which edits the script; on the public
-// demo it answers from findAnswers. The microphone shows where the browser can listen.
+// The ink drop's chat, in two modes. Questions searches the FAQ in the browser (faq.js), so it
+// works everywhere and costs nothing. Script asks the assistant, which writes the script; it needs
+// the local server. Advanced view starts in Script, Simple in Questions, and either can switch.
 export function CreatureChat({ onClose, tank, local }) {
+  const canScript = Boolean(local && tank?.sendChat);
+  const [mode, setMode] = useState(() => (canScript && tank?.state.view === 'advanced' ? 'script' : 'questions'));
   const [text, setText] = useState('');
-  const [faq, setFaq] = useState([]);
+  const [answers, setAnswers] = useState([]);
   const [listening, setListening] = useState(null);
   const log = useRef(null);
-  const live = local && tank?.sendChat;
-  const chat = live ? tank.state.chat : faq;
-  const busy = live && tank.state.chatBusy;
-  useEffect(() => { log.current?.scrollTo(0, log.current.scrollHeight); }, [chat.length, busy]);
+  const scripting = mode === 'script';
+  const chat = scripting ? tank.state.chat : answers;
+  const busy = scripting && tank.state.chatBusy;
+  useEffect(() => { log.current?.scrollTo(0, log.current.scrollHeight); }, [chat.length, busy, mode]);
   const Speech = typeof window !== 'undefined' && window.webkitSpeechRecognition;
+
+  const toScript = async (q) => {
+    setMode('script');
+    if (!(await tank.sendChat(q))) setText(q);
+  };
   const send = async () => {
     const q = text.trim();
     if (!q || busy) return;
     setText('');
-    if (live) {
-      if (!(await tank.sendChat(q))) setText(q);
-      return;
-    }
-    const found = findAnswers(q);
-    setFaq((f) => [...f, { role: 'user', content: q }, { role: 'assistant', content: found.length ? found.join('\n\n') : 'I don\'t know that one yet. Try "How it works" in the Help menu.' }]);
+    if (scripting) { await toScript(q); return; }
+    setAnswers((a) => [...a, { role: 'user', content: q }, { role: 'answer', question: q, found: search(q), offerScript: canScript && wantsScript(q) }]);
   };
   const listen = () => {
     if (listening) { listening.stop(); return; }
@@ -408,6 +397,9 @@ export function CreatureChat({ onClose, tank, local }) {
     rec.start();
     setListening(rec);
   };
+  const openScript = () => tank.dispatch({ type: 'set', patch: { view: 'advanced', drawer: true } });
+  const topics = [...new Set(FAQ.map((f) => f.topic))];
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-2">
@@ -415,36 +407,85 @@ export function CreatureChat({ onClose, tank, local }) {
         <span className="text-sm font-medium">Ask the drop</span>
         <span className="flex-1" />
         {chat.length > 0 && (
-          <button type="button" className="text-xs text-ink-400 hover:text-ink-100" disabled={busy} onClick={() => (live ? tank.clearChat() : setFaq([]))}>Clear chat</button>
+          <button type="button" className="text-xs text-ink-400 hover:text-ink-100" disabled={busy} onClick={() => (scripting ? tank.clearChat() : setAnswers([]))}>Clear</button>
         )}
         <IconButton size="sm" label="Close" onClick={onClose}><X size={14} /></IconButton>
       </div>
+      <div role="radiogroup" aria-label="What the drop does" className="mx-3 mt-2 flex rounded-md border border-ink-700 p-0.5 text-xs">
+        {[['questions', 'Questions'], ['script', 'Script']].map(([id, label]) => (
+          <button
+            key={id} type="button" role="radio" aria-checked={mode === id}
+            disabled={id === 'script' && !canScript}
+            title={id === 'script' && !canScript ? 'Writing scripts needs Marbler running on your own computer' : undefined}
+            onClick={() => setMode(id)}
+            className={cx('flex-1 rounded px-2 py-1', mode === id ? 'bg-ink-700 text-ink-100' : 'text-ink-400 hover:text-ink-100', id === 'script' && !canScript && 'cursor-not-allowed opacity-50')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div ref={log} className="scroll-thin flex-1 space-y-3 overflow-y-auto p-3 text-sm">
         <p className="rounded-lg bg-ink-800 px-3 py-2 text-ink-300">
-          {live
-            ? 'Hi! Describe a pattern or a change and I\'ll write it into the script. Nothing happens in the tank until you press Run.'
-            : 'Hi! Ask me how anything works.'}
+          {scripting
+            ? 'Hi! Describe a pattern or a change and I\'ll write it into the script. Nothing happens in the tank until you run it.'
+            : 'Hi! Ask me how anything works, or browse the questions below.'}
         </p>
-        {chat.length === 0 && FAQ.map((f) => (
-          <details key={f.q} className="rounded-lg border border-ink-700 px-3 py-2">
-            <summary className="cursor-pointer text-ink-100">{f.q}</summary>
-            <p className="mt-2 text-xs leading-relaxed text-ink-300">{f.a}</p>
-          </details>
+        {chat.length === 0 && scripting && SCRIPT_IDEAS.map((idea) => (
+          <button key={idea} type="button" onClick={() => setText(idea)} className="block w-full rounded-lg border border-ink-700 px-3 py-2 text-left text-ink-200 hover:border-ink-500">
+            {idea}
+          </button>
         ))}
-        {chat.map((m, i) => (
-          <p key={i} className={cx('whitespace-pre-line rounded-lg px-3 py-2', m.role === 'user' ? 'ml-6 bg-ink-700 text-ink-100' : 'mr-6 bg-ink-800 text-ink-300')}>
-            {m.content}
-          </p>
+        {chat.length === 0 && !scripting && topics.map((topic) => (
+          <section key={topic} className="space-y-1.5">
+            <h3 className="text-[11px] uppercase tracking-wider text-ink-400">{topic}</h3>
+            {FAQ.filter((f) => f.topic === topic).map((f) => (
+              <details key={f.q} className="rounded-lg border border-ink-700 px-3 py-2">
+                <summary className="cursor-pointer text-ink-100">{f.q}</summary>
+                <p className="mt-2 text-xs leading-relaxed text-ink-300">{f.a}</p>
+              </details>
+            ))}
+          </section>
         ))}
-        {busy && <p className="mr-6 animate-pulse rounded-lg bg-ink-800 px-3 py-2 text-ink-400">Working…</p>}
+        {chat.map((m, i) => {
+          if (m.role === 'user') return <p key={i} className="ml-6 whitespace-pre-line rounded-lg bg-ink-700 px-3 py-2 text-ink-100">{m.content}</p>;
+          if (m.role === 'answer') {
+            return (
+              <div key={i} className="mr-6 space-y-2">
+                {m.found.length === 0 && <p className="rounded-lg bg-ink-800 px-3 py-2 text-ink-300">I don&apos;t have an answer for that yet. Try other words, or browse the questions after Clear.</p>}
+                {m.found.map((d) => (
+                  <div key={d.title} className="rounded-lg bg-ink-800 px-3 py-2">
+                    <p className="font-medium text-ink-100">{d.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-300">{d.text}</p>
+                  </div>
+                ))}
+                {m.offerScript && (
+                  <Button onClick={() => toScript(m.question)}>Write this as a script instead</Button>
+                )}
+              </div>
+            );
+          }
+          const last = i === chat.length - 1;
+          return (
+            <div key={i} className="mr-6 space-y-2">
+              <p className="whitespace-pre-line rounded-lg bg-ink-800 px-3 py-2 text-ink-300">{m.content}</p>
+              {last && m.role === 'assistant' && !busy && (
+                <div className="flex gap-1.5">
+                  <Button primary onClick={() => tank.dispatch({ type: 'run' })}><Play size={12} /> Run it</Button>
+                  {tank.state.view !== 'advanced' || !tank.state.drawer ? <Button onClick={openScript}>Show the script</Button> : null}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {busy && <p className="mr-6 animate-pulse rounded-lg bg-ink-800 px-3 py-2 text-ink-400">Writing…</p>}
       </div>
       <form className="flex gap-2 border-t border-ink-700 p-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <input
-          aria-label="Your question"
+          aria-label={scripting ? 'Describe a pattern or change' : 'Your question'}
           value={text}
           disabled={busy}
           onChange={(e) => setText(e.target.value)}
-          placeholder={live ? 'Describe a pattern, or ask…' : 'Ask a question…'}
+          placeholder={scripting ? 'Describe a pattern or a change…' : 'Ask how anything works…'}
           className="h-8 min-w-0 flex-1 rounded-md border border-ink-600 bg-ink-800 px-2 text-sm"
         />
         {Speech && local && (
