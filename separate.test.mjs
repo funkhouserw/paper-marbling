@@ -136,7 +136,15 @@ test('Thin film draws seams, and drops landing together make room for each other
 });
 
 test('two drops of one colour that overlap show no seam inside the overlap; touching ones keep it', () => {
-  const square = (x0, x1) => ({ xy: Float64Array.from([x0, -20, x1, -20, x1, 20, x0, 20]), n: 4, color: '#1e4d2b' });
+  // Outlines with points all along their edges, as drops have.
+  const square = (x0, x1) => {
+    const pts = [];
+    for (let i = 0; i < 20; i++) pts.push(x0 + ((x1 - x0) * i) / 20, -20);
+    for (let i = 0; i < 20; i++) pts.push(x1, -20 + 2 * i);
+    for (let i = 0; i < 20; i++) pts.push(x1 - ((x1 - x0) * i) / 20, 20);
+    for (let i = 0; i < 20; i++) pts.push(x0, 20 - 2 * i);
+    return { xy: Float64Array.from(pts), n: 80, color: '#1e4d2b' };
+  };
   const m = new Film({ width: 200, height: 140, seed: 1 });
   // Overlapping by 0.4 mm, less than a seam: each one's seam band would lie in the other's, leaving
   // a hairline of bath through what is one merged region (Ilse's photo 38).

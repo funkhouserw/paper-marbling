@@ -50,3 +50,18 @@ test('with Keep cells separate off, cells share walls with no seam', () => {
   };
   assert.ok(gaps(false) > gaps(true), 'more ink area drawn when cells join');
 });
+
+test('with rising gall a later colour spreads further in Cells, as the gall rule says', () => {
+  const area = (p) => { let a = 0; for (let i = 0, k = p.n - 1; i < p.n; k = i++) a += p.xy[k * 2] * p.xy[i * 2 + 1] - p.xy[i * 2] * p.xy[k * 2 + 1]; return Math.abs(a / 2); };
+  const second = (gall) => {
+    const m = new Cells({ width: 600, height: 420, seed: 3 });
+    if (gall) m.setGall({ on: true, start: 1, step: 0.5 });
+    m.broom({ n: 20, x: -150, w: 200, h: 200, size: 0.03, color: '#335577' });
+    settle(m);
+    m.broom({ n: 20, x: 150, w: 200, h: 200, size: 0.03, color: '#aa6633' });
+    settle(m);
+    return m.polys.filter((p) => p.color === '#aa6633').reduce((a, p) => a + area(p), 0);
+  };
+  // Gall 1.5 against 1 spreads 1.15 times as far (S = 1 + 6 g/(g + 1)).
+  assert.ok(second(true) > 1.08 * second(false), `${second(true)} vs ${second(false)}`);
+});

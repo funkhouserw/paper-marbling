@@ -9,8 +9,9 @@ import { Marble } from './engine.js';
 export class Cells extends Marble {
   get cellsLayout() { return true; }
 
-  // A drop's cell spreads to at most this many times its plain area. A broom throw asks for 25,
-  // which on open water let one flick cover several tanks, so its cells came out few and huge.
+  // A drop's cell spreads to at most this many times its plain area, times what its gall adds (so
+  // with Rising gall each later colour reaches further). A broom throw asks for 25, which on open
+  // water let one flick cover several tanks, so its cells came out few and huge.
   get cellSpreadMax() { return 8; }
 
   // Squeezed ink thickens to at most this. At 3.5 nested cells darkened to navy; real paint on size
@@ -38,7 +39,7 @@ export class Cells extends Marble {
     const batch = this._cellBatch;
     if (!batch?.length) return;
     this._cellBatch = null;
-    const drops = batch.map((op) => ({ x: op.x, y: op.y, quantity: op.quantity, spreading: op.spreading, color: op.color, shimmer: op.shimmer }));
+    const drops = batch.map((op) => ({ x: op.x, y: op.y, quantity: op.quantity, spreading: op.spreading, gall: op.gall, color: op.color, shimmer: op.shimmer }));
     this.active.push({ kind: 'broom', drops, spreading: batch[0].spreading, seam: this.seam, color: batch[0].color, shimmer: batch[0].shimmer, at: this.time });
   }
 }
