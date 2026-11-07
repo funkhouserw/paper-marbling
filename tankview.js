@@ -325,7 +325,8 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
   function dashedRakeLines(ctx, m, planned) {
     ctx.beginPath();
     for (const op of planned.together ?? [planned]) {
-      const steps = op.waveAmp ? Math.ceil((op.total * WEAVE_POINTS) / op.waveLength) : 1;
+      // A drawn path bends, so it needs points along it, as a weave does.
+      const steps = op.waveAmp ? Math.ceil((op.total * WEAVE_POINTS) / op.waveLength) : Math.max(1, (op.segs?.length ?? 1) * 3);
       for (const off of op.offs) {
         const points = [];
         let left = Infinity, right = -Infinity, low = Infinity, high = -Infinity;
@@ -411,17 +412,21 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
   let plannedRake = { key: null, op: null };
   function plannedFullRake() {
     const { tool, stroke, marble } = c;
-    if (tool !== 'fullRake' && tool !== 'rake') return null;
+    if (tool !== 'fullRake' && tool !== 'rake' && tool !== 'drawnRake') return null;
+    // Drawn rake shows its tines' paths along the stroke so far, as Rake does along its line.
+    if (tool === 'drawnRake' && !(stroke?.length > 1)) return null;
     // Rake has no line until it's dragged, so until then it shows one straight across, at the pointer.
     const along = marble.width / 2 + ((marble.tileWanted ?? marble.tileOn) ? 0 : 20); // as Full rake's overhang
     const y = view.hover ? view.hover[1] : 0;
     const line = tool === 'rake' ? (stroke?.length > 1 ? stroke : [[-along, y], [along, y]]) : null;
-    const key = JSON.stringify([tool, c.values[tool], line, marble.width, marble.height, marble.tileWanted ?? marble.tileOn, marble.tileOffsetWanted ?? marble.tileOffset]);
+    const key = JSON.stringify([tool, c.values[tool], tool === 'drawnRake' ? stroke : line, marble.width, marble.height, marble.tileWanted ?? marble.tileOn, marble.tileOffsetWanted ?? marble.tileOffset]);
     if (key !== plannedRake.key) {
       const m = new Marble({ width: marble.width, height: marble.height });
       m.tileWanted = marble.tileWanted ?? marble.tileOn;
       m.tileOffsetWanted = marble.tileOffsetWanted ?? marble.tileOffset;
-      const op = tool === 'rake'
+      const op = tool === 'drawnRake'
+        ? m.rake({ ...c.inMm('drawnRake', m), path: stroke, at: 0 })
+        : tool === 'rake'
         ? m.rake({ from: line[0], to: line[1], ...c.inMm('rake', m), at: 0 })
         : m.fullRake({ ...c.inMm('fullRake', m), at: 0 });
       plannedRake = { key, op: op && { m, op } };
@@ -455,11 +460,11 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
       octx.beginPath();
       stroke.forEach((p, i) => { const [x, y] = toPx(p); i ? octx.lineTo(x, y) : octx.moveTo(x, y); });
       octx.stroke();
-      if (tool === 'rake') {
+      if (tool === 'rake' || tool === 'drawnRake') {
         const [a, b] = stroke;
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
         const perp = [-(b[1] - a[1]) / len, (b[0] - a[0]) / len];
-        const { teeth, spacing } = c.inMm('rake');
+        const { teeth, spacing } = c.inMm(tool);
         octx.fillStyle = guideColor(0.75);
         for (let i = 0; i < teeth; i++) {
           const off = (i - (teeth - 1) / 2) * spacing;
@@ -468,6 +473,16 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
           octx.arc(x, y, 2.5 * octx.lineWidth, 0, 7);
           octx.fill();
         }
+      }
+    }
+    if (tool === 'drawnRake' && !(stroke?.length > 1) && view.hover) {
+      const { teeth, spacing } = c.inMm('drawnRake');
+      octx.fillStyle = guideColor(0.75);
+      for (let i = 0; i < teeth; i++) {
+        const [x, y] = toPx([view.hover[0], view.hover[1] + (i - (teeth - 1) / 2) * spacing]);
+        octx.beginPath();
+        octx.arc(x, y, 2.5 * octx.lineWidth, 0, 7);
+        octx.fill();
       }
     }
     drawPreviewLayer();

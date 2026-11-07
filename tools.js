@@ -252,6 +252,7 @@ export const TOOLS = {
   // (the engine's rake keeps one heading along a path), so curving the stroke fans every tine the
   // same way: drag east, then curve south, for feather plumes.
   drawnRake: {
+    label: 'Drawn rake',
     input: 'stroke',
     waits: true,
     act: (t) => t.place((at) => t.m.rake({ path: t.path, ...t.v, at })),
