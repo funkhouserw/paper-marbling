@@ -3,8 +3,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Marble } from './engine.js';
 
+import { Cells } from './cells.js';
+
 // The packed-cell layout belongs to the Cells simulator; elsewhere a broom only places drops.
-class CellsTank extends Marble { get cellsLayout() { return true; } }
+const CellsTank = Cells;
 
 test('a broom throw is one logged command of many separate cells with bare seams between them', () => {
   const m = new CellsTank({ width: 600, height: 420, seed: 2 });

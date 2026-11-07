@@ -4,6 +4,7 @@ import { ThinFilm } from './thinfilm.js';
 import { Wake } from './wake.js';
 import { WakeFast } from './wakefast.js';
 import { GridInkGL } from './gridgl.js';
+import { Cells } from './cells.js';
 
 export const MODELS = [
   {
@@ -45,6 +46,13 @@ export const MODELS = [
     title: 'The same simulation as Wake, but drawn in the background with outlines thinned to what the screen can show, so busy tanks keep moving. Prints and exports keep every point.',
     spreading: false,
     engine: WakeFast,
+  },
+  {
+    id: 'cells',
+    label: 'Cells (beta)',
+    title: 'Every drop keeps its own cell. Drops that land together settle as packed cells with straight walls and bare seams; a drop landing in another colour nests inside it and squeezes it darker, and one landing in its own colour merges. Made for stone and vein marbling, whatever tool puts the drops down.',
+    spreading: false,
+    engine: Cells,
   },
   {
     id: 'gridink',
