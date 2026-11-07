@@ -43,6 +43,8 @@ function readStats(c) {
     points: m.vertexCount,
     active: m.active.length,
     queued: m.queued.length,
+    // Actions held behind a settle point, waiting for the ink to stop (Tools wait for ink to settle).
+    held: m.gates.reduce((n, g) => n + g.ops.length, 0),
     bathMoving: m.busy && !m.active.length && !m.queued.length,
     warn: m.stoppedAtLimit ? 'Point limit reached: the bath has stopped. A higher limit in Detail lets it run longer.'
       : m.capped ? 'Point limit reached: curls will look rough, so raise it in Detail.' : null,

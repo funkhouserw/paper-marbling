@@ -45,7 +45,13 @@ input[type="range"].slider:focus-visible { outline: 2px solid var(--color-gilt);
 
 @keyframes bob { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-3px) scale(0.97, 1.03); } }
 .creature-bob { animation: bob 3.2s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .creature-bob { animation: none; } }
+/* Carra Jean as a clock while actions wait for the ink: hands tick round, and she jiggles each tick. */
+.carra-jiggle { transform-origin: 50% 90%; animation: carra-wobble 1s ease-out infinite; }
+.carra-minute { transform-origin: 20px 26.5px; transform-box: view-box; animation: carra-tick 12s steps(12) infinite; }
+.carra-hour { transform-origin: 20px 26.5px; transform-box: view-box; animation: carra-tick 144s steps(144) infinite; }
+@keyframes carra-tick { to { transform: rotate(360deg); } }
+@keyframes carra-wobble { 0% { transform: rotate(-6deg); } 30% { transform: rotate(4deg); } 60% { transform: rotate(-2deg); } 100% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .creature-bob, .carra-jiggle, .carra-minute, .carra-hour { animation: none; } }
 
 /* The tank's own canvas, first in the box mountTank fills: paper with a faint grid, as on the old
    page, so bare water reads as the tank. A base colour paints over it. tankview reads this

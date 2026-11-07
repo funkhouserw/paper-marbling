@@ -296,6 +296,9 @@ export function ScriptDrawer({ tank, commands }) {
 export function Creature({ tank, local }) {
   const { state, dispatch } = tank;
   const set = (creature) => dispatch({ type: 'set', patch: { creature } });
+  const held = state.stats?.held ?? 0;
+  const waiting = held > 0;
+  const waitingText = `Waiting for the ink to settle${held > 1 ? ` (${held} actions)` : ''}…`;
   return (
     <div className="absolute bottom-4 left-4 z-40">
       {state.creature
@@ -305,9 +308,12 @@ export function Creature({ tank, local }) {
           </div>
         )
         : (
-          <button type="button" aria-label="Ask Carra Jean" title="Ask Carra Jean" onClick={() => set(true)} className="rounded-full p-1 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-gilt">
-            <InkDrop size={44} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label={waiting ? `Ask Carra Jean. ${waitingText}` : 'Ask Carra Jean'} title={waiting ? waitingText : 'Ask Carra Jean'} onClick={() => set(true)} className="rounded-full p-1 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-gilt">
+              <InkDrop size={44} waiting={waiting} />
+            </button>
+            {waiting && <span role="status" className="rounded-full border border-ink-600 bg-ink-900/90 px-2.5 py-1 text-xs text-ink-100 shadow">{waitingText}</span>}
+          </div>
         )}
     </div>
   );

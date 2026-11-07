@@ -334,7 +334,8 @@ export function ScriptBody({ tank, onRun, onCapture }) {
 
 // Carra Jean, the assistant, as a small ink drop with big lashed eyes, named after carrageen, the seaweed that thickens a
 // marbling bath. It wobbles gently, and keeps still for "reduce motion".
-export function InkDrop({ size = 40, color = '#2a6f66', shine = '#43b3a0' }) {
+export function InkDrop({ size = 40, color = '#2a6f66', shine = '#43b3a0', waiting = false }) {
+  if (waiting) return <WaitingDrop size={size} color={color} shine={shine} />;
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" className="creature-bob">
       <defs>
@@ -354,6 +355,28 @@ export function InkDrop({ size = 40, color = '#2a6f66', shine = '#43b3a0' }) {
       <circle cx="24.6" cy="26.9" r="0.45" fill="#fff" />
       <path d="M12.55 24 l-1.4 -0.7 M13.1 23.1 l-1 -1.1 M27.45 24 l1.4 -0.7 M26.9 23.1 l1 -1.1" stroke="#0e0f11" strokeWidth="0.8" strokeLinecap="round" />
       <path d="M18.4 30.7 q 1.6 1.3 3.2 0" stroke="#0e0f11" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Carra Jean as a droplet clock, while actions wait for the ink to settle: a clock face in place
+// of hers, its hands ticking round, and the whole drop jiggling with each tick.
+function WaitingDrop({ size, color, shine }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" className="carra-jiggle">
+      <defs>
+        <radialGradient id="drop-wait" cx="38%" cy="40%" r="70%">
+          <stop offset="0" stopColor={shine} />
+          <stop offset="1" stopColor={color} />
+        </radialGradient>
+      </defs>
+      <path d="M20 2.5 C 26 12, 35 18.5, 35 26.5 a 15 13.5 0 0 1 -30 0 C 5 18.5, 14 12, 20 2.5 Z" fill="url(#drop-wait)" />
+      <ellipse cx="11.5" cy="15.5" rx="2.6" ry="1.2" fill="#fff" opacity="0.35" transform="rotate(-40 11.5 15.5)" />
+      <circle cx="20" cy="26.5" r="8.6" fill="#f4efe2" stroke="#0e0f11" strokeWidth="1" />
+      {[0, 90, 180, 270].map((a) => <path key={a} d="M20 18.9 v1.6" stroke="#0e0f11" strokeWidth="0.9" strokeLinecap="round" transform={`rotate(${a} 20 26.5)`} />)}
+      <path d="M20 26.5 v-4.2" stroke="#0e0f11" strokeWidth="1.3" strokeLinecap="round" className="carra-hour" />
+      <path d="M20 26.5 v-6.4" stroke="#0e0f11" strokeWidth="0.9" strokeLinecap="round" className="carra-minute" />
+      <circle cx="20" cy="26.5" r="0.9" fill="#0e0f11" />
     </svg>
   );
 }
