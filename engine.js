@@ -19,7 +19,7 @@ import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
 import { heartOutline } from './heartshape.js';
-import { partialTransport, erode, grow, ccw, polygonArea } from './stone.js';
+import { partialTransport, erode, grow, ccw, polygonArea, keepInside, centreOf } from './stone.js';
 
 const MIN_LEFT = 1; // mm²; the least ink an eraser's cut leaves as its own piece
 
@@ -196,7 +196,6 @@ const TAU_MAX = 4;
 const SEAM_SHARE = 0.03; // bare channel between broom cells, as a share of a cell's size (√area)
 const BROOM_TAU_MAX = 3.5; // how far a broom cell's ink can be squeezed; by eye on Ilse's photo 31, to measure
 const ROUND_SHARE = 0.12;
-const NEST_GAP_SHARE = 0.1; // between cells laid out inside a parent: the parent's net shows there
 const NEST_ROUND_SHARE = 0.25; // and their corners round more, as photo 31's blue cells
 const BROOM_SPREAD = 2.5; // seconds a broom throw takes to spread out // corner radius, likewise // the most a film can be squeezed: a monolayer collapses past a point (Π–A isotherm)
 const HOLES_CLOSE = 0.6; // share of a Stormont hole's area that evaporation closes
@@ -1117,8 +1116,13 @@ export class Marble {
         continue;
       }
       const cell = { xy: new Float64Array(0), n: 0, color: op.color, shimmer: op.shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(op.spreading, BROOM_TAU_MAX), parentCell: under, fresh: true };
-      if (under) under.kids.push(cell);
-      else top.push(cell);
+      if (under) {
+        // Where it landed in its parent, relative to the parent's centre and size, so it moves
+        // with the parent when the parent is laid out again.
+        const c0 = centreOf(Array.from(under.xy.subarray(0, under.n * 2)));
+        cell.rel = { dx: d.x - c0.x, dy: d.y - c0.y, area: c0.area };
+        under.kids.push(cell);
+      } else top.push(cell);
     }
     }
     const top = op.top;
@@ -1150,21 +1154,44 @@ export class Marble {
         const f = (room - sumInner - least) / (sumOwn - least);
         share = cells.map((c, k) => own[k] / give(c) + (own[k] - own[k] / give(c)) * f);
       } else {
-        const g = room / (least + sumInner);
-        share = cells.map((c, k) => (own[k] / give(c)) * g);
-        for (let k = 0; k < cells.length; k++) inner[k] *= g;
+        // Older ink is at its cap; the new ink inside takes whatever room is left. Only if even the
+        // capped ink can't fit does everything shrink together.
+        share = cells.map((c, k) => own[k] / give(c));
+        const left = room - least;
+        if (left > 0) for (let k = 0; k < cells.length; k++) inner[k] *= left / sumInner;
+        else {
+          const g = room / least;
+          for (let k = 0; k < cells.length; k++) { share[k] *= g; inner[k] = 0; }
+        }
       }
       const want = cells.map((c, k) => share[k] + inner[k]);
       cells.forEach((c, k) => { c.share = share[k]; });
-      const solved = partialTransport(cells.map((c) => c.site), want, domain, { weights: cells.map((c) => c.psi), iterations: done ? 60 : 4 });
+      // Each cell is drawn eroded by half its channel, so it asks the solve for that much more:
+      // its drawn area is then what it was allotted, and the ink between cells is what's left.
+      const gapOf = (a) => Math.max(op.seam, (nested ? 0 : SEAM_SHARE) * Math.sqrt(a));
+      let ask = want.map((a) => a + 1.1 * 2 * Math.sqrt(Math.PI * a) * (gapOf(a) / 2));
+      // Never more than the domain holds, or the transport has no solution.
+      const askSum = ask.reduce((a, b) => a + b, 0);
+      const holds = 0.995 * polygonArea(domain);
+      if (askSum > holds) ask = ask.map((a) => (a * holds) / askSum);
+      // A parent's cell moves when it's laid out again; its children's sites stay inside it.
+      if (nested) {
+        const now = centreOf(domain);
+        for (const c of cells) {
+          const k = c.rel ? Math.sqrt(now.area / c.rel.area) : 0;
+          c.site = keepInside(domain, c.rel ? [now.x + c.rel.dx * k, now.y + c.rel.dy * k] : c.site);
+        }
+      }
+      const solved = partialTransport(cells.map((c) => c.site), ask, domain, { weights: cells.map((c) => c.psi), iterations: done ? 60 : 4 });
       const shapes = solved.cells;
       cells.forEach((c, k) => { c.psi = solved.weights[k]; });
       cells.forEach((c, k) => {
         const outer = shapes[k];
         // A channel of bare size between cells, wider for bigger cells, with rounded corners.
         const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;
-        // Inside a parent, the gap between siblings is the parent's own ink, squeezed into a net.
-        const gap = Math.max(op.seam, (nested ? NEST_GAP_SHARE : SEAM_SHARE) * size);
+        // Inside a parent, the gap between siblings is the parent's own ink, squeezed into a net as
+        // thin as its share allows: a hairline seam, the rest of its ink lying as the rim.
+        const gap = nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
         const round = (nested ? NEST_ROUND_SHARE : ROUND_SHARE) * size;
         const pts = outer.length >= 6 ? grow(erode(outer, gap / 2 + round), round) : [];
         if (pts.length < 6) { c.gone = true; return; }
