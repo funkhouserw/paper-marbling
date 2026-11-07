@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, Code, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
 import { FREEZE_INFO_KEY, FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
-import { ACTIONS, FIXED, MENU_ORDER } from '../ui/features.js';
+import { ACTIONS, FIXED, MENU_ORDER, SECTIONS } from '../ui/features.js';
 import { Button, IconButton, InfoTip, Swatches, cx } from '../ui/widgets.jsx';
 import { CreatureChat, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } from '../ui/parts.jsx';
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
@@ -333,6 +333,31 @@ function Viewer({ tank }) {
   );
 }
 
+// A window for a section that features.js places in a modal, such as Palettes. Escape, the close
+// button or a press outside closes it.
+function SectionDialog({ section, tank, commands, local, onClose }) {
+  useEffect(() => {
+    // An open dropdown or tip inside takes Escape first.
+    const key = (e) => { if (e.key === 'Escape' && !document.querySelector('[role=listbox],[role=tooltip]')) onClose(); };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={section.label} className="flex max-h-full w-full max-w-md flex-col rounded-xl border border-ink-600 bg-ink-900 shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-2.5">
+          <span className="text-sm font-medium">{section.label}</span>
+          <span className="flex-1" />
+          <IconButton size="sm" label="Close" onClick={onClose}><X size={14} /></IconButton>
+        </div>
+        <div className="scroll-thin overflow-y-auto p-4">
+          <SectionBody section={section} tank={tank} run={commands.run} local={local} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // What every layout needs on top: shortcuts, the right-click menu, ⌘K and notices.
 export function useOverlays(tank, local) {
   const commands = useCommands(tank, local);
@@ -344,6 +369,12 @@ export function useOverlays(tank, local) {
       {tank.state.commandOpen && <CommandPalette tank={tank} commands={commands} onClose={() => tank.dispatch({ type: 'set', patch: { commandOpen: false } })} />}
       <Notice tank={tank} />
       {tank.state.viewer && <Viewer tank={tank} />}
+      {tank.state.paletteOpen && (
+        <SectionDialog
+          section={SECTIONS.find((x) => x.id === 'palettes')} tank={tank} commands={commands} local={local}
+          onClose={() => tank.dispatch({ type: 'set', patch: { paletteOpen: false } })}
+        />
+      )}
     </>
   );
   return { commands, openMenu: setMenu, overlays };

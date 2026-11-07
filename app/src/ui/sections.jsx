@@ -157,6 +157,7 @@ export function Control({ c: placed, tank, run }) {
       const setInk = (patch) => dispatch({ type: 'ink', ...patch });
       return (
         <div className="flex flex-col gap-2 rounded-md border border-ink-700 p-2">
+          <div className="text-xs text-ink-300">{c.label}</div>
           <label className="flex items-center gap-2 text-xs text-ink-300">
             Colour
             <input type="color" value={ink.rgb} onChange={(e) => setInk({ rgb: e.target.value })} className="h-6 w-10 cursor-pointer rounded border border-ink-600 bg-transparent" />
@@ -171,9 +172,7 @@ export function Control({ c: placed, tank, run }) {
       // Changing the palette's inks recolours the swatches, not ink already in the tank. Saving and
       // deleting named palettes keep them in this browser.
       return (
-        <details className="text-xs text-ink-300">
-          <summary className="cursor-pointer">{c.label}</summary>
-          <div className="mt-2 flex flex-col gap-2">
+        <Fold inline={c.inline} label={c.label}>
             {palette.inks.map((k, i) => (
               <div key={i} className="flex items-center gap-2">
                 <input type="color" aria-label={`Ink ${i + 1} colour`} value={k.color.slice(0, 7)} onChange={(e) => dispatch({ type: 'paletteInk', i, rgb: e.target.value })} className="h-6 w-8 cursor-pointer rounded border border-ink-600 bg-transparent" />
@@ -187,8 +186,7 @@ export function Control({ c: placed, tank, run }) {
               <Button onClick={() => run('savePalette')}>Save palette</Button>
               <Button onClick={() => run('deletePalette')}>Delete</Button>
             </div>
-          </div>
-        </details>
+        </Fold>
       );
     case 'tints':
       return (
@@ -247,6 +245,17 @@ export function Control({ c: placed, tank, run }) {
     case 'custom': return null; // drawn by its own section (script drawer, assistant)
     default: throw new Error(`Unknown control kind ${c.kind}`);
   }
+}
+
+// Folded behind its label in a panel, or laid open in a window of its own.
+function Fold({ inline, label, children }) {
+  if (inline) return <div className="flex flex-col gap-2 text-xs text-ink-300"><div className="text-ink-300">{label}</div>{children}</div>;
+  return (
+    <details className="text-xs text-ink-300">
+      <summary className="cursor-pointer">{label}</summary>
+      <div className="mt-2 flex flex-col gap-2">{children}</div>
+    </details>
+  );
 }
 
 export function SectionBody({ section, tank, run, local }) {

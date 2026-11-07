@@ -33,8 +33,16 @@ export const SECTIONS = [
     controls: [
       { id: 'palette', kind: 'palette', label: 'Palette', info: 'palette' },
       { id: 'useBath', kind: 'colourToggle', label: 'Base colour', info: 'baseColour', colour: 'bath', replaces: ['bath'] },
-      { id: 'inkColour', kind: 'inkEditor', label: 'Ink', info: 'color.swatches', view: 'advanced', infos: ['color.alpha', 'color.shimmer'] },
-      { id: 'paletteEditor', kind: 'paletteEditor', label: 'Edit and save', info: 'myPalettes', view: 'advanced', replaces: ['paletteInks', 'addInk', 'paletteName', 'savePalette', 'deletePalette'] },
+      { id: 'editPalettesButton', kind: 'action', action: 'editPalettes', view: 'advanced' },
+    ],
+  },
+  {
+    // Opened from Edit palettes…, in a window of its own so the Palette panel stays short.
+    id: 'palettes', label: 'Palettes', icon: 'palette', info: 'myPalettes', desktop: 'modal', phone: 'modal', view: 'advanced',
+    controls: [
+      { id: 'palettePick', kind: 'palette', label: 'Palette', info: 'palette' },
+      { id: 'inkColour', kind: 'inkEditor', label: 'Next drop\'s ink', info: 'color.swatches', view: 'advanced', infos: ['color.alpha', 'color.shimmer'] },
+      { id: 'paletteEditor', kind: 'paletteEditor', label: 'Edit and save', inline: true, info: 'myPalettes', view: 'advanced', replaces: ['paletteInks', 'addInk', 'paletteName', 'savePalette', 'deletePalette'] },
     ],
   },
   {
@@ -137,6 +145,7 @@ export const ACTIONS = [
   { id: 'undo', label: 'Undo', menu: 'Edit', shortcut: '⌘Z', context: true, icon: 'undo' },
   { id: 'redo', label: 'Redo', menu: 'Edit', shortcut: '⇧⌘Z', context: true, icon: 'redo' },
   { id: 'copySession', label: 'Copy session to script', menu: 'Edit', replaces: ['capture'] },
+  { id: 'editPalettes', label: 'Edit palettes…', menu: 'Edit', view: 'advanced' },
   { id: 'savePalette', label: 'Save palette', menu: 'Edit', view: 'advanced' },
   { id: 'deletePalette', label: 'Delete palette', menu: 'Edit', view: 'advanced' },
   { id: 'clear', label: 'Clear tank', menu: 'Edit', context: true, icon: 'trash' },
