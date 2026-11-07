@@ -43,6 +43,7 @@ export const PATTERNS = [
     id: 'shell', family: 'base', names: { en: 'Shell, French Shell' }, status: 'verified',
     summary: 'Oil in a colour makes each drop dark in the middle with a lighter outer ring, its "shell".',
     sources: ['RE', 'WOOL', 'UW'], image: { title: 'Woolnough 1881, Nos. 25–28', url: 'https://archive.org/details/wholeartofmarbli00wool', licence: 'Public Domain Mark' },
+    example: 'French Shell',
   },
   {
     id: 'stormont', family: 'base', names: { en: 'Stormont' }, status: 'verified',
@@ -55,6 +56,7 @@ export const PATTERNS = [
     id: 'gloster', family: 'base', names: { en: 'Gloster' }, status: 'partly',
     summary: 'A raked or combed ground, then spots of a Stormont (turpentine) colour, usually blue, with no white on top.',
     sources: ['RE', 'WOOL', 'UW'], image: { title: 'Woolnough 1881, No. 31', url: 'https://archive.org/details/wholeartofmarbli00wool', licence: 'Public Domain Mark' },
+    example: 'Gloster',
   },
   {
     id: 'italian', family: 'base', names: { en: 'Italian, Vein, hair-vein' }, status: 'partly',
