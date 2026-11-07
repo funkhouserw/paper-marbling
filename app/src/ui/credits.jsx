@@ -82,7 +82,7 @@ export function CreditsDialog({ onClose }) {
             <p>
               First and foremost, thank you to <strong>Aubrey Jaffer</strong>, whose{' '}
               <a className={LINK} href="https://ctan.org/pkg/pst-marble" target="_blank" rel="noopener noreferrer">pst-marble</a>{' '}
-              and mathematical marbling Marbler began from (with Jürgen Gilg and Manuel Luque, who maintain it), and to{' '}
+              and mathematical marbling Marbler began from, with its maintainers Manuel Luque and the late Jürgen Gilg, and to{' '}
               <strong>Amanda Ghassaei</strong>, whose{' '}
               <a className={LINK} href="https://blog.amandaghassaei.com/2022/10/25/digital-marbling/" target="_blank" rel="noopener noreferrer">Digital Marbling</a>{' '}
               showed what a simulated bath could look like.

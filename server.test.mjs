@@ -155,7 +155,9 @@ test('bad requests and other websites are refused', async () => {
 });
 
 test('serves the app but not the server source, dotfiles or parent paths', async () => {
-  assert.equal((await fetch(`${base}/`)).status, 200);
+  // / is the built editor, or a note saying how to build it, so a fresh checkout passes too.
+  assert.ok([200, 503].includes((await fetch(`${base}/`)).status));
+  assert.equal((await fetch(`${base}/classic/`)).status, 200);
   assert.equal((await fetch(`${base}/engine.js`)).status, 200);
   assert.equal((await fetch(`${base}/server.mjs`)).status, 404);
   assert.equal((await fetch(`${base}/.git/config`)).status, 404);
