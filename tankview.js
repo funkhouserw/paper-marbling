@@ -96,6 +96,9 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     overlay.addEventListener(type, fn);
     unsubscribe.push(() => overlay.removeEventListener(type, fn));
   };
+  // A finger dragging on the tank draws. Without this, a phone takes it for a scroll or zoom and
+  // cancels the press partway, so strokes never land though taps still do.
+  overlay.style.touchAction = 'none';
   const HOLD_MS = 70;   // how long a touch waits before it counts as using the tool
   const HOLD_PX = 6;    // ...unless it moves this far first
   const touches = new Map(); // touches down now, by pointer id
