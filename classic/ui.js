@@ -297,7 +297,7 @@ function renderTool() {
       }
       if (name !== 'drop' || key !== 'quantity') return;
       const mL = toMm('drop', { quantity: values[name][key] }, c.marble).quantity;
-      hint.textContent = `${Math.round((200 * maxRadius(mL, c.marble.film)) / c.marble.width)}% of the tank's width across`;
+      hint.textContent = `${Math.round((200 * maxRadius(mL, c.marble.film) * Math.sqrt(c.marble.spreadFactor)) / c.marble.width)}% of the tank's width across, alone on clear water`;
     };
     const input = document.createElement('input');
     Object.assign(input, dial

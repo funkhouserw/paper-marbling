@@ -42,7 +42,8 @@ test('a drop lands round, at the size it should be, and on a seam as well as mid
     let area = 0;
     for (let i = 3; i < data.length; i += 4) area += data[i] / 255;
     area *= m._g.ihx * m._g.ihy;
-    assert.ok(Math.abs(area - Math.PI * m.sources[0].maxArea) / area < 0.08, `area ${area} vs ${Math.PI * m.sources[0].maxArea}, grown ${m.sources[0].grown}`);
+    const want = Math.PI * m._stillArea(m.sources[0]);
+    assert.ok(Math.abs(area - want) / area < 0.08, `area ${area} vs ${want}, grown ${m.sources[0].grown}`);
     void width; void height;
   }
 });
@@ -98,14 +99,15 @@ const bounds = (m, color) => {
 
 test('a drop leaves ink it has not touched exactly where it is, and pushes ink it has', () => {
   const place = (m, gap) => {
-    m.drop({ x: -gap, y: 0, quantity: 0.2, color: '#500000' });
-    m.drop({ x: gap, y: 0, quantity: 0.2, color: '#a00000' });
+    // Drops spread to 4 times their plain area, so these are a quarter of the ink the spacing was set for.
+    m.drop({ x: -gap, y: 0, quantity: 0.05, color: '#500000' });
+    m.drop({ x: gap, y: 0, quantity: 0.05, color: '#a00000' });
   };
   const m = new GridInk(TANK);
   place(m, 100);
   run(m);
   const before = bounds(m, 0x50);
-  m.drop({ x: 0, y: 0, quantity: 0.2, color: '#f00000' });
+  m.drop({ x: 0, y: 0, quantity: 0.05, color: '#f00000' });
   run(m);
   assert.deepEqual(bounds(m, 0x50), before);
 
@@ -113,7 +115,7 @@ test('a drop leaves ink it has not touched exactly where it is, and pushes ink i
   place(close, 45);
   run(close);
   const near = bounds(close, 0x50);
-  close.drop({ x: 0, y: 0, quantity: 0.6, color: '#f00000' });
+  close.drop({ x: 0, y: 0, quantity: 0.15, color: '#f00000' });
   run(close);
   assert.ok(bounds(close, 0x50)[0] < near[0], `${bounds(close, 0x50)} from ${near}`);
 });
@@ -179,7 +181,7 @@ test('fillDots goes around ink on the grid', () => {
 test('drops stacked on one spot stay round, and keep all their ink', () => {
   const colors = ['#d9485f', '#f2a65a', '#3d5a80', '#7fb7be'];
   const m = new GridInk({ width: 300, height: 210, seed: 1, viscosity: 200, gridCell: 2 });
-  colors.forEach((color, k) => m.drop({ x: 0, y: 0, quantity: 0.3, color, dispersion: 0.8, at: k * 6 }));
+  colors.forEach((color, k) => m.drop({ x: 0, y: 0, quantity: 0.075, color, dispersion: 0.8, at: k * 6 })); // spreads to the size 0.3 once was
   run(m);
   const { data, width, height } = m.toRGBA();
   const mm2 = (300 / width) ** 2;

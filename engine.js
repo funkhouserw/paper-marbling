@@ -639,8 +639,13 @@ export class Marble {
     return this;
   }
 
-  // How many times its plain area a lone drop finally covers.
-  get spreadFactor() { return this.openWaterOn ? 4 : 1; }
+  // How many times its plain area a lone drop finally covers, at the default spreading. The same in
+  // every simulator, so a drop of a given size comes out the same size whichever one is chosen.
+  get spreadFactor() { return 4; }
+
+  // The area a drop grows to in still water: its plain area times its spreading, as a lone drop does
+  // in the film simulators, except a drop placed whole (dispersion Infinity) stays at its plain size.
+  _stillArea(op) { return op.dispersion === Infinity ? op.maxArea : op.maxArea * op.spreading; }
 
 
   // quantity: mL. dispersion: spreading rate (1/s), larger is faster. spreading: how many
@@ -1351,7 +1356,7 @@ export class Marble {
     op.elapsed += dt;
     const frac = op.dispersion === Infinity || op.elapsed >= op.growTime
       ? 1 : 1 - Math.exp(-op.dispersion * op.elapsed);
-    const target = op.maxArea * frac;
+    const target = this._stillArea(op) * frac;
     const da = target - op.grown;
     // Late growth is tiny, and every update moves every point in the tank, so save it
     // up until the edge would visibly move (about half a millimetre).

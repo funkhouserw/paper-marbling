@@ -19,7 +19,8 @@ const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a}
 test('a drop grows slowly and stops at the area set by its quantity', () => {
   const m = new Marble();
   m.drop({ quantity: 2, dispersion: 0.5 });
-  const target = Math.PI * maxRadius(2, m.film) ** 2;
+  // Alone on still water a drop covers its plain area times its spreading, 4 by default.
+  const target = 4 * Math.PI * maxRadius(2, m.film) ** 2;
   const samples = [];
   for (let s = 0; s < 4; s++) {
     for (let i = 0; i < 30; i++) m.step();
@@ -50,7 +51,7 @@ test('two drops growing at once keep their ink and push each other apart', () =>
   m.drop({ x: 60, quantity: 3, color: '#00a' });
   m.runUntilIdle();
   const [a, b] = m.polys;
-  const each = Math.PI * maxRadius(1, m.film) ** 2;
+  const each = 4 * Math.PI * maxRadius(1, m.film) ** 2;
   near(area(a), each, each * 0.02, 'small drop area');
   near(area(b), each * 3, each * 0.06, 'big drop area');
   const maxAx = Math.max(...Array.from({ length: a.n }, (_, i) => a.xy[i * 2]));
@@ -441,7 +442,7 @@ test('open water: a lone drop spreads further, and crowded ink holds back', () =
   const off = new Marble();
   off.drop({ quantity: 1, dispersion: 2 });
   off.runUntilIdle();
-  near(area(off.polys[0]) / normal, 1, 0.01, 'off keeps the plain size');
+  near(area(off.polys[0]) / normal, 4, 0.04, 'off grows to its spreading, as alone in open water');
 });
 
 const covered = (m) => {
@@ -564,8 +565,9 @@ test('open water: drops close up to neighbours without flinging distant ink', ()
   assert.ok(Math.hypot(far.x - 450, far.y - 300) < 10, `distant drop moved to ${far.x}, ${far.y}`);
 
   const plain = new Marble();
-  plain.drop({ x: -70, y: 0, quantity: 1, dispersion: 2 });
-  plain.drop({ x: 70, y: 0, quantity: 1, dispersion: 2 });
+  // A quarter of the ink, so these come out the size the open-water pair started from.
+  plain.drop({ x: -70, y: 0, quantity: 0.25, dispersion: 2 });
+  plain.drop({ x: 70, y: 0, quantity: 0.25, dispersion: 2 });
   plain.runUntilIdle();
   assert.ok(-reach(plain.polys[1], -1) - reach(plain.polys[0], 1) > 30, 'off leaves a clear gap');
 });
@@ -848,7 +850,8 @@ test('fillDots fills holes largest first, without overlaps, inside the tank', ()
 test('spray lays many dots in range, mostly tiny, thickest in the middle', () => {
   const m = new Marble({ seed: 5 });
   scriptApi(m).spray({ x: 50, y: 50, radius: 20, n: 400, min: 0.1, max: 1, colors: ['#111', '#222'] });
-  const dots = m.log.filter((e) => e.fn === 'drop').map((e) => ({ ...e.args, r: maxRadius(e.args.quantity, m.film) }));
+  // The size a dot ends up, once it has spread.
+  const dots = m.log.filter((e) => e.fn === 'drop').map((e) => ({ ...e.args, r: maxRadius(e.args.quantity, m.film) * Math.sqrt(m.spreadFactor) }));
   assert.equal(dots.length, 400);
   assert.ok(dots.every((d) => d.r >= 0.99 && d.r <= 10.01), 'sizes stay in range');
   assert.ok(dots.filter((d) => d.r < 3).length > 240, 'most are tiny');

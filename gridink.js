@@ -753,7 +753,7 @@ export class GridInk extends Marble {
   _advanceDrop(op, dt) {
     op.elapsed += dt;
     const frac = op.dispersion === Infinity || op.elapsed >= op.growTime ? 1 : 1 - Math.exp(-op.dispersion * op.elapsed);
-    const target = op.maxArea * frac;
+    const target = this._stillArea(op) * frac;
     const da = target - op.grown;
     // Each change of the picture blurs it a little, so small growth waits until it can be seen.
     if (op.landed && frac < 1 && da < Math.sqrt(op.grown)) return false;
