@@ -2,7 +2,7 @@
 // and settings that rise from the strip. The ☰ sheet holds the same sections as the desktop
 // panels, from features.js, as tabs. A long press on the tank opens its menu.
 import { useState } from 'react';
-import { Code, Menu, Pause, Play, Redo2, Search, Undo2, X } from 'lucide-react';
+import { Code, Menu, Pause, Play, Redo2, Search, Trash2, Undo2, X } from 'lucide-react';
 import { FreezeIcon, GROUPS, INFO, NEEDS, groupOf, iconFor, shownChoices, shownParams, toolDef } from '../ui/controls.js';
 import { FIXED } from '../ui/features.js';
 import { Button, Choice, IconButton, Swatches, cx } from '../ui/widgets.jsx';
@@ -91,6 +91,7 @@ export function Phone({ tank, local = false, landscape = false }) {
         <IconButton size="lg" label="Undo" onClick={() => commands.run('undo')} disabled={state.historyAt === 0}><Undo2 size={20} /></IconButton>
         <IconButton size="lg" label="Redo" onClick={() => commands.run('redo')} disabled={state.historyAt === state.history.length}><Redo2 size={20} /></IconButton>
         <span className="flex-1" />
+        <IconButton size="lg" label="Clear the tank" onClick={() => commands.run('clear')}><Trash2 size={20} /></IconButton>
         <IconButton size="lg" label={state.playing ? 'Pause' : 'Play'} onClick={() => commands.run('play')}>
           {state.playing ? <Pause size={20} /> : <Play size={20} />}
         </IconButton>
