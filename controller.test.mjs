@@ -443,3 +443,22 @@ test('the first tank is the chosen simulator, even before any clear, and undo fi
   assert.equal(c.marble.constructor.name, 'Wake');
   assert.equal(c.settings.simulator, 'wake');
 });
+
+test('undoing a switch by replaying the log goes back to the simulator before it', () => {
+  const c = fresh();
+  c.press([0, 0]);
+  c.release();
+  switchTo(c, 'wake');
+  c.press([100, 0]);
+  c.release();
+  // No kept copies, so each undo has to rebuild from the log.
+  const forget = () => { c.undoStates = c.undoStates.map(() => null); };
+  forget(); c.undo();
+  assert.equal(c.marble.constructor.name, 'Wake');
+  forget(); c.undo();
+  assert.equal(c.marble.constructor.name, 'Marble');
+  assert.equal(c.settings.simulator, 'classic');
+  c.redoStates = c.redoStates.map(() => null);
+  c.redo();
+  assert.equal(c.marble.constructor.name, 'Wake');
+});

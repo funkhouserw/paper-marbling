@@ -742,9 +742,12 @@ export class TankController {
     // The tank starts at the viscosity it first had, whatever the setting says now.
     if (this.marble.startViscosity) this.settings.visc = this.marble.startViscosity;
     this.settings.walls = false;
-    // The log starts in the simulator its first switch came from, if it has one.
-    const first = entries.find((e) => e.fn === 'simulator');
-    if (first) { this.settings.simulator = first.args.from; this.viscositySimulator = first.args.from; }
+    // The log starts in the simulator its first switch came from. Undoing a switch cuts it off the
+    // entries, so the tank's whole log is looked at too; with no switch at all, it's this tank's own.
+    const isSwitch = (e) => e.fn === 'simulator';
+    const first = entries.find(isSwitch) ?? this.marble.log.find(isSwitch);
+    const startId = first ? first.args.from : this.marble.simulatorId;
+    if (startId) { this.settings.simulator = startId; this.viscositySimulator = startId; }
     this.settings.tile = this.model().repeatsAtFirst === true;
     let m = this.newTank();
     let start = 0;
