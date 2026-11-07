@@ -61,20 +61,15 @@ export const TOOLS = {
   broom: {
     label: 'Broom straw',
     input: 'click',
+    // The engine's broom keeps each drop its own cell, with a seam of bare bath where cells meet.
+    // Colour per flick is the total: each drop's mean share, corrected for the log-normal's mean.
+    // The engine's broom keeps each drop its own cell, with a seam of bare bath where cells meet.
+    // Colour per flick is the total: each drop's mean share, corrected for the log-normal's mean.
     act(t) {
       const { m, v, point: [x, y], ink } = t;
       const n = Math.max(1, Math.round(v.count));
-      const sizes = [];
-      for (let i = 0; i < n; i++) {
-        const g = Math.sqrt(-2 * Math.log(m.random() + 1e-12)) * Math.cos(2 * Math.PI * m.random());
-        sizes.push(Math.exp(v.variation * g));
-      }
-      const total = sizes.reduce((a, b) => a + b, 0);
-      for (const s of sizes) {
-        const r = v.scatter * Math.sqrt(m.random());
-        const a = m.random() * 2 * Math.PI;
-        t.place((at) => m.drop({ x: x + r * Math.cos(a), y: y + r * Math.sin(a), quantity: v.quantity * s / total, gall: v.gall, ...ink, at }));
-      }
+      const size = v.quantity / n / Math.exp(v.variation ** 2 / 2);
+      t.place((at) => m.broom({ n, x, y, w: 2 * v.scatter, h: 2 * v.scatter, size, spread: v.variation, gall: v.gall ?? undefined, ...ink, at }));
     },
     hint: 'Click to flick a broom-straw brush: many drops of the colour at once, a few large and many small, over the reach. Throw colour after colour for stone and vein.',
     color: true,
