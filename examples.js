@@ -294,7 +294,7 @@ for (let p = 0; p < passes; p++) {
   cells.forEach(([c, r], i) => {
     if ((i + r) % passes !== p) return;
     drop({ x: (c + 0.5 + (random() - 0.5) * 0.6) * 100 / cols, y: (r + 0.5 + (random() - 0.5) * 0.6) * 100 / rows,
-           quantity: 0.14, spreading: 4, color: water });
+           quantity: 0.14, spreading: 4, color: 'clear' });
   });
   settle();
 }
