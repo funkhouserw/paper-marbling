@@ -54,6 +54,36 @@ export const TOOLS = {
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
     },
   },
+  // A flick of a broom-straw brush: many drops of one colour landing at once, a few large and many
+  // small (log-normal sizes), scattered over the reach. Stone and vein marbling are built from these.
+  broom: {
+    label: 'Broom straw',
+    input: 'click',
+    act(t) {
+      const { m, v, point: [x, y], ink } = t;
+      const n = Math.max(1, Math.round(v.count));
+      const sizes = [];
+      for (let i = 0; i < n; i++) {
+        const g = Math.sqrt(-2 * Math.log(m.random() + 1e-12)) * Math.cos(2 * Math.PI * m.random());
+        sizes.push(Math.exp(v.variation * g));
+      }
+      const total = sizes.reduce((a, b) => a + b, 0);
+      for (const s of sizes) {
+        const r = v.scatter * Math.sqrt(m.random());
+        const a = m.random() * 2 * Math.PI;
+        t.place((at) => m.drop({ x: x + r * Math.cos(a), y: y + r * Math.sin(a), quantity: v.quantity * s / total, gall: v.gall, ...ink, at }));
+      }
+    },
+    hint: 'Click to flick a broom-straw brush: many drops of the colour at once, a few large and many small, over the reach. Throw colour after colour for stone and vein.',
+    color: true,
+    params: {
+      count: ['Drops', 40, 3, 300, 1],
+      quantity: ['Colour per flick', 12, 0.5, 100, 0.5],
+      scatter: ['Reach', 30, 2, 80, 0.5],
+      variation: ['Size spread', 0.9, 0, 2, 0.05],
+      gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }],
+    },
+  },
   heartDrop: {
     input: 'click',
     act(t) {
