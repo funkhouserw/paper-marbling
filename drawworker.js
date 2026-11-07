@@ -2,7 +2,7 @@
 // arrive whole and are thinned first to what the screen can show. See wakefast.js.
 import { thin, underpaintWidth } from './thin.js';
 import { latticeShifts } from './tile.js';
-import { seamed } from './seam.js';
+import { seamed, mergedPoints } from './seam.js';
 
 const translucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
 let canvas = null;
@@ -17,15 +17,6 @@ function shifts(points, W, H, offset) {
     if (points[i + 1] > high) high = points[i + 1];
   }
   return latticeShifts(-W / 2 - right, W / 2 - left, -H / 2 - high, H / 2 - low, W, H, offset);
-}
-
-function box(points) {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (let i = 0; i < points.length; i += 2) {
-    if (points[i] < x0) x0 = points[i]; if (points[i] > x1) x1 = points[i];
-    if (points[i + 1] < y0) y0 = points[i + 1]; if (points[i + 1] > y1) y1 = points[i + 1];
-  }
-  return [x0, y0, x1, y1];
 }
 
 function trace(ctx, points, sx, sy) {
@@ -48,13 +39,14 @@ self.onmessage = ({ data: m }) => {
   let kept = 0;
   // Keep cells separate: each loop drawn half a seam into its ink (a hole's loop outward).
   const half = seam / 2;
-  const whole = [];
+  const whole = polys.map((p) => Float64Array.from(thin(xy, p.off, p.n, tol)));
+  // Points inside another drop of the same colour aren't pulled in: those drops have merged.
+  const merged = half ? mergedPoints(polys.map((p, k) => ({ xy: whole[k], n: whole[k].length / 2, color: p.base ?? p.color, group: p.group }))) : null;
   const thinned = polys.map((p, k) => {
-    let points = thin(xy, p.off, p.n, tol);
-    whole[k] = points;
+    let points = whole[k];
     if (half) {
       const first = !p.group || polys[k - 1]?.group !== p.group;
-      points = Array.from(seamed(Float64Array.from(points), points.length / 2, half, first));
+      points = seamed(points, points.length / 2, half, first, merged[k]);
     }
     kept += points.length / 2;
     return points;
@@ -79,24 +71,6 @@ self.onmessage = ({ data: m }) => {
     } while (group && polys[p + 1]?.group === group && ++p);
     ctx.fillStyle = color;
     ctx.fill(group ? 'evenodd' : 'nonzero');
-    // Overlaps with earlier drops of the same colour are filled whole: those have merged, so no
-    // seam shows inside them. Drops that only touch keep theirs. As in Marble.draw.
-    if (half && !group) {
-      const b = box(whole[p]);
-      for (let q = 0; q < p; q++) {
-        if (polys[q].group || polys[q].base !== polys[p].base) continue;
-        const c = box(whole[q]);
-        if (c[0] > b[2] || c[2] < b[0] || c[1] > b[3] || c[3] < b[1]) continue;
-        ctx.save();
-        ctx.beginPath();
-        for (const [sx, sy] of where(whole[q])) trace(ctx, whole[q], sx, sy);
-        ctx.clip();
-        ctx.beginPath();
-        for (const [sx, sy] of where(whole[p])) trace(ctx, whole[p], sx, sy);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
     if (!half && !group && !polys[p].cell && !translucent(color)) {
       ctx.lineWidth = 1.2 / px;
       ctx.lineJoin = join;
