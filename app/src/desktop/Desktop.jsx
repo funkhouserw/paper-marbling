@@ -308,11 +308,11 @@ export function Creature({ tank, local }) {
   const set = (creature) => dispatch({ type: 'set', patch: { creature } });
   const held = state.stats?.held ?? 0;
   const working = state.stats?.working;
-  const settling = state.stats?.bathMoving;
-  const waiting = held > 0 || Boolean(working) || Boolean(settling);
+  // A clock while any ink is still moving; just an indicator, so nothing waits on her.
+  const waiting = Boolean(state.stats?.moving) || held > 0;
   const waitingText = held > 0
     ? `Waiting for the ink to settle${held > 1 ? ` (${held} actions)` : ''}…`
-    : working ? `${WORKING[working] ?? 'Working'}…` : 'Settling…';
+    : working ? `${WORKING[working] ?? 'Working'}…` : 'Ink still moving…';
   return (
     <div className="absolute bottom-4 left-4 z-40">
       {state.creature

@@ -140,10 +140,10 @@ export function Phone({ tank, local = false, landscape = false }) {
       <main className="relative flex min-h-0 flex-1 items-center justify-center p-2">
         <TankArea tank={tank} className="size-full" onMenu={openMenu} />
         <button
-          type="button" aria-label={(state.stats?.held ?? 0) > 0 || state.stats?.working || state.stats?.bathMoving ? 'Ask Carra Jean. Working on the tank' : 'Ask Carra Jean'} onClick={() => setSheet('creature')}
+          type="button" aria-label={state.stats?.moving || (state.stats?.held ?? 0) > 0 ? 'Ask Carra Jean. Ink is still moving' : 'Ask Carra Jean'} onClick={() => setSheet('creature')}
           className="absolute bottom-3 right-3 rounded-full p-1 focus-visible:outline-2 focus-visible:outline-gilt"
         >
-          <InkDrop size={36} waiting={(state.stats?.held ?? 0) > 0 || Boolean(state.stats?.working) || Boolean(state.stats?.bathMoving)} />
+          <InkDrop size={36} waiting={Boolean(state.stats?.moving) || (state.stats?.held ?? 0) > 0} />
         </button>
       </main>
 

@@ -47,6 +47,8 @@ function readStats(c) {
     held: m.gates.reduce((n, g) => n + g.ops.length, 0),
     // The tool now moving the ink, if any (a rake, stir and so on; drops spreading don't count).
     working: m.active.find((op) => op.kind !== 'drop')?.kind ?? null,
+    // Any ink still moving: drops spreading, a tool, or the bath coasting. Paused counts as still.
+    moving: c.playing && m.busy,
     bathMoving: m.busy && !m.active.length && !m.queued.length,
     warn: m.stoppedAtLimit ? 'Point limit reached: the bath has stopped. A higher limit in Detail lets it run longer.'
       : m.capped ? 'Point limit reached: curls will look rough, so raise it in Detail.' : null,

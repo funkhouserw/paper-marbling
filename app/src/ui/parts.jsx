@@ -362,7 +362,8 @@ export function InkDrop({ size = 40, color = '#2a6f66', shine = '#43b3a0', waiti
   );
 }
 
-// Carra Jean as a droplet clock, while a tool is moving the ink or actions wait for it to settle: a clock face in place
+// Carra Jean as a droplet clock while any ink is still moving (drops spreading, a tool, the bath
+// coasting), as an indicator only: a clock face in place
 // of hers, its hands ticking round, and the whole drop jiggling with each tick.
 function WaitingDrop({ size, color, shine }) {
   return (
