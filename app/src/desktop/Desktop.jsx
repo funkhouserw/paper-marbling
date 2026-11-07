@@ -10,6 +10,7 @@ import { CreatureChat, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } f
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { CommandPalette, ContextMenu, Notice, useCommands, useShortcuts } from '../ui/commands.jsx';
 import { CreditsDialog } from '../ui/credits.jsx';
+import { PatternsDialog } from '../ui/patterns.jsx';
 
 export function ViewSwitch({ view, onChange }) {
   return (
@@ -417,6 +418,7 @@ export function useOverlays(tank, local) {
       {tank.state.commandOpen && <CommandPalette tank={tank} commands={commands} onClose={() => tank.dispatch({ type: 'set', patch: { commandOpen: false } })} />}
       <Notice tank={tank} />
       {tank.state.viewer && <Viewer tank={tank} />}
+      {tank.state.patternsOpen && <PatternsDialog tank={tank} onClose={() => tank.dispatch({ type: 'set', patch: { patternsOpen: false } })} />}
       {tank.state.creditsOpen && <CreditsDialog onClose={() => tank.dispatch({ type: 'set', patch: { creditsOpen: false } })} />}
       {tank.state.paletteOpen && (
         <SectionDialog
