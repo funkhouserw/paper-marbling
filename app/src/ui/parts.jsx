@@ -139,10 +139,23 @@ export function WeavePicker({ label, value, options, onChange, info, inline }) {
 
 // One tool setting from tools.js. Size-like ones show the old page's 0 to 100 dial.
 export function ParamSlider({ tool, p, value, onChange, className, compact }) {
+  // A setting the tank can choose for itself: null is Auto. Moving the slider takes over; the Auto
+  // pill hands it back.
+  const isAuto = Boolean(p.auto) && (value === null || value === undefined);
+  const autoPill = p.auto && (
+    <button
+      type="button" aria-pressed={isAuto} title={isAuto ? 'The tank chooses: none on a repeating tank, a little otherwise' : 'Let the tank choose'}
+      onClick={() => onChange(isAuto ? p.min + (p.max - p.min) / 3 : null)}
+      className={cx('rounded-full border px-1.5 text-[10px] leading-4', isAuto ? 'border-gilt bg-gilt/15 text-gilt-soft' : 'border-ink-600 text-ink-400 hover:text-ink-100')}
+    >
+      {p.auto}
+    </button>
+  );
   return (
     <Slider
+      headerExtra={autoPill} hideValue={isAuto}
       className={className} compact={compact}
-      label={p.label} shortLabel={shortLabel(p.label)} value={value} min={p.min} max={p.max} step={p.step}
+      label={p.label} shortLabel={shortLabel(p.label)} value={isAuto ? p.min : value} min={p.min} max={p.max} step={p.step}
       info={INFO[`${tool}.${p.key}`]}
       hint={HINTS[`${tool}.${p.key}`]?.(value)}
       {...(p.dial && {

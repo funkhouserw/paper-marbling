@@ -47,9 +47,8 @@ export const ICONS = {
 export const iconFor = (id) => ICONS[id] ?? Sparkles;
 export { Snowflake as FreezeIcon };
 
-// Every brush shows all of its settings, in Simple view too. (The view argument stays so a
-// tool could hide some again later.)
-export const shownParams = (id, _view) => toolDef(id).params;
+// Every brush shows all of its settings in Simple view too, except the few tools.js marks advanced.
+export const shownParams = (id, view) => (view === 'advanced' ? toolDef(id).params : toolDef(id).params.filter((p) => !p.advanced));
 export const shownChoices = (id, _view) => toolDef(id).choices;
 
 // Shorter names for the settings bar, where every setting gets the same width. The full name stays

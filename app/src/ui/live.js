@@ -19,7 +19,12 @@ export const TOOLS = Object.fromEntries(Object.entries(RAW_TOOLS).map(([id, t]) 
   directions: Boolean(t.directions),
   text: Boolean(t.text),
   // Size-like settings show a 0 to 100 dial (further with `over`) instead of page units, as the old page did.
-  params: Object.entries(t.params).map(([key, [label, value, min, max, step, over]]) => ({ key, label, value, min, max, step, dial: isDial(key), ...(over && { over }) })),
+  // A 7th entry carries flags: advanced (Advanced view only) and auto (a value of null means the
+  // tank picks, shown as an Auto toggle).
+  params: Object.entries(t.params).map(([key, [label, value, min, max, step, over, flags]]) => ({
+    key, label, value, min, max, step, dial: isDial(key), ...(over && { over }),
+    ...(flags?.advanced && { advanced: true }), ...(flags?.auto && { auto: flags.auto }),
+  })),
   choices: Object.entries(t.choices ?? {}).map(([key, [label, options, value]]) => ({ key, label, options, value })),
 }]));
 
