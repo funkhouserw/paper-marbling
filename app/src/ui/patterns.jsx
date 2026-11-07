@@ -12,6 +12,11 @@ const FAMILIES = [
   ['ebru', 'Ebru (Turkish)'],
   ['suminagashi', 'Suminagashi (Japanese)'],
 ];
+// A Wikimedia Commons file page's picture, as a small thumbnail Commons serves itself (nothing is
+// copied into Marbler). Other sources (a book scan, a museum page) stay as links.
+const COMMONS = 'https://commons.wikimedia.org/wiki/File:';
+const thumbOf = (url) => (url?.startsWith(COMMONS) ? `https://commons.wikimedia.org/wiki/Special:FilePath/${url.slice(COMMONS.length)}?width=360` : null);
+
 const STATUS = {
   verified: null,
   partly: 'Sources agree on the outline; details vary.',
@@ -44,11 +49,17 @@ export function PatternsDialog({ tank, onClose }) {
                 {PATTERNS.filter((p) => p.family === family).map((p) => {
                   const [first, ...others] = [p.names.en, p.names.tr, p.names.de, p.names.ja].filter(Boolean);
                   return (
-                    <li key={p.id} className="rounded-lg border border-ink-700 bg-ink-850 p-3">
+                    <li key={p.id} className="flow-root rounded-lg border border-ink-700 bg-ink-850 p-3">
                       <div className="flex flex-wrap items-baseline gap-x-2">
                         <span className="font-medium text-ink-100">{first[0].toUpperCase() + first.slice(1)}</span>
                         {others.length > 0 && <span className="text-xs text-ink-400">{others.join(' · ')}</span>}
                       </div>
+                      {thumbOf(p.image?.url) && (
+                        <a href={p.image.url} target="_blank" rel="noopener noreferrer" className="float-right ml-3 mt-1 block w-32 shrink-0">
+                          <img src={thumbOf(p.image.url)} alt={`A real sheet: ${p.image.title}`} loading="lazy" referrerPolicy="no-referrer" className="h-24 w-32 rounded border border-ink-700 object-cover" />
+                          <span className="mt-0.5 block text-[10px] leading-tight text-ink-500">Wikimedia Commons, {p.image.licence}</span>
+                        </a>
+                      )}
                       <p className="mt-1 text-xs leading-relaxed">{p.summary}</p>
                       {STATUS[p.status] && <p className="mt-1 text-[11px] italic text-ink-400">{STATUS[p.status]}</p>}
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-400">
