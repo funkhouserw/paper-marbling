@@ -1143,16 +1143,20 @@ export class Marble {
       // Ink thrown just now doesn't give; it's what does the squeezing.
       const give = (c) => (c.fresh ? 1 : c.tauMax);
       const least = cells.reduce((a, c) => a + ownNow(c) / give(c), 0);
-      let want;
-      if (sumOwn + sumInner <= room) want = cells.map((c, k) => own[k] + inner[k]);
+      // share: the area each cell's own ink is left with at this level, which sets its thickness.
+      let share;
+      if (sumOwn + sumInner <= room) share = own.slice();
       else if (least + sumInner <= room) {
         const f = (room - sumInner - least) / (sumOwn - least);
-        want = cells.map((c, k) => own[k] / give(c) + (own[k] - own[k] / give(c)) * f + inner[k]);
+        share = cells.map((c, k) => own[k] / give(c) + (own[k] - own[k] / give(c)) * f);
       } else {
         const g = room / (least + sumInner);
-        want = cells.map((c, k) => (own[k] / give(c) + inner[k]) * g);
+        share = cells.map((c, k) => (own[k] / give(c)) * g);
+        for (let k = 0; k < cells.length; k++) inner[k] *= g;
       }
-      const solved = partialTransport(cells.map((c) => c.site), want, domain, { weights: cells.map((c) => c.psi), iterations: done ? 300 : 10 });
+      const want = cells.map((c, k) => share[k] + inner[k]);
+      cells.forEach((c, k) => { c.share = share[k]; });
+      const solved = partialTransport(cells.map((c) => c.site), want, domain, { weights: cells.map((c) => c.psi), iterations: done ? 60 : 4 });
       const shapes = solved.cells;
       cells.forEach((c, k) => { c.psi = solved.weights[k]; });
       cells.forEach((c, k) => {
@@ -1172,20 +1176,23 @@ export class Marble {
         placed.push(c);
         const kids = c.kids.filter((x) => !x.gone);
         // Ink thrown just now is what squeezes; it isn't squeezed itself.
-        if (!kids.length) { c.a0 = c.fresh ? polygonArea(pts) : Math.min(c.tauMax, Math.max(1, ownNow(c) / polygonArea(pts))) * polygonArea(pts); return; }
+        // Thickness from what the layout allotted the cell's own ink, not from the gaps drawn
+        // around it: a rim round children is as squeezed as its share says.
+        const tauOf = () => (c.fresh ? 1 : Math.min(c.tauMax, Math.max(1, ownNow(c) / Math.max(1e-9, c.share))));
+        if (!kids.length) { c.a0 = tauOf() * polygonArea(pts); return; }
         // Children inside, leaving the parent's own ink as a rim no thinner than its cap allows.
         const inside = erode(pts, op.seam);
         const area = polygonArea(pts);
-        const kidRoom = Math.max(0, area - ownNow(c) / c.tauMax);
+        // Children fill what the parent's own share leaves (never squeezing it past its cap).
+        const kidRoom = Math.max(0, area - Math.max(c.share, ownNow(c) / c.tauMax));
         layout(kids, inside, kidRoom, true);
-        const kidArea = kids.filter((x) => !x.gone).reduce((a, x) => a + polygonArea(Array.from(x.xy.subarray(0, x.n * 2))), 0);
-        const tau = Math.max(1, Math.min(c.tauMax, ownNow(c) / Math.max(1e-9, area - kidArea)));
-        c.a0 = tau * area;
+        c.a0 = tauOf() * area;
       });
     };
-    for (const c of op.cellsSeen ?? []) delete c.gone; // re-decided every tick
+    // Whether a cell fits is re-decided every tick: a drop too small to show at first still grows.
+    const clear = (c) => { delete c.gone; for (const k of c.kids ?? []) clear(k); };
+    for (const c of top) clear(c);
     layout(top, [-W / 2, -H / 2, W / 2, -H / 2, W / 2, H / 2, -W / 2, H / 2]);
-    op.cellsSeen = placed.slice();
     if (done) for (const c of placed) delete c.fresh;
     // The laid-out cells replace their old outlines, parents before their children so children
     // draw on top; everything else keeps its place.
