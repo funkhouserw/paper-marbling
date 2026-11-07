@@ -462,3 +462,23 @@ test('undoing a switch by replaying the log goes back to the simulator before it
   c.redo();
   assert.equal(c.marble.constructor.name, 'Wake');
 });
+
+test('a stroke held back by "Tools wait" is marked, so the view can show it waiting', () => {
+  const c = fresh({ simulator: 'wake' });
+  c.press([0, 0]);
+  c.release();
+  c.setTool('stylus');
+  c.press([-200, 50]);
+  c.move([0, 50], true);
+  c.move([200, 50], true);
+  c.release();
+  const waiting = c.marble.queued.filter((op) => op.waitingForInk);
+  assert.equal(waiting.length, 1);
+  assert.equal(waiting[0].kind, 'rake');
+  // With nothing growing, a stroke goes straight away and isn't marked.
+  settle(c);
+  c.press([-200, -50]);
+  c.move([200, -50], true);
+  c.release();
+  assert.equal(c.marble.queued.filter((op) => op.waitingForInk).length, 0);
+});
