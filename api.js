@@ -246,6 +246,9 @@ export const COMMANDS = [
     ['seam', 'number', null, 'width of the seam in mm; null for the default, 0.6'],
     AT,
   ] },
+  { name: 'ribbonCut', group: 'Tank', summary: 'The thin-ink cut (on by default): while a tool moves ink, ribbons stretched thinner than half a millimetre are cut away, which keeps long sessions fast. Squeezed ink is never cut. Off, every thread stays however thin, and a heavily combed tank gets slower.', params: [
+    ['on', 'boolean', true, ''], AT,
+  ] },
   { name: 'tile', group: 'Tank', summary: 'Makes the tank a tile that repeats in both directions: what leaves one edge comes back in at the other, and exports join seamlessly. Only simulators that support it allow this.', params: [
     ['on', 'boolean', true, ''],
     ['offset', 'string', null, "null for a straight repeat, 'brick' to shift each row of tiles by half a tile, or 'halfDrop' to shift each column. Not in Grid ink yet"],
