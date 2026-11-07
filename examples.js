@@ -254,7 +254,7 @@ fullRake({ angle: 0, teeth: 14, speed: 28, D: 0.5 });
 // in three passes. Each clear drop carries more gall than the ground (spreading 4 against 1),
 // so it opens and squeezes the colours into veins between the clear cells. Passes interleave on a
 // jittered grid, settling in between, so the cells come out even instead of bursting outwards.
-// Clear is drawn in the bath colour: a drop inside ink sits on top of it.
+// The clear is real gall water: it cuts holes showing the bath, so it's never tinted.
 viscosity({ value: 1000 });
 const water = '#f3eee0';
 bath({ color: water });
@@ -279,7 +279,7 @@ for (let p = 0; p < passes; p++) {
 // in three passes. Each clear drop carries more gall than the ground (spreading 4 against 1),
 // so it opens and squeezes the colours into veins between the clear cells. Passes interleave on a
 // jittered grid, settling in between, so the cells come out even instead of bursting outwards.
-// Clear is drawn in the bath colour: a drop inside ink sits on top of it.
+// The clear is real gall water: it cuts holes showing the bath, so it's never tinted.
 viscosity({ value: 1000 });
 const water = '#f3eee0';
 bath({ color: water });
@@ -393,8 +393,7 @@ flick(50, 50, '#e2574c', 0.0034, 20);
   'Large-cell vein (Cells)': `// Large-cell vein (Cells), after veined sheets of the 1820s: a full ground of four colours, then
 // clear gall water in three passes. In Cells each clear drop takes its own cell and squeezes the
 // colours into thin veins between big pale cells. (The same recipe as Italian vein, in Cells.)
-// jittered grid, settling in between, so the cells come out even instead of bursting outwards.
-// Clear is drawn in the bath colour: a drop inside ink sits on top of it.
+// The clear is real gall water: it cuts holes showing the bath, so it's never tinted.
 viscosity({ value: 1000 });
 const water = '#f3eee0';
 bath({ color: water });
