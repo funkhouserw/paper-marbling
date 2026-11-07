@@ -138,7 +138,7 @@ test('changing simulator moves the viscosity only if it was the starting one', (
   assert.equal(Number(c.settings.visc), 555);
 });
 
-test('an empty tank becomes the new simulator, while one with ink waits for a clear', () => {
+test('an empty tank becomes the new simulator, while one with ink hands its ink over', () => {
   const c = fresh();
   c.settings.simulator = 'film';
   c.commitSimulator();
@@ -147,7 +147,8 @@ test('an empty tank becomes the new simulator, while one with ink waits for a cl
   c.press([0, 0]);
   c.settings.simulator = 'spreading';
   c.commitSimulator();
-  assert.equal(c.marble.constructor.name, 'Film');
+  assert.equal(c.marble.constructor.name, 'Marble');
+  assert.ok(c.marble.log.some((e) => e.fn === 'simulator'));
   assert.equal(c.marble.log.at(-1).fn, 'openWater');
 });
 
@@ -344,4 +345,80 @@ test('steps can be taken back with nothing left to redo, as if a press never hap
   assert.deepEqual(fns(c), log);
   assert.ok(!c.canRedo);
   assert.equal(c.undoMarks.length, marks);
+});
+
+// ---- Switching simulator with ink in the tank ----------------------------------
+
+const shapes = (c) => JSON.stringify(c.marble.polys.map((p) => Array.from(p.xy.slice(0, p.n * 2))));
+const steps = (c, n) => { for (let i = 0; i < n; i++) c.marble.step(); };
+const switchTo = (c, id) => { c.settings.simulator = id; c.commitSimulator(); };
+
+test('switching simulator with ink in the tank carries the ink over, as one undo step', () => {
+  const c = fresh();
+  c.press([0, 0]);
+  c.release();
+  steps(c, 20);
+  const before = shapes(c);
+  const marks = c.undoMarks.length;
+  switchTo(c, 'wake');
+  assert.equal(c.marble.constructor.name, 'Wake');
+  assert.equal(c.marble.simulatorId, 'wake');
+  assert.equal(shapes(c), before);
+  assert.equal(c.undoMarks.length, marks + 1);
+  assert.equal(c.history().steps.at(-1).label, 'Simulator');
+  c.undo();
+  assert.equal(c.marble.constructor.name, 'Marble');
+  assert.equal(c.settings.simulator, 'classic');
+  assert.equal(shapes(c), before);
+  c.redo();
+  assert.equal(c.marble.constructor.name, 'Wake');
+  assert.equal(c.settings.simulator, 'wake');
+});
+
+test('every pair of outline simulators can hand ink to each other', () => {
+  const ids = MODELS.map((m) => m.id).filter((id) => id !== 'gridink');
+  for (const a of ids) for (const b of ids) {
+    if (a === b) continue;
+    const c = fresh({ simulator: a });
+    c.press([0, 0]);
+    c.release();
+    steps(c, 10);
+    switchTo(c, b);
+    assert.equal(c.marble.simulatorId, b, `${a} -> ${b}`);
+    assert.ok(c.marble.polys.length > 0, `${a} -> ${b}`);
+    steps(c, 30);
+    for (const p of c.marble.polys) assert.ok(p.xy.slice(0, p.n * 2).every(Number.isFinite), `${a} -> ${b}`);
+  }
+});
+
+test('a tank rebuilt from its log across a switch matches the live one', () => {
+  const live = fresh();
+  live.press([-30, 0]);
+  live.release();
+  steps(live, 25);
+  switchTo(live, 'wake');
+  live.press([40, 10]);
+  live.release();
+  steps(live, 40);
+  const time = live.marble.time;
+  const want = shapes(live);
+  // Undo the last drop and redo it with no kept copies, so redo replays the whole log.
+  live.undo();
+  live.undoStates = live.undoStates.map(() => null);
+  live.redoStates = live.redoStates.map(() => null);
+  live.redo();
+  assert.equal(live.marble.constructor.name, 'Wake');
+  while (live.marble.time < time - 1e-9) live.marble.step();
+  assert.equal(shapes(live), want);
+});
+
+test('Grid ink can\'t take over outline ink, so it says so and waits for a clear', () => {
+  const c = fresh();
+  const notices = [];
+  c.on('notice', (m) => notices.push(m));
+  c.press([0, 0]);
+  c.release();
+  switchTo(c, 'gridink');
+  assert.equal(c.marble.constructor.name, 'Marble');
+  assert.match(notices.at(-1), /starts when you clear the tank/);
 });

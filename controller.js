@@ -8,6 +8,7 @@ import { toMm } from './api.js';
 import { TOOLS, PAGE_UNITS } from './tools.js';
 import { closedDirection } from './tile.js';
 import { MODELS } from './models.js';
+import { GridInk } from './gridink.js';
 import { palette } from './palettes.js';
 
 export const START_PALETTE = 'Dark Academia';
@@ -122,6 +123,12 @@ export function storeSetting(storage, id, value) {
   if (s?.store) storage.setItem(s.store, s.save(value));
 }
 
+// The fields every simulator shares: the ink, what's queued, the clock, the toggles and the
+// random seed. A switch of simulator hands these to the new engine, which carries on from them.
+const CARRIED = Object.keys(new Marble());
+// Grid ink holds colour on a grid rather than outlines, so it can't take over another engine's ink.
+const carries = (Engine) => !(Engine === GridInk || Engine.prototype instanceof GridInk);
+
 const KEPT_UNDO_STATES = 30;
 const KEPT_UNDO_BYTES = 500e6;
 const stateBytes = (state) => state.polys.reduce((sum, p) => sum + p.xy.byteLength, 0)
@@ -143,7 +150,7 @@ export function parseHex(text) {
 
 // What a step did, from its log entries: the first that isn't only timing.
 const STEP_NAMES = {
-  setViscosity: 'Viscosity', setFlow: 'Moving bath', openWater: 'Simulator', walls: 'Hard edges', tile: 'Repeating',
+  setViscosity: 'Viscosity', setFlow: 'Moving bath', openWater: 'Simulator', simulator: 'Simulator', walls: 'Hard edges', tile: 'Repeating',
   setBath: 'Base colour', freeze: 'Freeze', unfreeze: 'Unfreeze', unfreezeAll: 'Unfreeze all', print: 'Text',
 };
 const TIMING = new Set(['settle', 'wait']);
@@ -276,6 +283,7 @@ export class TankController {
 
   // A script's openWater() shows here too, so the setting always says what's really running.
   showSpreading(on) {
+    if (this.model().engine) return; // only Classic and Spreading share an engine and switch this way
     this.settings.simulator = MODELS.find((m) => m.spreading === on).id;
   }
 
@@ -313,19 +321,81 @@ export class TankController {
     this.syncTile();
   }
 
-  // After settings.simulator changes. An empty tank simply becomes the new simulator; with ink
-  // in it, the change waits for a clear.
+  // After settings.simulator changes. An empty tank simply becomes the new simulator. With ink in
+  // it, the new simulator takes the ink over and carries on, as one undo step. Grid ink can't
+  // trade ink with the others, so a switch to or from it waits for a clear.
   commitSimulator() {
+    const m = this.marble;
+    const from = m.simulatorId ?? this.viscositySimulator;
     this.syncViscosity();
     this.syncTile();
-    const m = this.marble;
     const Engine = this.engine();
-    if (!(m instanceof Engine && m.constructor === Engine) && !m.polys.length && !m.active.length && !m.log.some((e) => !['openWater', 'walls', 'tile'].includes(e.fn))) {
+    const same = m instanceof Engine && m.constructor === Engine;
+    if (!same && !m.polys.length && !m.active.length && !m.log.some((e) => !['openWater', 'walls', 'tile'].includes(e.fn))) {
       this.newTank();
       this.resetHistory();
       return;
     }
-    this.act(() => m.live(() => m.openWater({ on: this.model().spreading, at: m.time })));
+    if (same) {
+      m.simulatorId = this.model().id;
+      this.act(() => m.live(() => m.openWater({ on: this.model().spreading, at: m.time })));
+      return;
+    }
+    if (!carries(m.constructor) || !carries(Engine)) {
+      const name = (id) => MODELS.find((x) => x.id === id)?.label ?? id;
+      this.notice(`${name(this.model().id)} can't take over ink from ${name(from)}. It starts when you clear the tank.`);
+      return;
+    }
+    const before = m.log.length;
+    const state = m.saveState();
+    const n = this.carryInto(this.model().id, from);
+    // What the new simulator can't do is turned off, and its viscosity applied, all in this step.
+    const s = this.settings;
+    n.live(() => {
+      if (n.openWaterOn !== Boolean(this.model().spreading)) n.openWater({ on: Boolean(this.model().spreading), at: n.time });
+      if (n.tileOn && (!s.tile || !n.tileSupported)) n.tile({ on: false, at: n.time });
+      if (n.wallsOn && !s.walls) n.walls({ on: false, at: n.time });
+      const visc = Number(s.visc);
+      if (Number.isFinite(visc) && visc > 0 && visc !== n.viscosity) n.setViscosity({ value: visc });
+    });
+    s.visc = n.viscosity;
+    this.undoMarks.push(before);
+    this.undoStates.push(state);
+    this.stepLabels.delete(before);
+    this.trimUndo();
+    this.redoGroups = [];
+    this.redoStates = [];
+    this.emit('settings');
+    this.emit('history');
+  }
+
+  // Hands the tank to a new engine for simulator id, which carries on from exactly where the old
+  // one was, and marks the switch in the log. The live switch and rebuild() both use this, so a
+  // replay matches what happened.
+  carryInto(id, from) {
+    const old = this.marble.saveState();
+    const queueEnd = this.queueEnd;
+    this.settings.simulator = id;
+    const m = this.newTank();
+    for (const key of CARRIED) if (key in old) m[key] = old[key];
+    m.startViscosity = old.startViscosity;
+    m.simulatorId = id;
+    this.applyDetail(m);
+    this.queueEnd = queueEnd;
+    m.simulator({ id, from, at: m.time });
+    this.dirty = true;
+    return m;
+  }
+
+  // Makes the tank the engine a kept state came from, for undo and redo across a switch.
+  useEngineOf(id) {
+    const Engine = MODELS.find((x) => x.id === id)?.engine ?? Marble;
+    if (!id || this.marble.constructor === Engine) return;
+    this.settings.simulator = id;
+    this.viscositySimulator = id;
+    this.syncTile();
+    this.newTank();
+    this.emit('settings');
   }
 
   // ---- Values -----------------------------------------------------------------
@@ -658,15 +728,30 @@ export class TankController {
     // The tank starts at the viscosity it first had, whatever the setting says now.
     if (this.marble.startViscosity) this.settings.visc = this.marble.startViscosity;
     this.settings.walls = false;
+    // The log starts in the simulator its first switch came from, if it has one.
+    const first = entries.find((e) => e.fn === 'simulator');
+    if (first) { this.settings.simulator = first.args.from; this.viscositySimulator = first.args.from; }
     this.settings.tile = this.model().repeatsAtFirst === true;
-    const m = this.newTank();
-    m.replay(entries);
+    let m = this.newTank();
+    let start = 0;
+    entries.forEach((e, i) => {
+      if (e.fn !== 'simulator') return;
+      m.replay(entries.slice(start, i));
+      // The old simulator runs up to the moment of the switch, as it did live.
+      while (m.time < (e.args.at ?? 0) - 1e-9) m.step();
+      m = this.carryInto(e.args.id, e.args.from);
+      this.viscositySimulator = e.args.id;
+      start = i + 1;
+    });
+    m.replay(entries.slice(start));
+    this.emit('settings');
     this.syncToggles(entries);
     this.finishing = true; // catch up over several frames rather than freezing on a big tank
     this.emit('history');
   }
 
   showState(state) {
+    this.useEngineOf(state.simulatorId);
     this.marble.loadState(state);
     this.applyDetail(this.marble);
     this.syncToggles(this.marble.log);
@@ -743,6 +828,7 @@ export class TankController {
       gridCell: Number(s.gridCell) || undefined,
     });
     this.marble = m;
+    m.simulatorId = model.id; // kept in saved states, so undo can find the engine again
     m.startViscosity = m.viscosity; // for putting the setting back when undo reaches the start
     m.flowTuning = this.flow(); // a setting like viscosity, so not in the log
     this.applyDetail(m);

@@ -291,6 +291,13 @@ export class Marble {
     return this;
   }
 
+  // Marks where the tank changed simulator. The controller hands the ink to the new engine here;
+  // the engine itself only records it.
+  simulator({ id, from, at } = {}) {
+    this.log.push({ fn: 'simulator', args: { id, from, at } });
+    return this;
+  }
+
   // From here on, drops start together again (the default).
   allAtOnce() {
     this.orderGap = null;
@@ -2112,6 +2119,7 @@ export class Marble {
   toScript() {
     return this.log.map(({ fn, args }) => {
       if (fn === 'wait') return `wait(${args.seconds});`;
+      if (fn === 'simulator') return `// The tank switched from the ${args.from} simulator to ${args.id} here. A script runs in one simulator.`;
       if (fn === 'setBath') return `bath(${JSON.stringify(args)});`;
       if (fn === 'setViscosity') return `viscosity(${JSON.stringify(args)});`;
       if (fn === 'setFlow') return `flow(${JSON.stringify(args)});`;
