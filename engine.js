@@ -287,6 +287,7 @@ export class Marble {
     this._live = false;
     this.wallsOn = false;
     this.separateOn = true; // Keep cells separate: fronts that meet keep a hairline seam
+    this.ribbonCutOn = true; // ribbons thinner than THINNEST are cut while tools move ink
     this.seam = SEAM;
     this.tileOn = false;
     this.tileOffset = null;
@@ -461,6 +462,15 @@ export class Marble {
     return this._schedule('separate', args, { kind: 'separate', on, seam: seam ?? SEAM });
   }
 
+  // The thin-ink cut, on by default: while a tool moves ink, ribbons stretched thinner than half a
+  // millimetre (and not squeezed, τ) are cut away, which keeps long sessions fast. Off, every thread
+  // stays, however thin, and the tank gets slower as combing piles up points.
+  ribbonCut({ on = true, at } = {}) {
+    const args = { on };
+    if (at !== undefined) args.at = at;
+    return this._schedule('ribbonCut', args, { kind: 'ribbonCut', on });
+  }
+
   // Whether this simulator draws seams yet. Simulators that don't ignore the setting.
   get seamSupported() { return true; }
   get seamsDrawn() { return this.separateOn && this.seamSupported; }
@@ -492,10 +502,11 @@ export class Marble {
   // Applies a change of setting that's waiting, without waiting for the next tick, so it shows on a
   // paused tank. Replaying the log gets to the same place, a tick later.
   applyNow() {
-    const now = (o) => (o.kind === 'tile' || o.kind === 'freeze' || o.kind === 'separate') && o.at <= this.time;
+    const now = (o) => (o.kind === 'tile' || o.kind === 'freeze' || o.kind === 'separate' || o.kind === 'ribbonCut') && o.at <= this.time;
     for (const op of this.pending.filter(now)) {
       if (op.kind === 'tile') this._applyTile(op);
       else if (op.kind === 'separate') { this.separateOn = op.on; this.seam = op.seam; this.dirty = true; }
+      else if (op.kind === 'ribbonCut') this.ribbonCutOn = op.on;
       else this._applyFreeze(op);
     }
     this.pending = this.pending.filter((o) => !now(o));
@@ -2783,6 +2794,10 @@ export class Marble {
         this.openWaterOn = op.on;
         continue;
       }
+      if (op.kind === 'ribbonCut') {
+        this.ribbonCutOn = op.on;
+        continue;
+      }
       if (op.kind === 'separate') {
         this.separateOn = op.on;
         this.seam = op.seam;
@@ -2877,7 +2892,7 @@ export class Marble {
       this._cullOutside();
       this._compact();
     }
-    if (this.tick % CUT_EVERY === 0 && this.polys.length && this._wantsCut()) this._cutFilaments();
+    if (this.ribbonCutOn !== false && this.tick % CUT_EVERY === 0 && this.polys.length && this._wantsCut()) this._cutFilaments();
   }
 
   // Whether to cut thin ribbons this tick: while a tool is moving ink, but not while a drop is
