@@ -88,7 +88,12 @@ export function useTank() {
   const controller = useMemo(() => {
     // The new interface starts on Wake, as the plan decided, unless a simulator was chosen before.
     const kept = storedSettings(localStorage);
-    const c = new TankController({ settings: { simulator: 'wake', ...kept }, trace: textContours });
+    // A phone held upright starts on an upright tank, so it fills the screen.
+    const upright = !matchMedia('(min-width: 760px) and (min-height: 600px)').matches
+      && matchMedia('(orientation: portrait)').matches;
+    const size = upright ? { tankW: '700', tankH: '1000' } : {};
+    const c = new TankController({ settings: { simulator: 'wake', ...kept, ...size }, trace: textContours });
+    if (upright) c.clear();
     c.setPointLimit(c.pointLimit());
     return c;
   }, []);
