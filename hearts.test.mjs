@@ -242,3 +242,18 @@ test('Heart drop and Heart strike are tools, and scripts have heartDrop and hear
   assert.equal(typeof api.heartDrop, 'function');
   assert.equal(typeof api.heartStrike, 'function');
 });
+
+test('a Heart drop landing while drops still grow leaves them their full size', () => {
+  const run = (heart) => {
+    const m = new Marble({ width: 1000, height: 700, seed: 1, viscosity: 1000 });
+    m.drop({ x: -200, y: 70, quantity: 1.5, dispersion: 0.6 });
+    m.drop({ x: 200, y: 70, quantity: 1.5, dispersion: 0.6 });
+    for (let s = 0; s < 30; s++) m.step();
+    if (heart) m.heartDrop({ x: 0, y: -105, quantity: 1.5, color: '#9b2335' });
+    else m.drop({ x: 0, y: -105, quantity: 1.5, color: '#9b2335' });
+    m.runUntilIdle();
+    return m.polys.filter((p) => p.color !== '#9b2335').map(area);
+  };
+  const [withHeart, withDrop] = [run(true), run(false)];
+  withHeart.forEach((a, i) => assert.ok(Math.abs(a - withDrop[i]) < 0.01 * withDrop[i], `${a} vs ${withDrop[i]}`));
+});

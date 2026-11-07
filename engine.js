@@ -717,14 +717,24 @@ export class Marble {
     // The heart steps out of the way while everything else is pushed, then comes back larger.
     const at = op.poly ? this.polys.indexOf(op.poly) : -1;
     if (at >= 0) this.polys.splice(at, 1);
-    if (da > 0) this._pushApart([[op.x, op.y, da / Math.PI]]);
     op.grown = target;
-    const heart = heartOutline({ x: op.x, y: op.y, area: Math.max(target, 1e-3), angle: op.angle, variation: op.variation, random: seeded(op.seed) });
-    op.poly ??= { color: op.color, shimmer: op.shimmer, shaping: true };
-    op.poly.xy = heart.xy;
-    op.poly.n = heart.n;
-    if (at >= 0) this.polys.splice(at, 0, op.poly);
-    else this.polys.push(op.poly);
+    const place = () => {
+      const heart = heartOutline({ x: op.x, y: op.y, area: Math.max(target, 1e-3), angle: op.angle, variation: op.variation, random: seeded(op.seed) });
+      op.poly ??= { color: op.color, shimmer: op.shimmer, shaping: true };
+      op.poly.xy = heart.xy;
+      op.poly.n = heart.n;
+      if (at >= 0 && at <= this.polys.length) this.polys.splice(at, 0, op.poly);
+      else this.polys.push(op.poly);
+    };
+    if (da > 0 && this._flushGrowth === Marble.prototype._flushGrowth) {
+      // Pushed in the same pass as any drops still growing, as they push each other, so none of
+      // them is knocked off its own middle. The heart goes back once that pass is done.
+      this.growth.push([op.x, op.y, da / Math.PI]);
+      (this._afterGrowth ??= []).push(place);
+    } else {
+      if (da > 0) this._pushApart([[op.x, op.y, da / Math.PI]]);
+      place();
+    }
     if (op.elapsed < op.duration) return false;
     delete op.poly.shaping;
     return true;
@@ -2176,6 +2186,11 @@ export class Marble {
       return !this._advanceTimed(op, dt);
     });
     this._flushGrowth();
+    if (this._afterGrowth) {
+      const waiting = this._afterGrowth;
+      this._afterGrowth = null;
+      for (const fn of waiting) fn();
+    }
     this.tick++;
     if (wasMoving) {
       this._refine();
