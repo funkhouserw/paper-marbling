@@ -61,6 +61,9 @@ const linksFor = (nx, ny, joined, offset = null) => {
 const mod = (i, n) => ((i % n) + n) % n;
 
 export class Film extends Marble {
+  // Keep cells separate isn't drawn here yet: this simulator ignores the setting for now.
+  get seamSupported() { return false; }
+
   // The pressure grid joins up at the seams, so films meet and push across them.
   get tileSupported() { return true; }
 

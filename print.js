@@ -7,6 +7,7 @@
 // Rims and mottling are artistic touches, not physics, and each one can be turned off.
 
 import { thickness as squeezed } from './engine.js';
+import { seamed } from './seam.js';
 
 export const PRINT_DEFAULTS = {
   width: 3000, // pixels
@@ -105,12 +106,15 @@ function paintLabels(marble, w, h, scale, labels) {
   const toX = (v) => (v + marble.width / 2) * scale;
   const toY = (v) => (marble.height / 2 - v) * scale;
   const { polys } = marble;
+  const half = marble.seamsDrawn ? marble.seam / 2 : 0;
   for (let p = 0; p < polys.length; p++) {
     const { group } = polys[p];
     const first = p;
     const loops = [];
     do {
-      loops.push(polys[p].group ? polys[p] : smoothOutline(polys[p], 4 / scale));
+      const loop = polys[p].group ? polys[p] : smoothOutline(polys[p], 4 / scale);
+      // Keep cells separate: each loop printed half a seam into its ink, as on screen.
+      loops.push(half ? { xy: seamed(loop.xy, loop.n, half, p === first), n: loop.n } : loop);
     } while (group && polys[p + 1]?.group === group && ++p);
     // Each repeat is filled on its own, because repeats can overlap and this fill is even-odd.
     for (const [sx, sy] of marble.tileShifts?.(loops) ?? [[0, 0]]) {

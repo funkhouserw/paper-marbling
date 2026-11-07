@@ -15,6 +15,7 @@ import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
 import { wrapX, wrapY, doubled, closedDirection, latticeShifts, pushApartTiled, swirlTiled } from './tile.js';
 import { cutDisc } from './erase.js';
+import { SEAM, seamed } from './seam.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
@@ -284,6 +285,8 @@ export class Marble {
     this.openWaterOn = false;
     this._live = false;
     this.wallsOn = false;
+    this.separateOn = true; // Keep cells separate: fronts that meet keep a hairline seam
+    this.seam = SEAM;
     this.tileOn = false;
     this.tileOffset = null;
     this.tileOffsetWanted = null;
@@ -320,6 +323,13 @@ export class Marble {
   loadState(state) {
     for (const key of Object.keys(this)) if (key.startsWith('_')) delete this[key];
     Object.assign(this, structuredClone(state));
+    // Saved before Keep cells separate existed: it stays as it was, joined, and its log says so, so
+    // that undoing (which replays the log on a new tank) keeps it that way.
+    if (!('separateOn' in state)) {
+      this.separateOn = false;
+      this.seam = SEAM;
+      this.log.unshift({ fn: 'separate', args: { on: false, at: 0 } });
+    }
     return this;
   }
 
@@ -439,6 +449,21 @@ export class Marble {
     return this._schedule('walls', args, { kind: 'walls', on });
   }
 
+  // Keep cells separate, on by default: two drops whose spreading fronts meet keep a hairline seam
+  // between them, even of one colour, while a drop landing inside a drop of its own colour merges
+  // into it. seam is the seam's width in mm (null for the default). Off, touching drops of one
+  // colour join, as they did before. Each simulator shows it its own way; see seamSupported.
+  separate({ on = true, seam = null, at } = {}) {
+    const args = { on };
+    if (seam !== null && seam !== undefined) args.seam = seam;
+    if (at !== undefined) args.at = at;
+    return this._schedule('separate', args, { kind: 'separate', on, seam: seam ?? SEAM });
+  }
+
+  // Whether this simulator draws seams yet. Simulators that don't ignore the setting.
+  get seamSupported() { return true; }
+  get seamsDrawn() { return this.separateOn && this.seamSupported; }
+
   // Makes the tank a tile that repeats in both directions, so what leaves one edge comes back in
   // at the other. Outlines are never cut at the seam: they stay whole and are drawn at each place
   // they show. Simulators opt in with tileSupported, because all their motion has to repeat too.
@@ -466,9 +491,10 @@ export class Marble {
   // Applies a change of setting that's waiting, without waiting for the next tick, so it shows on a
   // paused tank. Replaying the log gets to the same place, a tick later.
   applyNow() {
-    const now = (o) => (o.kind === 'tile' || o.kind === 'freeze') && o.at <= this.time;
+    const now = (o) => (o.kind === 'tile' || o.kind === 'freeze' || o.kind === 'separate') && o.at <= this.time;
     for (const op of this.pending.filter(now)) {
       if (op.kind === 'tile') this._applyTile(op);
+      else if (op.kind === 'separate') { this.separateOn = op.on; this.seam = op.seam; this.dirty = true; }
       else this._applyFreeze(op);
     }
     this.pending = this.pending.filter((o) => !now(o));
@@ -2681,6 +2707,12 @@ export class Marble {
         this.openWaterOn = op.on;
         continue;
       }
+      if (op.kind === 'separate') {
+        this.separateOn = op.on;
+        this.seam = op.seam;
+        this.dirty = true;
+        continue;
+      }
       if (op.kind === 'walls') {
         this.wallsOn = op.on;
         if (op.on) { this.tileOn = false; this._fitInside(); }
@@ -2902,13 +2934,17 @@ export class Marble {
     ctx.fillRect(0, 0, this.width * pxPerMm, this.height * pxPerMm);
     ctx.setTransform(pxPerMm, 0, 0, -pxPerMm, (this.width / 2) * pxPerMm, (this.height / 2) * pxPerMm);
     this._beforeInk(ctx);
+    const half = this.seamsDrawn ? this.seam / 2 : 0;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, shimmer } = this.polys[p];
       const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
+      const first = p;
       ctx.beginPath();
       // Loops of one printed shape share a path, so inner loops become holes.
       do {
-        const { xy, n } = this.polys[p];
+        const { n } = this.polys[p];
+        // With Keep cells separate, every loop is drawn half a seam into its ink (a hole's outward).
+        const xy = half ? seamed(this.polys[p].xy, n, half, p === first) : this.polys[p].xy;
         // Points closer than a third of a pixel can't change the picture.
         const skip = (0.33 / pxPerMm) ** 2;
         for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
@@ -2928,8 +2964,9 @@ export class Marble {
       ctx.fillStyle = color;
       ctx.fill(group ? 'evenodd' : 'nonzero');
       // A hairline closes the sliver of water between near-touching drops, so drops of
-      // one colour join. See-through ink would show it as a darker edge, so it's skipped.
-      if (!group && !this.polys[p].cell && !isTranslucent(color)) {
+      // one colour join. See-through ink would show it as a darker edge, so it's skipped, and
+      // with Keep cells separate there's a seam to show instead.
+      if (!half && !group && !this.polys[p].cell && !isTranslucent(color)) {
         ctx.lineWidth = 1.2 / pxPerMm;
         ctx.lineJoin = 'round';
         ctx.strokeStyle = color;
@@ -2962,12 +2999,15 @@ export class Marble {
   toSVG() {
     const { width: w, height: h } = this;
     const paths = [];
+    const half = this.seamsDrawn ? this.seam / 2 : 0;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, cell } = this.polys[p];
       const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
+      const first = p;
       let d = '';
       do {
-        const { xy, n } = this.polys[p];
+        const { n } = this.polys[p];
+        const xy = half ? seamed(this.polys[p].xy, n, half, p === first) : this.polys[p].xy;
         for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
           const pts = [];
           for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
@@ -2975,7 +3015,7 @@ export class Marble {
         }
       } while (group && this.polys[p + 1]?.group === group && ++p);
       const extra = group ? ' fill-rule="evenodd"'
-        : isTranslucent(color) || cell ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
+        : isTranslucent(color) || cell || half ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
       paths.push(`<path fill="${color}"${extra} d="${d}"/>`);
     }
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-w / 2} ${-h / 2} ${w} ${h}" width="${w}mm" height="${h}mm">`
