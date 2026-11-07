@@ -66,6 +66,7 @@ test('no rim is drawn between touching regions of one colour', async () => {
 
 test('a print draws a many-sided outline as a curve, not straight chords', async () => {
   const m = new Film(TANK);
+  m.separateOn = false; // the outline itself, with no seam drawn in from it
   const xy = [];
   for (let i = 0; i < 16; i++) xy.push(200 * Math.cos((i / 16) * 2 * Math.PI), 200 * Math.sin((i / 16) * 2 * Math.PI));
   m.polys.push({ xy: Float64Array.from(xy), n: 16, color: '#112233' });

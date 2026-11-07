@@ -244,6 +244,7 @@ export const COMMANDS = [
   { name: 'separate', group: 'Tank', summary: 'Keep cells separate (on by default): two drops whose spreading fronts meet keep a hairline seam between them, even of one colour, while a drop that lands inside a drop of its own colour merges into it. Off, touching drops of one colour join. Each simulator shows it in its own way.', params: [
     ['on', 'boolean', true, ''],
     ['seam', 'number', null, 'width of the seam in mm; null for the default, 0.6'],
+    ['share', 'number', null, 'where a cell faces bare bath its seam widens to this share of the square root of its area (at least seam), so bigger cells have wider channels; null for the default, 0.03; 0 keeps every seam the same'],
     AT,
   ] },
   { name: 'ribbonCut', group: 'Tank', summary: 'The thin-ink cut (on by default): while a tool moves ink, ribbons stretched thinner than half a millimetre are cut away, which keeps long sessions fast. Squeezed ink is never cut. Off, every thread stays however thin, and a heavily combed tank gets slower.', params: [

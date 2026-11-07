@@ -154,3 +154,23 @@ test('two drops of one colour that overlap show no seam inside the overlap; touc
   t.polys.push(square(-30, 0), square(0, 30)); // edge to edge
   assert.equal(colourAt(t, 0, 0), 'bath', 'touching fronts keep their seam');
 });
+
+test('where cells face bare bath the seam widens with their size; inside another colour it stays a hairline', () => {
+  const disc = (cx, r, color) => {
+    const pts = [];
+    for (let i = 0; i < 96; i++) pts.push(cx + r * Math.cos((i / 96) * 2 * Math.PI), r * Math.sin((i / 96) * 2 * Math.PI));
+    return { xy: Float64Array.from(pts), n: 96, color };
+  };
+  const m = new Marble({ width: 600, height: 400, seed: 1 });
+  m.polys.push(disc(0, 100, '#224466'), disc(0, 30, '#aa6633'));
+  // The big disc, ~177 mm across, faces bare bath: its edge is pulled in by 3% of √area / 2 ≈ 2.7 mm.
+  assert.equal(colourAt(m, 98, 0), 'bath');
+  assert.equal(colourAt(m, 96.5, 0), '#224466');
+  // The small one lies inside the blue: only a hairline of blue shows round it.
+  assert.equal(colourAt(m, 29.85, 0), '#224466');
+  assert.equal(colourAt(m, 29.5, 0), '#aa6633');
+  // share 0: the old fixed seam everywhere.
+  m.separate({ share: 0, at: 0 });
+  m.step();
+  assert.equal(colourAt(m, 99.5, 0), '#224466');
+});
