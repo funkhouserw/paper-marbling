@@ -21,6 +21,15 @@ export const COMMANDS = [
     ['spreading', 'number', 4, 'how many times its plain area a drop can grow: alone on clear water it reaches this on every simulator, but in the outline films a drop landing in ink stops at its plain size, so for drops stacked on ink 1 looks the same everywhere; higher also pushes other ink harder, like adding surfactant'],
     COLOR('#1f4e79'), SHIMMER, AT,
   ] },
+  { name: 'heartDrop', group: 'Ink', summary: 'A heart of ink with a fine point, landing whole: it pushes the ink round it aside as it lands, then holds its shape and never spreads. Does not advance the timeline.', params: [
+    X, Y,
+    ['quantity', 'number', 1.5, 'amount of ink, as for drop: the heart covers what a lone drop of this much spreads to', 'q'],
+    ['angle', 'number', 0, 'degrees; 0 points down, 90 points right, 180 up'],
+    ['variation', 'number', 0.3, '0 to 1; how much its proportions differ from the plain heart'],
+    COLOR('#1f4e79'), SHIMMER,
+    ['seed', 'number', null, 'fixes the variation; left out, it is picked for you'],
+    AT,
+  ] },
   { name: 'drops', group: 'Ink', summary: 'Random scatter of drops in a box centred on x, y.', params: [
     ['n', 'number', 20, 'how many'], X, Y,
     ['w', 'number', 100, 'box width, % of width', 'w'],
@@ -141,14 +150,18 @@ export const COMMANDS = [
     ['mode', 'string', 'drain', 'drain: ink and water go, and the surface closes up. lift: only the ink goes, at once, leaving bare water'],
     AT,
   ] },
-  { name: 'hearts', group: 'Tools', summary: 'Drags a small tine through the middle of every loop that is not frozen, which pulls round dots into hearts. Tines are sized to each loop. Follow it with settle() to wait for the tines. Not available in Grid ink.', params: [
-    ['angle', 'number', 270, 'the way the tines travel, and so the way the points face: 270 is down'],
-    ['above', 'number', 130, 'where each tine starts, as a percentage of the way from the middle to the edge; 100 is the edge'],
-    ['below', 'number', 130, 'where each tine ends, likewise'],
-    ['pull', 'number', 25, 'how widely each tine pulls, as a percentage of its loop\'s radius'],
+  { name: 'hearts', group: 'Tools', summary: 'Heart strike (also heartStrike()). Bends every loop that is already round into a heart of the same area and middle, pointing the way angle says; the rings of a target bend together and stay nested, and odd shapes and frozen ink are left alone. style "tine" instead drags a small tine through the middle of each loop, the older way. Follow it with settle() to wait for it. Not available in Grid ink.', params: [
+    ['angle', 'number', 270, 'the way the strike goes, and so the way the points face: 270 is down'],
+    ['style', 'string', 'bend', '"bend" round loops into hearts, or "tine" to drag a tine through each'],
+    ['variation', 'number', 0.3, 'bend: 0 to 1, how much each heart differs from the plain one'],
+    ['above', 'number', 130, 'tine: where each tine starts, as a percentage of the way from the middle to the edge; 100 is the edge'],
+    ['below', 'number', 130, 'tine: where each tine ends, likewise'],
+    ['pull', 'number', 25, 'tine: how widely each tine pulls, as a percentage of its own loop\'s radius'],
     size('min', 0, 'leaves alone loops with a smaller radius than this'),
     size('max', 1000, 'leaves alone loops with a larger radius than this'),
     SPEED(20),
+    ['duration', 'number', 1.5, 'bend: seconds the bend takes'],
+    ['seed', 'number', null, 'bend: fixes the variation; left out, it is picked for you'],
     AT,
   ] },
   { name: 'freeze', group: 'Tools', summary: 'Freezes the topmost ink at a point: nothing moves it until it is unfrozen, and it draws on top. Not available in Grid ink.', params: [
@@ -238,6 +251,11 @@ export const COMMANDS = [
   { name: 'random', group: 'Helpers', summary: 'Seeded random number from 0 to 1.', returns: 'number' },
   { name: 'palette', group: 'Helpers', positional: 'name', summary: 'Looks up a palette, built-in or saved. Any ink can be passed as color, or inks as colors.', returns: '{ name, bath, inks }' },
 ];
+
+// Heart strike's own name, since Heart drop arrived. The same command as hearts().
+COMMANDS.splice(COMMANDS.findIndex((c) => c.name === 'hearts') + 1, 0, {
+  ...COMMANDS.find((c) => c.name === 'hearts'), name: 'heartStrike', engine: 'hearts', summary: 'Another name for hearts(): Heart strike.',
+});
 
 export const VALUES = [
   { name: 'W', summary: 'page width, always 100' },

@@ -18,6 +18,7 @@ import { cutDisc } from './erase.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
+import { heartOutline } from './heartshape.js';
 
 const MIN_LEFT = 1; // mm²; the least ink an eraser's cut leaves as its own piece
 
@@ -162,6 +163,36 @@ function mulberry32(seed) {
 // Final area (mm^2) of a quantity (mL) spread over a film of thickness h (mm).
 export function maxRadius(quantity, film) {
   return Math.sqrt((quantity * 1000) / (film * Math.PI));
+}
+
+const HEART_LAND = 0.6; // seconds a Heart drop takes to land and push the ink round it aside
+const ROUND_ENOUGH = 0.95; // Heart strike bends only loops at least this round: 4πA/P², 1 for a circle
+
+// How far a ray from (cx, cy) along unit (dx, dy) runs before leaving an outline: its farthest
+// crossing, so a slightly lumpy loop still gives its outer edge.
+function rayReach({ xy, n }, cx, cy, dx, dy) {
+  let best = 0;
+  for (let i = 0, k = n - 1; i < n; k = i++) {
+    const ax = xy[k * 2] - cx, ay = xy[k * 2 + 1] - cy;
+    const ex = xy[i * 2] - xy[k * 2], ey = xy[i * 2 + 1] - xy[k * 2 + 1];
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-12) continue;
+    const t = (ax * ey - ay * ex) / den;
+    const u = (ax * dy - ay * dx) / den;
+    if (t > best && u >= 0 && u <= 1) best = t;
+  }
+  return best;
+}
+
+// A repeatable random sequence from a seed, so a heart's variation replays exactly.
+function seeded(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), t | 1);
+    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 // Thin ribbons. Stretching makes ink ever longer and thinner, and past a certain width it can't be
@@ -664,6 +695,56 @@ export class Marble {
     return this._schedule('drop', args, op);
   }
 
+  // A heart of ink, landing whole. It takes the area a lone drop of the same quantity spreads to,
+  // pushes the ink round it aside as it lands, as a drop's growth does, then holds its shape: it
+  // never spreads, so its fine point lasts until a tool moves it. angle turns it, 0 point down.
+  // variation (0 to 1) makes each heart a little different.
+  heartDrop({ x = 0, y = 0, quantity = 1, angle = 0, variation = 0.3, color = '#1f4e79', shimmer = 0, seed, at } = {}) {
+    if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
+    const fixed = seed ?? Math.floor(this.random() * 2 ** 31);
+    const args = { x, y, quantity, angle, variation, color, shimmer, seed: fixed };
+    if (at !== undefined) args.at = at;
+    const area = Math.PI * maxRadius(quantity, this.film) ** 2 * this.spreadFactor;
+    const op = { kind: 'heartDrop', x, y, area, angle, variation, color, shimmer, seed: fixed, duration: HEART_LAND, elapsed: 0, grown: 0, poly: null };
+    return this._schedule('heartDrop', args, op, HEART_LAND);
+  }
+
+  _advanceHeartDrop(op, dt) {
+    const [, p] = this._ramp(op, dt);
+    const target = op.area * p;
+    const da = target - op.grown;
+    if (da <= 0 && op.poly) return op.elapsed >= op.duration;
+    // The heart steps out of the way while everything else is pushed, then comes back larger.
+    const at = op.poly ? this.polys.indexOf(op.poly) : -1;
+    if (at >= 0) this.polys.splice(at, 1);
+    if (da > 0) this._pushApart([[op.x, op.y, da / Math.PI]]);
+    op.grown = target;
+    const heart = heartOutline({ x: op.x, y: op.y, area: Math.max(target, 1e-3), angle: op.angle, variation: op.variation, random: seeded(op.seed) });
+    op.poly ??= { color: op.color, shimmer: op.shimmer, shaping: true };
+    op.poly.xy = heart.xy;
+    op.poly.n = heart.n;
+    if (at >= 0) this.polys.splice(at, 0, op.poly);
+    else this.polys.push(op.poly);
+    if (op.elapsed < op.duration) return false;
+    delete op.poly.shaping;
+    return true;
+  }
+
+  _advanceHeartBend(op, dt) {
+    const [, p] = this._ramp(op, dt);
+    for (const { poly, from, to, n } of op.bends) {
+      if (poly.frozen) continue;
+      // A fresh outline each tick, so refining or thinning in between can't throw the points out of step.
+      const xy = new Float64Array(n * 4);
+      for (let i = 0; i < n * 2; i++) xy[i] = from[i] + (to[i] - from[i]) * p;
+      poly.xy = xy;
+      poly.n = n;
+    }
+    if (op.elapsed < op.duration) return false;
+    for (const { poly } of op.bends) delete poly.shaping;
+    return true;
+  }
+
   // n drops scattered in a w x h box, each with a random start within `stagger` seconds.
   drops({ n = 20, x = 0, y = 0, w = this.width, h = this.height, quantity = 0.5, spread = 0.3,
           dispersion = 0.8, spreading = 4, colors = ['#1f4e79'], stagger = 0, at } = {}) {
@@ -903,11 +984,72 @@ export class Marble {
   // there to the loop's edge, so 100 is the edge. pull is its reach, as a percentage of the loop's radius.
   // Loops are found when this starts, so it works on ink still to land. Loops sharing a middle, like
   // the rings of a target, are one shape and get one tine. min and max limit it to loops of that radius.
-  hearts({ angle = 270, above = 130, below = 130, pull = 25, min = 0, max = 1e6, speed = 200, at } = {}) {
+  //
+  // style 'bend' (the default) instead bends every loop that is already round (roundness, 4πA/P², at
+  // least 0.95) into a heart of the same area and middle, over duration seconds, pointing the way
+  // angle says. The rings of a target bend together and stay nested. variation (0 to 1) makes each
+  // heart a little different. Odd shapes are left alone.
+  hearts({ angle = 270, style = 'bend', variation = 0.3, above = 130, below = 130, pull = 25, min = 0, max = 1e6, speed = 200, duration = 1.5, seed, at } = {}) {
     if (!this.freezeSupported) throw new Error('This simulator can\'t find loops to rake yet.');
-    const args = { angle, above, below, pull, min, max, speed };
+    // Logged, so a replay bends the same hearts whatever else has used the random sequence.
+    const fixed = seed ?? Math.floor(this.random() * 2 ** 31);
+    const args = { angle, style, variation, above, below, pull, min, max, speed, duration, seed: fixed };
     if (at !== undefined) args.at = at;
-    return this._schedule('hearts', args, { kind: 'hearts', ...args }, 0, true);
+    return this._schedule('hearts', args, { kind: 'hearts', ...args, elapsed: 0 }, style === 'bend' ? duration : 0, true);
+  }
+
+  // The loops Heart strike's bend would change, grouped by shared middle, biggest first:
+  // { cx, cy, r, loops }. Prints and frozen ink are left out, and so is anything not round enough.
+  roundBodies({ min = 0, max = 1e6 } = {}) {
+    const measured = [];
+    for (const poly of this.polys) {
+      if (poly.frozen || poly.group || poly.n < 8) continue;
+      const { xy, n } = poly;
+      let twice = 0, cx = 0, cy = 0, perimeter = 0;
+      for (let i = 0, k = n - 1; i < n; k = i++) {
+        const cross = xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+        twice += cross;
+        cx += (xy[k * 2] + xy[i * 2]) * cross;
+        cy += (xy[k * 2 + 1] + xy[i * 2 + 1]) * cross;
+        perimeter += Math.hypot(xy[i * 2] - xy[k * 2], xy[i * 2 + 1] - xy[k * 2 + 1]);
+      }
+      const area = Math.abs(twice) / 2;
+      if (area < 1e-6 || (4 * Math.PI * area) / (perimeter * perimeter) < ROUND_ENOUGH) continue;
+      measured.push({ poly, area, cx: cx / (3 * twice), cy: cy / (3 * twice), r: Math.sqrt(area / Math.PI) });
+    }
+    measured.sort((a, b) => b.area - a.area);
+    const bodies = [];
+    for (const m of measured) {
+      const home = bodies.find((b) => Math.hypot(b.cx - m.cx, b.cy - m.cy) < 0.2 * b.r);
+      if (home) home.loops.push(m);
+      else bodies.push({ cx: m.cx, cy: m.cy, r: m.r, loops: [m] });
+    }
+    return bodies.filter(({ r }) => r >= min && r <= max);
+  }
+
+  // What each round loop becomes: its outline now and its heart, with the same points, so the bend
+  // can move each point straight along its ray from the middle. { poly, from, to, n } per loop.
+  heartBends({ angle = 270, variation = 0.3, min = 0, max = 1e6, seed = 1 } = {}) {
+    const bends = [];
+    const random = seeded(seed);
+    for (const body of this.roundBodies({ min, max })) {
+      // One set of proportions for the whole body, so its rings stay nested.
+      const bodySeed = Math.floor(random() * 2 ** 31);
+      for (const { poly, area } of body.loops) {
+        const heart = heartOutline({ x: body.cx, y: body.cy, area, angle: angle + 90, variation, random: seeded(bodySeed) });
+        const from = new Float64Array(heart.n * 4);
+        for (let i = 0; i < heart.n; i++) {
+          const dx = heart.xy[i * 2] - body.cx;
+          const dy = heart.xy[i * 2 + 1] - body.cy;
+          const len = Math.hypot(dx, dy) || 1;
+          const r = rayReach(poly, body.cx, body.cy, dx / len, dy / len);
+          from[i * 2] = body.cx + (dx / len) * r;
+          from[i * 2 + 1] = body.cy + (dy / len) * r;
+        }
+        bends.push({ poly, from, to: heart.xy, n: heart.n });
+      }
+    }
+    return bends;
   }
 
   // The line of each heart's tine, for what's on the tank now: { from, to, L, loops }.
@@ -958,6 +1100,12 @@ export class Marble {
 
   // Each tine is an ordinary rake, except that only the hearts command itself is in the log.
   _startHearts(op) {
+    if (op.style === 'bend') {
+      op.bends = this.heartBends(op);
+      for (const { poly, from, n } of op.bends) { poly.xy = Float64Array.from(from); poly.n = n; poly.shaping = true; }
+      this.active.push(op);
+      return;
+    }
     const log = this.log;
     const live = this._live;
     this.log = [];
@@ -2022,6 +2170,8 @@ export class Marble {
     }
     this.active = this.active.filter((op) => {
       if (op.kind === 'drop') return !this._advanceDrop(op, dt);
+      if (op.kind === 'heartDrop') return !this._advanceHeartDrop(op, dt);
+      if (op.kind === 'hearts') return !this._advanceHeartBend(op, dt);
       if (op.kind === 'rake') return !this._advanceRake(op, dt);
       return !this._advanceTimed(op, dt);
     });
@@ -2052,7 +2202,7 @@ export class Marble {
     const key = (x, y) => (Math.floor(x / cell) + 2048) * 4096 + Math.floor(y / cell) + 2048;
     const out = [];
     for (const poly of this.polys) {
-      if (poly.group || poly.n < 64) { out.push(poly); continue; }
+      if (poly.group || poly.n < 64 || poly.shaping) { out.push(poly); continue; } // shaping: a heart landing or bending
       const pieces = this._cutOutline(poly, cell, key);
       for (const piece of pieces) out.push(piece);
     }
