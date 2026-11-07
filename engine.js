@@ -231,7 +231,8 @@ const outlineArea = ({ xy, n }) => {
   return Math.abs(s) / 2;
 };
 // τ is capped at the film's own spreading: squeezed back to its landing thickness but not past it.
-export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / (outlineArea(poly) || poly.a0))) : 1);
+// A ring's ink is its outline less the drops inside it: poly.inkArea, where a simulator keeps it.
+export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / ((poly.inkArea ?? outlineArea(poly)) || poly.a0))) : 1);
 const tintCache = new Map();
 // How dark squeezed ink looks: by √τ, so how far ink squeezes (its area, which sets how much room a
 // later colour gets) and how dark it turns are separate. Photo 31's net is squeezed about 3.5 times
@@ -475,6 +476,43 @@ export class Marble {
     const args = { on };
     if (at !== undefined) args.at = at;
     return this._schedule('ribbonCut', args, { kind: 'ribbonCut', on });
+  }
+
+  // How much surface a shape's own ink covers: its outline's area less the shapes lying inside it
+  // and over it (later in the list), counting only those not inside another such shape. A drop
+  // that landed in a colour turned that colour into a ring; this is the ring's area.
+  _inkArea(poly) {
+    const at = this.polys.indexOf(poly);
+    const area = outlineArea(poly);
+    if (at < 0 || poly.group) return area;
+    const box = (q) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (let i = 0; i < q.n; i++) {
+        const x = q.xy[i * 2], y = q.xy[i * 2 + 1];
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+      return [x0, y0, x1, y1];
+    };
+    const holds = (q, x, y) => {
+      let w = false;
+      for (let i = 0, k = q.n - 1; i < q.n; k = i++) {
+        const ay = q.xy[k * 2 + 1], by = q.xy[i * 2 + 1];
+        if ((ay > y) !== (by > y) && x < q.xy[k * 2] + ((y - ay) * (q.xy[i * 2] - q.xy[k * 2])) / (by - ay)) w = !w;
+      }
+      return w;
+    };
+    const b = box(poly);
+    const inside = [];
+    for (let k = at + 1; k < this.polys.length; k++) {
+      const q = this.polys[k];
+      if (q.group || !q.n) continue;
+      const c = box(q);
+      if (c[0] < b[0] || c[2] > b[2] || c[1] < b[1] || c[3] > b[3]) continue;
+      if (holds(poly, q.xy[0], q.xy[1])) inside.push(q);
+    }
+    let covered = 0;
+    for (const q of inside) if (!inside.some((r) => r !== q && holds(r, q.xy[0], q.xy[1]))) covered += outlineArea(q);
+    return Math.max(0, area - covered);
   }
 
   // Whether this simulator draws seams yet. Simulators that don't ignore the setting.
@@ -2874,7 +2912,7 @@ export class Marble {
         if (op.stormont && !op.stormont.thrown && op.poly && done) this._throwHoles(op); // once it has spread, so no solid core is left
         if (done && op.cell && op.poly) this._insetCell(op.poly, op.cell);
         if (done && op.poly && !op.poly.a0 && !op.poly.group) {
-          op.poly.a0 = outlineArea(op.poly);
+          op.poly.a0 = this._inkArea(op.poly);
           op.poly.tauMax = Math.max(1, op.spreading ?? TAU_MAX);
         }
         return !done;
