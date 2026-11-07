@@ -166,7 +166,7 @@ function FreezeRow({ tank }) {
       <div className="flex gap-1">
         <Button className={mode === 'freeze' ? 'border-gilt text-gilt-soft' : ''} onClick={() => pick('freeze')}><Snowflake size={12} /> Freeze</Button>
         <Button className={mode === 'unfreeze' ? 'border-gilt text-gilt-soft' : ''} onClick={() => pick('unfreeze')}>Unfreeze</Button>
-        <Button onClick={() => tank.act('Unfreeze all')}>Unfreeze all</Button>
+        <Button onClick={() => tank.perform?.('unfreezeAll') || tank.act('Unfreeze all')}>Unfreeze all</Button>
       </div>
     </div>
   );
