@@ -19,7 +19,7 @@ import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
 import { heartOutline } from './heartshape.js';
-import { partialTransport, erode, ccw, polygonArea } from './stone.js';
+import { partialTransport, erode, grow, ccw, polygonArea } from './stone.js';
 
 const MIN_LEFT = 1; // mm²; the least ink an eraser's cut leaves as its own piece
 
@@ -192,7 +192,10 @@ export function maxRadius(quantity, film) {
 }
 
 const HEART_LAND = 0.6; // seconds a Heart drop takes to land and push the ink round it aside
-const TAU_MAX = 4; // the most a film can be squeezed: a monolayer collapses past a point (Π–A isotherm)
+const TAU_MAX = 4;
+const SEAM_SHARE = 0.03; // bare channel between broom cells, as a share of a cell's size (√area)
+const BROOM_TAU_MAX = 3; // how far a broom cell's ink can be squeezed; by eye on Ilse's photo 31, to measure
+const ROUND_SHARE = 0.12; // corner radius, likewise // the most a film can be squeezed: a monolayer collapses past a point (Π–A isotherm)
 const HOLES_CLOSE = 0.6; // share of a Stormont hole's area that evaporation closes
 const PUSH_RAYS = 720; // directions a bending heart's push is worked out in
 const ROUND_ENOUGH = 0.95; // Heart strike bends only loops at least this round: 4πA/P², 1 for a circle
@@ -1106,7 +1109,7 @@ export class Marble {
         this._live = live;
         continue;
       }
-      const cell = { xy: new Float64Array(0), n: 0, color: op.color, shimmer: op.shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: op.spreading, parentCell: under };
+      const cell = { xy: new Float64Array(0), n: 0, color: op.color, shimmer: op.shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(op.spreading, BROOM_TAU_MAX), parentCell: under, fresh: true };
       if (under) under.kids.push(cell);
       else top.push(cell);
     }
@@ -1122,20 +1125,26 @@ export class Marble {
       const inner = cells.map((c) => total(c) - c.own);
       const sumOwn = own.reduce((a, b) => a + b, 0);
       const sumInner = inner.reduce((a, b) => a + b, 0);
-      const least = cells.reduce((a, c) => a + c.own / c.tauMax, 0);
+      // Ink thrown just now doesn't give; it's what does the squeezing.
+      const give = (c) => (c.fresh ? 1 : c.tauMax);
+      const least = cells.reduce((a, c) => a + c.own / give(c), 0);
       let want;
       if (sumOwn + sumInner <= room) want = cells.map((c, k) => own[k] + inner[k]);
       else if (least + sumInner <= room) {
         const f = (room - sumInner - least) / (sumOwn - least);
-        want = cells.map((c, k) => c.own / c.tauMax + (own[k] - c.own / c.tauMax) * f + inner[k]);
+        want = cells.map((c, k) => c.own / give(c) + (own[k] - c.own / give(c)) * f + inner[k]);
       } else {
         const g = room / (least + sumInner);
-        want = cells.map((c, k) => (c.own / c.tauMax + inner[k]) * g);
+        want = cells.map((c, k) => (c.own / give(c) + inner[k]) * g);
       }
       const { cells: shapes } = partialTransport(cells.map((c) => c.site), want, domain);
       cells.forEach((c, k) => {
         const outer = shapes[k];
-        const pts = outer.length >= 6 ? erode(outer, op.seam / 2) : [];
+        // A channel of bare size between cells, wider for bigger cells, with rounded corners.
+        const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;
+        const gap = Math.max(op.seam, SEAM_SHARE * size);
+        const round = ROUND_SHARE * size;
+        const pts = outer.length >= 6 ? grow(erode(outer, gap / 2 + round), round) : [];
         if (pts.length < 6) { c.gone = true; return; }
         const m = pts.length / 2;
         c.xy = new Float64Array(m * 4);
@@ -1156,6 +1165,7 @@ export class Marble {
       });
     };
     layout(top, [-W / 2, -H / 2, W / 2, -H / 2, W / 2, H / 2, -W / 2, H / 2]);
+    for (const c of placed) delete c.fresh;
     // The laid-out cells replace their old outlines, parents before their children so children
     // draw on top; everything else keeps its place.
     const keep = this.polys.filter((p) => !placed.includes(p) && !(p.cell && p.laid && p.gone));
