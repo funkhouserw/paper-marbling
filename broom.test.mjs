@@ -43,9 +43,10 @@ test('broom sizes vary widely: the biggest cell is many times the smallest', () 
 test('cells laid out by transport keep their areas, nest, and squeeze the colour they land in', async () => {
   const { thickness } = await import('./engine.js');
   const m = new Marble({ width: 1000, height: 700, seed: 3 });
-  m.broom({ n: 120, size: 0.035, spreading: 6, color: '#b5793f' });
+  // The first colour covers most of the bath, so the second can only make room by squeezing it.
+  m.broom({ n: 260, size: 0.05, spread: 0.8, spreading: 6, color: '#b5793f' });
   m.settle();
-  m.broom({ n: 90, size: 0.03, spreading: 6, color: '#1f2f5c' });
+  m.broom({ n: 90, size: 0.05, spread: 0.6, spreading: 6, color: '#1f2f5c' });
   m.runUntilIdle();
   const brown = m.polys.filter((p) => p.color === '#b5793f');
   const blue = m.polys.filter((p) => p.color === '#1f2f5c');

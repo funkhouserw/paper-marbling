@@ -96,56 +96,90 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     }
     return cell;
   };
-  // The step adapts: a round that leaves the total misfit worse is undone and the step halved.
-  let damping = DAMPING;
-  let lastMisfit = Infinity;
-  let lastPsi = psi.slice();
-  let lastStep = null;
-  for (let it = 0; it < iterations; it++) {
+  // Damped Newton (Kitagawa, Mérigot & Thibert 2019). ∂|Cᵢ|/∂ψⱼ = −|Γᵢⱼ| / (2|xᵢ − xⱼ|) for
+  // neighbours sharing a wall Γᵢⱼ, and ∂|Cᵢ|/∂ψᵢ = Σⱼ |Γᵢⱼ| / (2|xᵢ − xⱼ|) + (arc length)/(2√ψᵢ).
+  // That Jacobian is a graph Laplacian plus a diagonal, so the step solves L·Δψ = A − |C| by
+  // conjugate gradients, and is halved until the misfit falls.
+  const solve = () => {
     bucket();
     const all = sites.map((_, i) => cellOf(i));
+    const area = all.map((c) => (c.pts.length >= 6 ? polygonArea(c.pts) : 0));
     let misfit = 0;
-    for (let i = 0; i < n; i++) {
-      const a = all[i].pts.length >= 6 ? polygonArea(all[i].pts) : 0;
-      misfit += (a - targets[i]) ** 2;
-    }
-    if (misfit > lastMisfit && lastStep) {
-      damping = Math.max(0.02, damping / 2);
-      for (let i = 0; i < n; i++) psi[i] = Math.max(1e-6, lastPsi[i] + damping * lastStep[i]);
-      continue;
-    }
-    damping = Math.min(0.9, damping * 1.15);
-    lastMisfit = misfit;
-    lastPsi = psi.slice();
-    cells = all.map((c) => c.pts);
+    for (let i = 0; i < n; i++) misfit += (area[i] - targets[i]) ** 2;
+    return { all, area, misfit };
+  };
+  let now = solve();
+  for (let it = 0; it < iterations; it++) {
+    cells = now.all.map((c) => c.pts);
     error = 0;
-    const step = [];
+    for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(now.area[i] - targets[i]) / targets[i]);
+    if (error < tolerance) break;
+    // The Jacobian, as neighbour weights and a diagonal.
+    const nbr = Array.from({ length: n }, () => new Map());
+    const diag = new Float64Array(n);
     for (let i = 0; i < n; i++) {
-      const { pts, tags } = all[i];
-      const a = pts.length >= 6 ? polygonArea(pts) : 0;
-      error = Math.max(error, Math.abs(a - targets[i]) / targets[i]);
-      let h = 0;
+      const { pts, tags } = now.all[i];
       const m = pts.length / 2;
       for (let k = 0; k < m; k++) {
         const tag = tags[k];
         if (tag === DOMAIN) continue;
         const len = Math.hypot(pts[((k + 1) % m) * 2] - pts[k * 2], pts[((k + 1) % m) * 2 + 1] - pts[k * 2 + 1]);
-        if (tag === DISC) h += len / (2 * Math.sqrt(Math.max(psi[i], 1e-9)));
-        else h += len / (2 * Math.hypot(sites[tag][0] - sites[i][0], sites[tag][1] - sites[i][1]));
+        if (tag === DISC) { diag[i] += len / (2 * Math.sqrt(Math.max(psi[i], 1e-9))); continue; }
+        const w = len / (2 * Math.hypot(sites[tag][0] - sites[i][0], sites[tag][1] - sites[i][1]));
+        diag[i] += w;
+        nbr[i].set(tag, (nbr[i].get(tag) ?? 0) + w);
       }
-      step.push(h > 0 ? (targets[i] - a) / h : 0);
     }
-    if (error < tolerance) break;
-    lastStep = step;
-    for (let i = 0; i < n; i++) psi[i] = Math.max(1e-6, psi[i] + damping * step[i]);
-    // An empty cell has no slope to go by: it grows gently every round, as if a lone disc, and
-    // that growth is kept even when the rest of a round is undone, so it can't stall.
-    for (let i = 0; i < n; i++) {
-      if (all[i].pts.length >= 6 && polygonArea(all[i].pts) > 0) continue;
-      psi[i] += targets[i] / (2 * Math.PI);
-      lastPsi[i] = psi[i];
+    const r = new Float64Array(n);
+    for (let i = 0; i < n; i++) r[i] = targets[i] - now.area[i];
+    // Empty cells have no slope: they're left out of the solve and grow on their own below.
+    const live = (i) => diag[i] > 1e-12;
+    const apply = (v, out) => {
+      for (let i = 0; i < n; i++) {
+        if (!live(i)) { out[i] = v[i]; continue; }
+        let sum = diag[i] * v[i];
+        for (const [j, w] of nbr[i]) if (live(j)) sum -= w * v[j];
+        out[i] = sum;
+      }
+    };
+    const x = new Float64Array(n);
+    const rr = Float64Array.from(r, (v, i) => (live(i) ? v : 0));
+    const pp = Float64Array.from(rr);
+    const Ap = new Float64Array(n);
+    let rs = rr.reduce((a, v) => a + v * v, 0);
+    const stop = rs * 1e-10;
+    for (let k = 0; k < 200 && rs > stop; k++) {
+      apply(pp, Ap);
+      const pAp = pp.reduce((a, v, i) => a + v * Ap[i], 0);
+      if (!(pAp > 0)) break;
+      const alpha = rs / pAp;
+      for (let i = 0; i < n; i++) { x[i] += alpha * pp[i]; rr[i] -= alpha * Ap[i]; }
+      const next = rr.reduce((a, v) => a + v * v, 0);
+      for (let i = 0; i < n; i++) pp[i] = rr[i] + (next / rs) * pp[i];
+      rs = next;
     }
+    const before = psi.slice();
+    let t = 1;
+    let tried = null;
+    for (let h = 0; h < 10; h++, t /= 2) {
+      for (let i = 0; i < n; i++) {
+        psi[i] = live(i) ? Math.max(1e-6, before[i] + t * x[i]) : before[i];
+      }
+      // An empty cell holds its own site again once ψᵢ > max over j of (ψⱼ − |xᵢ − xⱼ|²).
+      for (let i = 0; i < n; i++) {
+        if (live(i)) continue;
+        let need = 0;
+        for (let j = 0; j < n; j++) if (j !== i) need = Math.max(need, psi[j] - ((sites[j][0] - sites[i][0]) ** 2 + (sites[j][1] - sites[i][1]) ** 2));
+        psi[i] = Math.max(psi[i], need + targets[i] / (8 * Math.PI));
+      }
+      tried = solve();
+      if (tried.misfit < now.misfit) break;
+    }
+    now = tried;
   }
+  cells = now.all.map((c) => c.pts);
+  error = 0;
+  for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(now.area[i] - targets[i]) / targets[i]);
   return { cells, weights: psi, error };
 }
 
