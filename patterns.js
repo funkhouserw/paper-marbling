@@ -65,6 +65,8 @@ export const PATTERNS = [
     id: 'gelgit', family: 'combed', names: { en: 'Get-gel', tr: 'gelgit' }, status: 'verified',
     summary: 'A stylus or rake drawn back and forth across the bath ("come and go"), giving zigzag bands.',
     sources: ['TDV'], image: { title: 'Taraklı Gel Git Ebru', url: commons('Tarakl%C4%B1_Gel_Git_Ebru.jpg'), licence: 'CC BY-SA 4.0' },
+
+    example: 'Get-gel',
   },
   {
     id: 'nonpareil', family: 'combed', names: { en: 'Nonpareil' }, status: 'verified',

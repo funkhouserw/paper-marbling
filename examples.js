@@ -299,6 +299,20 @@ for (let p = 0; p < passes; p++) {
   settle();
 }
 `,
+  'Get-gel': `// Gelgit ("come and go"): a stone ground raked across the tank and back, the second pass between the
+// first one's teeth, so the colours zigzag into bands.
+viscosity({ value: 1000 });
+const inks = palette('Lapis & Gilt').inks;
+allAtOnce();
+for (let i = 0; i < 420; i++) {
+  drop({ x: 2 + random() * 96, y: 2 + random() * 96, quantity: 0.9, dispersion: 1.8, spreading: 2, color: inks[i % inks.length] });
+}
+settle();
+fullRake({ angle: 90, teeth: 24, speed: 22, D: 0.8 });
+settle();
+fullRake({ angle: 270, teeth: 24, offset: 2.08, speed: 22, D: 0.8 });
+settle();
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -319,5 +333,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic',
 };
