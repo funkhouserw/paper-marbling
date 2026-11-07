@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { Marble } from './engine.js';
 import { ThinFilm } from './thinfilm.js';
 import { Film } from './film.js';
+import { Wake } from './wake.js';
+import { GridInk } from './gridink.js';
 
 // What's drawn at (x, y): the colour of the topmost path in the SVG that covers it, or the bath.
 const colourAt = (m, x, y) => {
@@ -23,12 +25,12 @@ const colourAt = (m, x, y) => {
   return found;
 };
 
-const twoDrops = (on, color2 = '#224466') => {
-  const m = new Marble({ width: 200, height: 140, seed: 1 });
+const twoDrops = (on, color2 = '#224466', Engine = Marble) => {
+  const m = new Engine({ width: 200, height: 140, seed: 1 });
   if (!on) m.separate({ on: false, at: 0 });
   m.drop({ x: -12, y: 0, quantity: 1, color: '#224466', at: 0 });
   m.drop({ x: 12, y: 0, quantity: 1, color: color2, at: 0 });
-  m.runUntilIdle();
+  for (let t = 0; t < 4000 && m.busy; t++) m.step();
   return m;
 };
 
@@ -96,9 +98,20 @@ test('an old saved tank loads joined, and stays joined after undoing', () => {
 });
 
 test('simulators without seams yet ignore the setting', () => {
-  const m = new Film({ width: 100, height: 100, seed: 1 });
+  const m = new GridInk({ width: 100, height: 100, seed: 1 });
   assert.equal(m.seamsDrawn, false);
 });
+
+for (const Engine of [Film, Wake]) {
+  test(`${Engine.name}: drops that meet keep a seam, with no underpaint closing it; off, they join`, () => {
+    const on = twoDrops(true, '#224466', Engine);
+    assert.equal(on.seamsDrawn, true);
+    assert.equal(colourAt(on, meeting(on), 0), 'bath');
+    assert.doesNotMatch(on.toSVG(), /fill="none" stroke=/, 'no underpaint');
+    const off = twoDrops(false, '#224466', Engine);
+    assert.match(off.toSVG(), /fill="none" stroke=/);
+  });
+}
 
 test('Thin film draws seams, and drops landing together make room for each other', () => {
   const m = new ThinFilm({ width: 200, height: 140, seed: 1 });

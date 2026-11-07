@@ -34,6 +34,7 @@ test('a drop that spread further prints paler than one at plain size', async () 
 
 test('a thin gap between films fills with ink, and open water does not', async () => {
   const m = new Film(TANK);
+  m.separateOn = false; // the joined look: Keep cells separate off
   m.polys.push({ xy: Float64Array.from([-100, -50, -2, -50, -2, 50, -100, 50]), n: 4, color: '#112233' });
   m.polys.push({ xy: Float64Array.from([2, -50, 100, -50, 100, 50, 2, 50]), n: 4, color: '#112233' });
   const image = await renderPrint(m, { ...plainOptions, width: 1000 });
@@ -55,6 +56,7 @@ test('printing leaves the tank alone and reports its progress', async () => {
 
 test('no rim is drawn between touching regions of one colour', async () => {
   const m = new Film(TANK);
+  m.separateOn = false; // the joined look: Keep cells separate off
   // With a thin gap between them, which the print closes.
   m.polys.push({ xy: Float64Array.from([-100, -50, -2, -50, -2, 50, -100, 50]), n: 4, color: '#c8553d' });
   m.polys.push({ xy: Float64Array.from([2, -50, 100, -50, 100, 50, 2, 50]), n: 4, color: '#c8553d' });

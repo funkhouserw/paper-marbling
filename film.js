@@ -61,9 +61,6 @@ const linksFor = (nx, ny, joined, offset = null) => {
 const mod = (i, n) => ((i % n) + n) % n;
 
 export class Film extends Marble {
-  // Keep cells separate isn't drawn here yet: this simulator ignores the setting for now.
-  get seamSupported() { return false; }
-
   // The pressure grid joins up at the seams, so films meet and push across them.
   get tileSupported() { return true; }
 
@@ -621,7 +618,9 @@ export class Film extends Marble {
   }
 
   // Under everything, so it only ever shows over bare bath.
+  // With Keep cells separate there's none: gaps between films stay bare, as seams.
   _beforeInk(ctx) {
+    if (this.seamsDrawn) return;
     ctx.lineJoin = 'round';
     for (const poly of this.polys) {
       const { xy, n, color, group, cell } = poly;
@@ -639,6 +638,7 @@ export class Film extends Marble {
   }
 
   _svgBeforeInk() {
+    if (this.seamsDrawn) return '';
     return this.polys.filter(({ group, color, cell }) => !group && !cell && !isTranslucent(color)).map((poly) => {
       const { xy, n, color } = poly;
       let d = '';
