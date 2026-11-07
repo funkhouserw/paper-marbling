@@ -293,12 +293,21 @@ export function ScriptDrawer({ tank, commands }) {
   );
 }
 
+// What Carra Jean says while a tool is moving the ink, by the engine's name for it.
+const WORKING = {
+  rake: 'Raking', jiggle: 'Jiggling', wriggle: 'Wriggling', stir: 'Stirring', vortex: 'Swirling', air: 'Blowing',
+  erase: 'Lifting ink', shift: 'Moving the bath', turn: 'Turning the bath', hearts: 'Pulling hearts',
+};
+
 export function Creature({ tank, local }) {
   const { state, dispatch } = tank;
   const set = (creature) => dispatch({ type: 'set', patch: { creature } });
   const held = state.stats?.held ?? 0;
-  const waiting = held > 0;
-  const waitingText = `Waiting for the ink to settle${held > 1 ? ` (${held} actions)` : ''}…`;
+  const working = state.stats?.working;
+  const waiting = held > 0 || Boolean(working);
+  const waitingText = held > 0
+    ? `Waiting for the ink to settle${held > 1 ? ` (${held} actions)` : ''}…`
+    : `${WORKING[working] ?? 'Working'}…`;
   return (
     <div className="absolute bottom-4 left-4 z-40">
       {state.creature
