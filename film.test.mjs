@@ -87,6 +87,7 @@ test('saved states restore and carry on', () => {
 
 test('SVG stays vector and paints the gap closer under the ink', () => {
   const m = new Film(TANK);
+  m.separateOn = false; // the joined look: Keep cells separate off
   m.drop({ x: 0, y: 0, quantity: 2 * PERCENT, color: '#112233' });
   m.drop({ x: 0, y: 200, quantity: 2 * PERCENT, color: '#88000080' });
   finish(m);

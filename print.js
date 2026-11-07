@@ -259,7 +259,7 @@ export async function renderPrint(marble, options = {}, onProgress = () => {}) {
     if (!inkIds.has(color)) inkIds.set(color, inkIds.size + 1);
     return inkIds.get(color);
   })]);
-  nearestEdge(labels, inkOf, w, h, (marble.closeGaps ?? 0) * scale, dist, nearest);
+  nearestEdge(labels, inkOf, w, h, (marble.seamsDrawn ? 0 : marble.closeGaps ?? 0) * scale, dist, nearest);
   // Again with the gaps filled, so a closed gap between two regions of one colour has no edge.
   labels.set(nearest);
   nearestEdge(labels, inkOf, w, h, 0, dist, nearest);

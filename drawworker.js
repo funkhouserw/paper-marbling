@@ -2,6 +2,7 @@
 // arrive whole and are thinned first to what the screen can show. See wakefast.js.
 import { thin, underpaintWidth } from './thin.js';
 import { latticeShifts } from './tile.js';
+import { seamed } from './seam.js';
 
 const translucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
 let canvas = null;
@@ -26,7 +27,7 @@ function trace(ctx, points, sx, sy) {
 
 self.onmessage = ({ data: m }) => {
   const start = performance.now();
-  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join } = m;
+  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join, seam = 0 } = m;
   if (!canvas || canvas.width !== width || canvas.height !== height) canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -36,17 +37,23 @@ self.onmessage = ({ data: m }) => {
   ctx.setTransform(px, 0, 0, -px, (W / 2) * px, (H / 2) * px);
   const tol = tolPx / px;
   let kept = 0;
-  const thinned = polys.map((p) => {
-    const points = thin(xy, p.off, p.n, tol);
+  // Keep cells separate: each loop drawn half a seam into its ink (a hole's loop outward).
+  const half = seam / 2;
+  const thinned = polys.map((p, k) => {
+    let points = thin(xy, p.off, p.n, tol);
+    if (half) {
+      const first = !p.group || polys[k - 1]?.group !== p.group;
+      points = Array.from(seamed(Float64Array.from(points), points.length / 2, half, first));
+    }
     kept += points.length / 2;
     return points;
   });
   const where = (points) => (tile ? shifts(points, W, H, offset) : [[0, 0]]);
-  // Film's underpaint, which closes thin gaps.
+  // Film's underpaint, which closes thin gaps. None with Keep cells separate, or for a broom cell.
   ctx.lineJoin = join;
-  for (let p = 0; p < polys.length; p++) {
-    const { group, color, off, n } = polys[p];
-    if (group || translucent(color)) continue;
+  for (let p = 0; p < polys.length && !half; p++) {
+    const { group, color, off, n, cell } = polys[p];
+    if (group || cell || translucent(color)) continue;
     ctx.lineWidth = underpaintWidth(xy, off, n, closeGaps * 2);
     ctx.beginPath();
     for (const [sx, sy] of where(thinned[p])) trace(ctx, thinned[p], sx, sy);
@@ -61,7 +68,7 @@ self.onmessage = ({ data: m }) => {
     } while (group && polys[p + 1]?.group === group && ++p);
     ctx.fillStyle = color;
     ctx.fill(group ? 'evenodd' : 'nonzero');
-    if (!group && !translucent(color)) {
+    if (!half && !group && !polys[p].cell && !translucent(color)) {
       ctx.lineWidth = 1.2 / px;
       ctx.lineJoin = join;
       ctx.strokeStyle = color;

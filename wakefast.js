@@ -3,6 +3,7 @@
 // is finer than a pixel. So the page sends a copy of the outlines to a worker, which thins and draws
 // them, and the simulation carries on meanwhile. Exports and prints still use every point.
 import { Wake } from './wake.js';
+import { thickness, squeezedColour } from './engine.js';
 
 const BODY_REACH = 13; // a wide tine's pull reaches 12 half-widths
 const WHILE_MOVING_PX = 0.5; // how far a thinned outline may stray from the real one
@@ -118,9 +119,11 @@ export class WakeFast extends Wake {
     for (const p of this.polys) total += p.n;
     const xy = new Float64Array(total * 2);
     let off = 0;
-    const polys = this.polys.map(({ xy: from, n, color, group }) => {
+    const polys = this.polys.map((poly) => {
+      const { xy: from, n, group, cell } = poly;
       xy.set(from.subarray(0, n * 2), off * 2);
-      const p = { off, n, color, group };
+      // Drawn as the page draws it: darker where squeezed (τ), and a broom cell keeps its seam.
+      const p = { off, n, color: squeezedColour(poly.color, thickness(poly)), group, cell };
       off += n;
       return p;
     });
@@ -139,6 +142,7 @@ export class WakeFast extends Wake {
     w.postMessage({
       width: ctx.canvas.width, height: ctx.canvas.height, px: pxPerMm, W: this.width, H: this.height, bath: this.bath ?? 'transparent',
       tile: this.tileOn, offset: this.tileOffset, closeGaps: this.closeGaps, polys, xy, total,
+      seam: this.seamsDrawn ? this.seam : 0,
       tolPx: this.busy ? WHILE_MOVING_PX : AT_REST_PX, join: this.busy ? 'bevel' : 'round',
     }, [xy.buffer]);
     return true;
