@@ -90,6 +90,11 @@ export const SECTIONS = [
       { id: 'flowFriction', kind: 'number', label: 'Floor drag', info: 'flowFriction', value: 0.25, min: 0, max: 10, step: 0.05, when: 'flow', view: 'advanced' },
       { id: 'flowCoast', kind: 'number', label: 'Longest coast (s)', info: 'flowCoast', value: 25, min: 1, max: 600, step: 5, when: 'flow', view: 'advanced' },
       { id: 'flowCell', kind: 'number', label: 'Flow grid (mm)', info: 'flowCell', value: 7, min: 1.5, max: 20, step: 0.5, when: 'flow', view: 'advanced' },
+      // Ox gall for the whole bath: each new colour gets a little more than the last (Woolnough's rule).
+      { id: 'gallHeading', kind: 'heading', label: 'Ox gall', info: 'gall', view: 'advanced' },
+      { id: 'gall', kind: 'toggle', label: 'Rising gall for each colour', info: 'gall', value: false, view: 'advanced' },
+      { id: 'gallStart', kind: 'number', label: 'First colour', info: 'gallStart', value: 1, min: 0, max: 10, step: 0.05, showIf: { gall: true }, view: 'advanced' },
+      { id: 'gallStep', kind: 'number', label: 'More per colour', info: 'gallStep', value: 0.15, min: 0, max: 3, step: 0.05, showIf: { gall: true }, view: 'advanced' },
       { id: 'tankHeading', kind: 'heading', label: 'Tank', view: 'advanced' },
       { id: 'tankSize', kind: 'tankSize', label: 'Size (mm)', info: 'tankSize', replaces: ['tankW', 'tankH', 'applyTank'], view: 'advanced' },
       { id: 'walls', kind: 'toggle', label: 'Hard edges', info: 'walls', value: false, when: 'walls', view: 'advanced' },

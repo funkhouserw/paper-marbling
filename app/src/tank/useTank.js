@@ -32,6 +32,9 @@ const COMMIT = {
   simulator: (c) => c.commitSimulator(),
   walls: (c) => c.commitWalls(),
   useBath: (c) => c.commitBath(),
+  gall: (c) => c.commitGall(),
+  gallStart: (c) => c.commitGall(),
+  gallStep: (c) => c.commitGall(),
   bath: (c) => c.commitBath(),
   pointLimit: (c, v) => c.setPointLimit(Number(v)),
 };
