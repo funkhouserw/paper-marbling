@@ -551,7 +551,10 @@ export class TankController {
     const growing = [...m.active, ...m.queued].some((op) => op.kind === 'drop');
     if (mode === 'settled' || (isTool && s.toolsWait && growing)) {
       m.settle();
-      return fn(undefined);
+      const op = fn(undefined);
+      // Marked so the view can show it waiting, even while playing.
+      if (op && typeof op === 'object' && mode !== 'settled') op.waitingForInk = true;
+      return op;
     }
     const gap = Number(s.queueGap) || 0;
     if (mode === 'order' && m.gates.length) {

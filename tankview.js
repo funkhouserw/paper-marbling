@@ -343,7 +343,9 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     lctx.lineWidth = px;
     lctx.setLineDash([5, 4]);
     previewHasContent = false;
-    for (const op of showQueued ? c.marble.queued : []) {
+    // Paused, everything queued shows. Playing, only what a tool is waiting to do: a stroke held
+    // back by "Tools wait for ink to settle" would otherwise look as if it never registered.
+    for (const op of showQueued ? c.marble.queued : c.marble.queued.filter((q) => q.waitingForInk)) {
       if (op.kind === 'rake') {
         dashedRakeLines(lctx, c.marble, op);
         previewHasContent = true;
@@ -404,7 +406,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
   function drawPreviewLayer() {
     const showQueued = !c.playing;
     const planned = plannedFullRake();
-    const key = [showQueued, showQueued ? c.marble.log.length : 0, showQueued ? c.marble.queued.length : 0,
+    const key = [showQueued, c.marble.log.length, c.marble.queued.length,
       planned ? plannedRake.key : '', overlay.width, overlay.height].join('|');
     if (key !== previewKey) {
       renderPreviewLayer(showQueued, planned);
