@@ -74,9 +74,12 @@ export const TOOLS = {
     hint: 'Click to flick a broom-straw brush: many drops of the colour at once, a few large and many small, over the reach. Throw colour after colour for stone and vein.',
     color: true,
     params: {
-      count: ['Drops', 40, 3, 300, 1],
-      quantity: ['Colour per flick', 12, 0.5, 100, 0.5],
-      scatter: ['Reach', 30, 2, 80, 0.5],
+      // One flick colours a patch, as in Jeffrey Ang's stone video (research/references, photos
+      // 26–27): about half the bath at first, near 90% after two or three flicks (measured
+      // 2026-11-07), rather than flooding the tank at once.
+      count: ['Drops', 60, 3, 300, 1],
+      quantity: ['Colour per flick', 2.5, 0.5, 100, 0.5],
+      scatter: ['Reach', 25, 2, 80, 0.5],
       variation: ['Size spread', 0.9, 0, 2, 0.05],
       spreading: ['How far it spreads', 25, 1, 50, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }],
