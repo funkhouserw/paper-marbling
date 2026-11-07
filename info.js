@@ -5,6 +5,7 @@ const SPEED = 'How fast the tool travels. It changes how much ink gets pulled as
 const WEAVE_SHAPE = 'The path each tooth follows as it travels. Straight goes in a line; the others swing side to side in that shape. Needs some weave height to show.';
 const WEAVE_HEIGHT = 'How far each tooth swings to the side. Overlapping neighbouring teeth is fine and often the point.';
 const WEAVE_LENGTH = 'How far the rake travels for one full swing of the weave. Short gives tight, busy marks.';
+const REACH = 'How far each tooth pulls the colour, as a share of the gap to the next tooth. 0.5 keeps each tooth to its own lane, so one comb can\'t drag the whole sheet. Raise it to 1–1.5 for a fine comb after tall colour columns (Bouquet, Old Dutch) or for Peacock fans; past about 1 the teeth start moving the colour together like a paddle.';
 const TEETH = 'How many teeth the rake has.';
 const DURATION = 'How long the motion takes.';
 const COLOURS = 'The inks of the current palette. Keys 1 to 9 pick them while this tool is chosen. The square at the end picks any colour.';
@@ -136,6 +137,9 @@ export const INFO = {
   'broom.gall': 'Ox gall for this flick. Bath uses the bath\'s rising gall, if it\'s on.',
   'rake.teeth': TEETH,
   'rake.spacing': 'The gap between neighbouring teeth.',
+  'rake.reach': REACH,
+  'fullRake.reach': REACH,
+  'drawnRake.reach': REACH,
   'rake.speed': SPEED,
   'rake.D': THICKNESS,
   'rake.width': TINE_WIDTH,
