@@ -1177,7 +1177,11 @@ export class Marble {
     for (const d of op.drops) {
       // Each drop its own colour and spread (a Cells batch can mix them); a broom throw's are all one.
       const color = d.color ?? op.color, shimmer = d.shimmer ?? op.shimmer;
-      const spreading = Math.min(d.spreading ?? op.spreading, this.cellSpreadMax ?? Infinity);
+      // A simulator's cap on spreading (Cells) rises with the drop's gall, as the gall rule makes a
+      // gallier colour spread further, up to the bath's Strongest spread.
+      const g = d.gall ?? op.gall ?? this._bathGall(color);
+      const gallier = g === undefined ? 1 : gallSpread(g, this.gallMost) / gallSpread(1);
+      const spreading = Math.min(d.spreading ?? op.spreading, (this.cellSpreadMax ?? Infinity) * gallier);
       const area = plain(d.quantity) * spreading;
       const under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
       if (under && laid(under) && under.color === color) { under.own += area; continue; }
