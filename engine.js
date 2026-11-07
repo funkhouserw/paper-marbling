@@ -2437,9 +2437,13 @@ export class Marble {
         const len = Math.hypot(bx - ax, by - ay);
         let worst = -1;
         let at = -1;
+        // Distance to the segment, not the line through it: a thin spike running out along the
+        // line and back is close to the line but far from the segment, and must not be cut off
+        // as a straight chord.
         for (let i = from + 1; i < to; i++) {
           const px = xy[i * 2] - ax, py = xy[i * 2 + 1] - ay;
-          const d = len > 1e-12 ? Math.abs((bx - ax) * py - (by - ay) * px) / len : Math.hypot(px, py);
+          const t = len > 1e-12 ? Math.max(0, Math.min(1, (px * (bx - ax) + py * (by - ay)) / (len * len))) : 0;
+          const d = Math.hypot(px - t * (bx - ax), py - t * (by - ay));
           if (d > worst) { worst = d; at = i; }
         }
         if (worst > COMPACT_TOLERANCE) {

@@ -74,11 +74,32 @@ export class ThinFilm extends Marble {
     if (!op.placed) {
       op.placed = true;
       op.age = 0;
-      this.landing.push([op, this._deposit(op)]);
+      const r = this._deposit(op);
+      // The drop lands as a disc of that radius, so the ink already there makes room for it first,
+      // as a drop growing pushes everything aside. Without this it was born overlapping its
+      // neighbours, and across a seam the flow never separated them.
+      this._pushLocally(op.x, op.y, r);
+      this.landing.push([op, r]);
       this.flowSpeed = Infinity;
     }
     op.age += this.dt;
     return op.age > 0.3 && (this.flowSpeed < CALM || op.age > LONGEST_SPREAD);
+  }
+
+  // Pushes ink out of a landing disc of radius r. Close by it's the exact drop map r' = √(r² + R²);
+  // it fades out a few radii away, since films here only feel each other through ink in contact.
+  _pushLocally(x, y, R) {
+    const reach = 3 * R + 2 * CELL;
+    this._map((px, py, out) => {
+      const dx = px - x, dy = py - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= reach * reach || d2 < 1e-12) { out[0] = px; out[1] = py; return; }
+      const d = Math.sqrt(d2);
+      const fade = d <= R + CELL ? 1 : Math.cos(((d - R - CELL) / (reach - R - CELL)) * Math.PI / 2) ** 2;
+      const a = 1 + (Math.sqrt(1 + (R * R) / d2) - 1) * fade;
+      out[0] = x + dx * a;
+      out[1] = y + dy * a;
+    }, { slowNearWalls: false });
   }
 
   // Tools move the outlines directly, so the thickness catches up once they finish.
