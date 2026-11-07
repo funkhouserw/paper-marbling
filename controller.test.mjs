@@ -422,3 +422,17 @@ test('Grid ink can\'t take over outline ink, so it says so and waits for a clear
   assert.equal(c.marble.constructor.name, 'Marble');
   assert.match(notices.at(-1), /starts when you clear the tank/);
 });
+
+test('the first tank is the chosen simulator, even before any clear, and undo finds it again', () => {
+  // The new interface starts on Wake and never clears first.
+  const c = new TankController({ settings: { simulator: 'wake' } });
+  assert.equal(c.marble.constructor.name, 'Wake');
+  assert.equal(c.marble.simulatorId, 'wake');
+  c.press([0, 0]);
+  c.release();
+  switchTo(c, 'classic');
+  assert.equal(c.marble.constructor.name, 'Marble');
+  c.undo();
+  assert.equal(c.marble.constructor.name, 'Wake');
+  assert.equal(c.settings.simulator, 'wake');
+});
