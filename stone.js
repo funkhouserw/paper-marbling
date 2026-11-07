@@ -38,6 +38,42 @@ function clip({ pts, tags }, a, b, c, tag) {
   return { pts: out, tags: outTags };
 }
 
+// The same clip without edge tags, for erode.
+function cut(pts, a, b, c) {
+  const out = [];
+  const n = pts.length / 2;
+  for (let i = 0; i < n; i++) {
+    const px = pts[i * 2], py = pts[i * 2 + 1];
+    const k = i + 1 === n ? 0 : i + 1;
+    const qx = pts[k * 2], qy = pts[k * 2 + 1];
+    const fp = a * px + b * py - c;
+    const fq = a * qx + b * qy - c;
+    if (fp <= 0) out.push(px, py);
+    if ((fp < 0 && fq > 0) || (fp > 0 && fq < 0)) {
+      const t = fp / (fp - fq);
+      out.push(px + (qx - px) * t, py + (qy - py) * t);
+    }
+  }
+  return out;
+}
+
+// The point of a polygon's outline nearest (x, y), or null if (x, y) is inside it.
+function nearestOnOutline(pts, x, y) {
+  const m = pts.length / 2;
+  let best = Infinity, bx = 0, by = 0, inside = false;
+  for (let i = 0, k = m - 1; i < m; k = i++) {
+    const ax = pts[k * 2], ay = pts[k * 2 + 1], cx = pts[i * 2], cy = pts[i * 2 + 1];
+    if ((ay > y) !== (cy > y) && x < ax + ((y - ay) * (cx - ax)) / (cy - ay)) inside = !inside;
+    const ex = cx - ax, ey = cy - ay;
+    const len2 = ex * ex + ey * ey || 1e-12;
+    const t = Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / len2));
+    const px = ax + ex * t, py = ay + ey * t;
+    const d = (px - x) ** 2 + (py - y) ** 2;
+    if (d < best) { best = d; bx = px; by = py; }
+  }
+  return inside || best < 1e-12 ? null : [bx, by];
+}
+
 export function polygonArea(poly) {
   let s = 0;
   const n = poly.length / 2;
@@ -52,21 +88,46 @@ export function polygonArea(poly) {
 // Σ (wall length)/(2|xᵢ − xⱼ|) over shared walls plus (arc length)/(2√ψᵢ) where the disc bounds it,
 // so each weight moves by (Aᵢ − |Cᵢ|) over that.
 // weights, if given, warm-start the solve, as when re-solving a throw tick by tick.
-export function partialTransport(sites, targets, domain, { iterations = 300, tolerance = 0.01, weights } = {}) {
+// obstacles: convex polygons (settled cells left where they are) that no cell may cross. A cell near
+// one is cut by the line touching the obstacle at its point nearest the cell's site, so it presses
+// flat against it; those walls don't move with the weights, like the domain's.
+export function partialTransport(sites, targets, domain, { iterations = 300, tolerance = 0.01, weights, obstacles = [] } = {}) {
   const n = sites.length;
+  const blocks = obstacles.filter((o) => o.length >= 6).map((pts) => {
+    const c = centreOf(pts);
+    let r = 0;
+    for (let k = 0; k < pts.length; k += 2) r = Math.max(r, Math.hypot(pts[k] - c.x, pts[k + 1] - c.y));
+    return { pts, x: c.x, y: c.y, r };
+  });
   const psi = weights && weights.length === n ? weights.map((w, i) => (w > 0 ? w : targets[i] / Math.PI)) : targets.map((A) => A / Math.PI);
-  // Sites bucketed on a grid as wide as the biggest disc, so each cell is clipped only by those
-  // whose discs could reach it. Rebuilt each round, since the discs change.
+  // Discs bucketed on a grid about as wide as a typical disc, each disc in every square it covers,
+  // so a cell is clipped only by sites whose discs could reach it (two overlapping discs share a
+  // square). Rebuilt each round, since the discs change. One big disc no longer makes every site
+  // a candidate for every other, as a grid sized by the biggest disc did.
   let grid = null, gridSize = 1;
+  const big = [];
+  const span = (v) => Math.floor(v / gridSize);
+  const key = (gx, gy) => (gx + 1048576) * 2097152 + (gy + 1048576);
   const bucket = () => {
-    gridSize = 2 * Math.sqrt(Math.max(...psi, 1e-9)) + 1e-6;
+    const radii = psi.map((w) => Math.sqrt(Math.max(w, 0))).sort((a, b) => a - b);
+    gridSize = 2 * Math.max(radii[radii.length >> 1], 1e-3);
     grid = new Map();
+    big.length = 0;
     sites.forEach(([x, y], j) => {
-      const key = `${Math.floor(x / gridSize)},${Math.floor(y / gridSize)}`;
-      if (!grid.has(key)) grid.set(key, []);
-      grid.get(key).push(j);
+      const r = Math.sqrt(Math.max(psi[j], 0));
+      // A disc many squares wide is checked by every cell instead of filling the grid.
+      if (r > 8 * gridSize) { big.push(j); return; }
+      for (let gx = span(x - r); gx <= span(x + r); gx++) {
+        for (let gy = span(y - r); gy <= span(y + r); gy++) {
+          const k = key(gx, gy);
+          const list = grid.get(k);
+          if (list) list.push(j);
+          else grid.set(k, [j]);
+        }
+      }
     });
   };
+  const stamp = new Int32Array(n).fill(-1);
   const DOMAIN = -1, DISC = -2;
   let cells = [];
   let error = Infinity;
@@ -74,9 +135,21 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     let cell = { pts: domain, tags: domain.map(() => DOMAIN).slice(0, domain.length / 2) };
     const [xi, yi] = sites[i];
     const ri = Math.sqrt(Math.max(psi[i], 1e-9));
-    const gx = Math.floor(xi / gridSize), gy = Math.floor(yi / gridSize);
     const near = [];
-    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const j of grid.get(`${gx + a},${gy + b}`) ?? []) near.push(j);
+    stamp[i] = i;
+    // A big disc of its own may meet any site: it checks them all.
+    if (ri > 8 * gridSize) {
+      for (let j = 0; j < n; j++) if (j !== i) { stamp[j] = i; near.push(j); }
+    } else {
+      for (let gx = span(xi - ri); gx <= span(xi + ri); gx++) {
+        for (let gy = span(yi - ri); gy <= span(yi + ri); gy++) {
+          for (const j of grid.get(key(gx, gy)) ?? []) if (stamp[j] !== i) { stamp[j] = i; near.push(j); }
+        }
+      }
+    }
+    for (const j of big) if (stamp[j] !== i) { stamp[j] = i; near.push(j); }
+    // Nearest first: the cell shrinks fastest, so later clips have fewer points to cut.
+    near.sort((a, b) => (sites[a][0] - xi) ** 2 + (sites[a][1] - yi) ** 2 - (sites[b][0] - xi) ** 2 - (sites[b][1] - yi) ** 2);
     for (const j of near) {
       if (j === i || cell.pts.length < 6) continue;
       const [xj, yj] = sites[j];
@@ -84,6 +157,15 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
       if ((xj - xi) ** 2 + (yj - yi) ** 2 > (ri + Math.sqrt(Math.max(psi[j], 0))) ** 2) continue;
       // |x − xi|² − ψi ≤ |x − xj|² − ψj  ⇔  2(xj − xi)·x ≤ |xj|² − |xi|² − ψj + ψi
       cell = clip(cell, 2 * (xj - xi), 2 * (yj - yi), xj * xj + yj * yj - xi * xi - yi * yi - psi[j] + psi[i], j);
+    }
+    for (const o of blocks) {
+      if (cell.pts.length < 6) break;
+      if (Math.hypot(o.x - xi, o.y - yi) > ri + o.r) continue;
+      const q = nearestOnOutline(o.pts, xi, yi);
+      if (!q) continue;
+      const nx = xi - q[0], ny = yi - q[1];
+      // Keep n·(x − q) ≥ 0, the side of the touching line the site is on.
+      cell = clip(cell, -nx, -ny, -(nx * q[0] + ny * q[1]), DOMAIN);
     }
     // A packed cell that lies wholly inside its disc needs no clipping by it.
     let far = 0;
@@ -109,6 +191,7 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     return { all, area, misfit };
   };
   let now = solve();
+  let stalled = 0;
   for (let it = 0; it < iterations; it++) {
     cells = now.all.map((c) => c.pts);
     error = 0;
@@ -170,12 +253,21 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
         if (live(i)) continue;
         let need = 0;
         for (let j = 0; j < n; j++) if (j !== i) need = Math.max(need, psi[j] - ((sites[j][0] - sites[i][0]) ** 2 + (sites[j][1] - sites[i][1]) ** 2));
-        psi[i] = Math.max(psi[i], need + targets[i] / (8 * Math.PI));
+        // Part of the step like the rest, so a short enough step always lowers the misfit.
+        psi[i] = before[i] + t * Math.max(0, need + targets[i] / (8 * Math.PI) - before[i]);
       }
       tried = solve();
       if (tried.misfit < now.misfit) break;
+      tried = null;
     }
+    // No step along Newton's direction lowers the misfit: this is as close as the sites allow.
+    // (Taking a worse step anyway, as before, kept crowded or overfull layouts thrashing every
+    // round to the limit.) Likewise stop once a round gains less than a thousandth.
+    if (!tried) { psi.splice(0, n, ...before); break; }
+    const gain = (now.misfit - tried.misfit) / now.misfit;
     now = tried;
+    stalled = gain < 1e-3 ? stalled + 1 : 0;
+    if (stalled >= 3) break;
   }
   cells = now.all.map((c) => c.pts);
   error = 0;
@@ -199,7 +291,7 @@ export function erode(poly, d) {
     // Outward normal, then keep points at least d inside the edge.
     const nx = ccw ? ey / len : -ey / len;
     const ny = ccw ? -ex / len : ex / len;
-    out = clip({ pts: out, tags: out.map(() => 0) }, nx, ny, nx * poly[i * 2] + ny * poly[i * 2 + 1] - d, 0).pts;
+    out = cut(out, nx, ny, nx * poly[i * 2] + ny * poly[i * 2 + 1] - d);
   }
   return out;
 }
