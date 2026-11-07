@@ -436,6 +436,27 @@ settle();
 for (let i = 0; i < 26; i++) drop({ x: 5 + random() * 90, y: 5 + random() * 90, quantity: 0.25, turpentine: 0.25, color: '#2f5f9e' });
 settle();
 `,
+  'Antique spot': `// Antique spot: the colours thrown as a stone, raked once up and back down, then spotted with pink
+// and green, and finally white (Woolnough 1881). Rising gall lets each spotting open over the last.
+viscosity({ value: 1000 });
+bath({ color: '#efe8da' });
+separate({ on: true });
+gall({ on: true, start: 1, step: 0.4 });
+broom({ n: 70, x: 30, y: 40, w: 60, h: 60, size: 0.03, spread: 0.9, spreading: 25, color: '#2c3a5a' });
+settle();
+broom({ n: 70, x: 70, y: 60, w: 60, h: 60, size: 0.03, spread: 0.9, spreading: 25, color: '#7a2e24' });
+settle();
+fullRake({ angle: 90, teeth: 10, speed: 22, D: 0.7 });
+settle();
+fullRake({ angle: 270, teeth: 10, offset: 5, speed: 22, D: 0.7 });
+settle();
+broom({ n: 90, x: 50, y: 50, w: 95, h: 95, size: 0.0025, spread: 0.7, spreading: 25, color: '#d98aa0' });
+settle();
+broom({ n: 90, x: 50, y: 50, w: 95, h: 95, size: 0.0025, spread: 0.7, spreading: 25, color: '#5c8a5a' });
+settle();
+broom({ n: 120, x: 50, y: 50, w: 95, h: 95, size: 0.0012, spread: 0.6, spreading: 25, color: '#f6f2ea' });
+settle();
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -456,5 +477,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic',
 };

@@ -38,6 +38,8 @@ export const PATTERNS = [
     id: 'antique-spot', family: 'base', names: { en: 'Antique Spot' }, status: 'verified',
     summary: 'A variant of Antique marble, not another name for Stone: the colours are raked once up and down, then spotted with pink or green, and finally white.',
     sources: ['RE', 'WOOL'], image: { title: 'Woolnough 1881, Examples 14–15', url: 'https://archive.org/details/wholeartofmarbli00wool', licence: 'Public Domain Mark' },
+
+    example: 'Antique spot',
   },
   {
     id: 'shell', family: 'base', names: { en: 'Shell, French Shell' }, status: 'verified',
