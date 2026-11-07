@@ -241,3 +241,39 @@ export function grow(poly, r, perCorner = 6) {
   }
   return out;
 }
+
+// The centre and area of a polygon.
+export function centreOf(poly) {
+  let twice = 0, cx = 0, cy = 0;
+  const n = poly.length / 2;
+  for (let i = 0, k = n - 1; i < n; k = i++) {
+    const cross = poly[k * 2] * poly[i * 2 + 1] - poly[i * 2] * poly[k * 2 + 1];
+    twice += cross;
+    cx += (poly[k * 2] + poly[i * 2]) * cross;
+    cy += (poly[k * 2 + 1] + poly[i * 2 + 1]) * cross;
+  }
+  return { x: cx / (3 * twice), y: cy / (3 * twice), area: Math.abs(twice) / 2 };
+}
+
+// A point pulled into a convex polygon (counter-clockwise) along its ray from the centre, if it lies
+// outside, so points in different directions stay apart.
+export function keepInside(poly, [x, y]) {
+  const n = poly.length / 2;
+  const inside = (px, py) => {
+    for (let i = 0; i < n; i++) {
+      const k = (i + 1) % n;
+      if ((poly[k * 2] - poly[i * 2]) * (py - poly[i * 2 + 1]) - (poly[k * 2 + 1] - poly[i * 2 + 1]) * (px - poly[i * 2]) < 0) return false;
+    }
+    return true;
+  };
+  if (inside(x, y)) return [x, y];
+  const { x: cx, y: cy } = centreOf(poly);
+  let lo = 0, hi = 1;
+  for (let k = 0; k < 30; k++) {
+    const mid = (lo + hi) / 2;
+    if (inside(cx + (x - cx) * mid, cy + (y - cy) * mid)) lo = mid;
+    else hi = mid;
+  }
+  const t = lo * 0.9;
+  return [cx + (x - cx) * t, cy + (y - cy) * t];
+}
