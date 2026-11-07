@@ -14,9 +14,9 @@ export class Cells extends Marble {
   // water let one flick cover several tanks, so its cells came out few and huge.
   get cellSpreadMax() { return 8; }
 
-  // Squeezed ink thickens to at most this. At 3.5 nested cells darkened to navy; real paint on size
-  // darkens visibly but not that far.
-  get cellTauMax() { return 2; }
+  // Squeezed ink thickens to at most this, so a later colour can take up to ~70% of a cell (photo
+  // 31). How dark that looks is softened separately (tintOf).
+  get cellTauMax() { return 3.5; }
 
   // The layout keeps each cell inside one tile only with walls; it doesn't repeat yet.
   get tileSupported() { return false; }
