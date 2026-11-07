@@ -283,7 +283,8 @@ function renderTool() {
     wrap.append(label, infoIcon(`${name}.${key}`), select);
     box.append(wrap);
   }
-  for (const [key, [label, , min, max, step, over]] of Object.entries(def.params)) {
+  for (const [key, [label, , min, max, step, over, flags]] of Object.entries(def.params)) {
+    if (flags?.advanced) continue; // the classic page has no Advanced view, so these stay on Auto
     const wrap = document.createElement('label');
     const dial = isDial(key);
     const hint = document.createElement('small');

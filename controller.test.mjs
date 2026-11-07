@@ -482,3 +482,11 @@ test('a stroke held back by "Tools wait" is marked, so the view can show it wait
   c.release();
   assert.equal(c.marble.queued.filter((op) => op.waitingForInk).length, 0);
 });
+
+test('Full rake overhang on Auto stays Auto in mm, and a set value is scaled like other sizes', () => {
+  const c = fresh();
+  assert.equal(c.values.fullRake.overhang, null);
+  assert.equal(c.inMm('fullRake').overhang, null);
+  c.values.fullRake.overhang = 2;
+  assert.equal(c.inMm('fullRake').overhang, 20);
+});

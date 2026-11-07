@@ -126,6 +126,7 @@ export const INFO = {
   'fullRake.teeth': `${TEETH} They spread evenly across the page.`,
   'fullRake.offset': 'Slides all the teeth sideways, wrapping at the edges. A second pass with half a tooth\'s offset lands between the first pass\'s lines.',
   'fullRake.speed': SPEED,
+  'fullRake.overhang': 'How far past the edges the teeth start and stop. Auto uses none on a repeating tank, where anything past one edge would be raked a second time at the other, and 2% of the width otherwise. Try values here to compare how the seam looks.',
   'fullRake.D': THICKNESS,
   'fullRake.width': TINE_WIDTH,
   'fullRake.waveAmp': WEAVE_HEIGHT,

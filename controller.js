@@ -418,7 +418,7 @@ export class TankController {
     const k = tank.width / 100;
     const scale = { w: k, tenth: k / 10, w2: k * k, q: toMm('drop', { quantity: 1 }, tank).quantity };
     const out = { ...this.values[name] };
-    for (const [key, unit] of Object.entries(PAGE_UNITS)) if (key in out) out[key] *= scale[unit];
+    for (const [key, unit] of Object.entries(PAGE_UNITS)) if (key in out && out[key] !== null) out[key] *= scale[unit]; // null is Auto
     return out;
   }
 

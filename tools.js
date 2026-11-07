@@ -194,6 +194,9 @@ export const TOOLS = {
       width: ['Tine width', 0, 0, 8, 0.1],
       waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
+      // null is Auto: none on a repeating tank, where anything past an edge is raked again at the
+      // other, and 2 cm otherwise. Only in Advanced view.
+      overhang: ['Overhang', null, 0, 6, 0.1, undefined, { advanced: true, auto: 'Auto' }],
     },
   },
   stylus: {
@@ -305,7 +308,7 @@ export const TOOLS = {
 
 export const PAGE_UNITS = {
   quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
-  gap: 'w', width: 'w', wobble: 'w', scale: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2',
+  gap: 'w', width: 'w', wobble: 'w', scale: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2', overhang: 'w',
 };
 
 // Size-like sliders run 0 to 100 across their useful range, and past that with a param's sixth entry; counts, degrees and seconds
