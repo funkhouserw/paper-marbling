@@ -194,8 +194,10 @@ export function maxRadius(quantity, film) {
 const HEART_LAND = 0.6; // seconds a Heart drop takes to land and push the ink round it aside
 const TAU_MAX = 4;
 const SEAM_SHARE = 0.03; // bare channel between broom cells, as a share of a cell's size (√area)
-const BROOM_TAU_MAX = 3; // how far a broom cell's ink can be squeezed; by eye on Ilse's photo 31, to measure
+const BROOM_TAU_MAX = 3.5; // how far a broom cell's ink can be squeezed; by eye on Ilse's photo 31, to measure
 const ROUND_SHARE = 0.12;
+const NEST_GAP_SHARE = 0.1; // between cells laid out inside a parent: the parent's net shows there
+const NEST_ROUND_SHARE = 0.25; // and their corners round more, as photo 31's blue cells
 const BROOM_SPREAD = 2.5; // seconds a broom throw takes to spread out // corner radius, likewise // the most a film can be squeezed: a monolayer collapses past a point (Π–A isotherm)
 const HOLES_CLOSE = 0.6; // share of a Stormont hole's area that evaporation closes
 const PUSH_RAYS = 720; // directions a bending heart's push is worked out in
@@ -1060,7 +1062,7 @@ export class Marble {
     const drops = Array.from({ length: n }, () => ({
       x: x + (this.random() - 0.5) * w,
       y: y + (this.random() - 0.5) * h,
-      quantity: size * Math.exp(spread * gauss()),
+      quantity: size * Math.exp(spread * Math.max(-2.5, Math.min(2.5, gauss()))), // no freak giants
     }));
     return this._schedule('broom', args, { kind: 'broom', drops, spreading, seam, color, shimmer }, 0.5);
   }
@@ -1129,7 +1131,7 @@ export class Marble {
     const W = this.width, H = this.height;
     const total = (c) => ownNow(c) + c.kids.filter((k) => !k.gone).reduce((sum, k) => sum + total(k), 0);
     const placed = [];
-    const layout = (cells, domain, most = Infinity) => {
+    const layout = (cells, domain, most = Infinity, nested = false) => {
       if (!cells.length || domain.length < 6) { for (const c of cells) c.gone = true; return; }
       const room = Math.min(most, 0.97 * polygonArea(domain));
       // New ink spreads in full and squeezes the older: each cell's own ink gives first, down to
@@ -1157,8 +1159,9 @@ export class Marble {
         const outer = shapes[k];
         // A channel of bare size between cells, wider for bigger cells, with rounded corners.
         const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;
-        const gap = Math.max(op.seam, SEAM_SHARE * size);
-        const round = ROUND_SHARE * size;
+        // Inside a parent, the gap between siblings is the parent's own ink, squeezed into a net.
+        const gap = Math.max(op.seam, (nested ? NEST_GAP_SHARE : SEAM_SHARE) * size);
+        const round = (nested ? NEST_ROUND_SHARE : ROUND_SHARE) * size;
         const pts = outer.length >= 6 ? grow(erode(outer, gap / 2 + round), round) : [];
         if (pts.length < 6) { c.gone = true; return; }
         const m = pts.length / 2;
@@ -1168,12 +1171,13 @@ export class Marble {
         c.laid = shape(c);
         placed.push(c);
         const kids = c.kids.filter((x) => !x.gone);
-        if (!kids.length) { c.a0 = Math.min(c.tauMax, Math.max(1, ownNow(c) / polygonArea(pts))) * polygonArea(pts); return; }
+        // Ink thrown just now is what squeezes; it isn't squeezed itself.
+        if (!kids.length) { c.a0 = c.fresh ? polygonArea(pts) : Math.min(c.tauMax, Math.max(1, ownNow(c) / polygonArea(pts))) * polygonArea(pts); return; }
         // Children inside, leaving the parent's own ink as a rim no thinner than its cap allows.
         const inside = erode(pts, op.seam);
         const area = polygonArea(pts);
         const kidRoom = Math.max(0, area - ownNow(c) / c.tauMax);
-        layout(kids, inside, kidRoom);
+        layout(kids, inside, kidRoom, true);
         const kidArea = kids.filter((x) => !x.gone).reduce((a, x) => a + polygonArea(Array.from(x.xy.subarray(0, x.n * 2))), 0);
         const tau = Math.max(1, Math.min(c.tauMax, ownNow(c) / Math.max(1e-9, area - kidArea)));
         c.a0 = tau * area;
