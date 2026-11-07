@@ -19,6 +19,7 @@ import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
 import { heartOutline } from './heartshape.js';
+import { partialTransport, erode, ccw, polygonArea } from './stone.js';
 
 const MIN_LEFT = 1; // mm²; the least ink an eraser's cut leaves as its own piece
 
@@ -1050,25 +1051,120 @@ export class Marble {
     const args = { n, x, y, w, h, size, spread, spreading, dispersion, seam, color, shimmer };
     if (gall !== undefined && gall !== null) args.gall = gall;
     if (at !== undefined) args.at = at;
-    const start = at ?? this._now;
-    const log = this.log;
-    this.log = [];
+    // Where the drops land and how much ink each carries are drawn now, so a replay matches.
     const gauss = () => Math.sqrt(-2 * Math.log(1 - this.random())) * Math.cos(2 * Math.PI * this.random());
-    const ops = [];
-    for (let i = 0; i < n; i++) {
-      const op = this.drop({
-        x: x + (this.random() - 0.5) * w,
-        y: y + (this.random() - 0.5) * h,
-        quantity: size * Math.exp(spread * gauss()),
-        dispersion, spreading, gall, color, shimmer,
-        at: this.orderGap !== null && at === undefined ? undefined : start + this.random() * 0.3,
-      });
-      op.cell = seam;
-      ops.push(op);
+    const drops = Array.from({ length: n }, () => ({
+      x: x + (this.random() - 0.5) * w,
+      y: y + (this.random() - 0.5) * h,
+      quantity: size * Math.exp(spread * gauss()),
+    }));
+    return this._schedule('broom', args, { kind: 'broom', drops, spreading, seam, color, shimmer }, 0.5);
+  }
+
+  // The throw lands as its settled layout (stone.js). Cells form a tree, a Voronoi treemap
+  // (Nocaj & Brandes 2012): a drop falling in an earlier colour's cell becomes its child, one on bare
+  // bath is a top-level cell, and one in a cell of its own colour joins it. Each throw re-solves the
+  // whole tree of cells that haven't been combed yet, top down: every cell gets its own ink plus its
+  // children's, cells on bare bath share straight walls and leave bare size where they don't reach,
+  // and children are laid out inside their parent, whose own ink is left as a rim squeezed no
+  // thinner than its cap, so it darkens (τ). A drop on combed or ordinary ink falls back to a drop.
+  _landBroom(op) {
+    const plain = (q) => Math.PI * maxRadius(q, this.film) ** 2;
+    // Still as laid out? Refining and thinning points keep a cell's area, middle and perimeter;
+    // combing moves the middle or stretches the perimeter.
+    const shape = (p) => {
+      let twice = 0, cx = 0, cy = 0, perimeter = 0;
+      for (let i = 0, k = p.n - 1; i < p.n; k = i++) {
+        const cross = p.xy[k * 2] * p.xy[i * 2 + 1] - p.xy[i * 2] * p.xy[k * 2 + 1];
+        twice += cross;
+        cx += (p.xy[k * 2] + p.xy[i * 2]) * cross;
+        cy += (p.xy[k * 2 + 1] + p.xy[i * 2 + 1]) * cross;
+        perimeter += Math.hypot(p.xy[i * 2] - p.xy[k * 2], p.xy[i * 2 + 1] - p.xy[k * 2 + 1]);
+      }
+      return { area: Math.abs(twice) / 2, x: cx / (3 * twice), y: cy / (3 * twice), perimeter };
+    };
+    const laid = (p) => {
+      if (!p.cell || !p.laid || !this.polys.includes(p)) return false;
+      const now = shape(p);
+      const was = p.laid;
+      return Math.abs(now.area - was.area) < 0.01 * was.area && Math.hypot(now.x - was.x, now.y - was.y) < 0.5
+        && Math.abs(now.perimeter - was.perimeter) < 0.01 * was.perimeter;
+    };
+    const top = this.polys.filter((p) => laid(p) && !(p.parentCell && laid(p.parentCell)));
+    const log = this.log;
+    const live = this._live;
+    for (const d of op.drops) {
+      const area = plain(d.quantity) * op.spreading;
+      const under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
+      if (under && laid(under) && under.color === op.color) { under.own += area; continue; }
+      if (under && !laid(under)) {
+        // Lands on ink the layout can't hold: an ordinary drop, unlogged.
+        this.log = [];
+        this._live = true;
+        this.drop({ x: d.x, y: d.y, quantity: d.quantity, spreading: op.spreading, color: op.color, shimmer: op.shimmer, at: this.time });
+        this.log = log;
+        this._live = live;
+        continue;
+      }
+      const cell = { xy: new Float64Array(0), n: 0, color: op.color, shimmer: op.shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: op.spreading, parentCell: under };
+      if (under) under.kids.push(cell);
+      else top.push(cell);
     }
-    this.log = log;
-    this.log.push({ fn: 'broom', args });
-    return ops;
+    const W = this.width, H = this.height;
+    const total = (c) => c.own + c.kids.filter((k) => !k.gone).reduce((sum, k) => sum + total(k), 0);
+    const placed = [];
+    const layout = (cells, domain, most = Infinity) => {
+      if (!cells.length || domain.length < 6) { for (const c of cells) c.gone = true; return; }
+      const room = Math.min(most, 0.97 * polygonArea(domain));
+      // New ink spreads in full and squeezes the older: each cell's own ink gives first, down to
+      // its cap, and only then do the children inside it give too.
+      const own = cells.map((c) => c.own);
+      const inner = cells.map((c) => total(c) - c.own);
+      const sumOwn = own.reduce((a, b) => a + b, 0);
+      const sumInner = inner.reduce((a, b) => a + b, 0);
+      const least = cells.reduce((a, c) => a + c.own / c.tauMax, 0);
+      let want;
+      if (sumOwn + sumInner <= room) want = cells.map((c, k) => own[k] + inner[k]);
+      else if (least + sumInner <= room) {
+        const f = (room - sumInner - least) / (sumOwn - least);
+        want = cells.map((c, k) => c.own / c.tauMax + (own[k] - c.own / c.tauMax) * f + inner[k]);
+      } else {
+        const g = room / (least + sumInner);
+        want = cells.map((c, k) => (c.own / c.tauMax + inner[k]) * g);
+      }
+      const { cells: shapes } = partialTransport(cells.map((c) => c.site), want, domain);
+      cells.forEach((c, k) => {
+        const outer = shapes[k];
+        const pts = outer.length >= 6 ? erode(outer, op.seam / 2) : [];
+        if (pts.length < 6) { c.gone = true; return; }
+        const m = pts.length / 2;
+        c.xy = new Float64Array(m * 4);
+        c.xy.set(pts);
+        c.n = m;
+        c.laid = shape(c);
+        placed.push(c);
+        const kids = c.kids.filter((x) => !x.gone);
+        if (!kids.length) { c.a0 = Math.min(c.tauMax, Math.max(1, c.own / polygonArea(pts))) * polygonArea(pts); return; }
+        // Children inside, leaving the parent's own ink as a rim no thinner than its cap allows.
+        const inside = erode(pts, op.seam);
+        const area = polygonArea(pts);
+        const kidRoom = Math.max(0, area - c.own / c.tauMax);
+        layout(kids, inside, kidRoom);
+        const kidArea = kids.filter((x) => !x.gone).reduce((a, x) => a + polygonArea(Array.from(x.xy.subarray(0, x.n * 2))), 0);
+        const tau = Math.max(1, Math.min(c.tauMax, c.own / Math.max(1e-9, area - kidArea)));
+        c.a0 = tau * area;
+      });
+    };
+    layout(top, [-W / 2, -H / 2, W / 2, -H / 2, W / 2, H / 2, -W / 2, H / 2]);
+    // The laid-out cells replace their old outlines, parents before their children so children
+    // draw on top; everything else keeps its place.
+    const keep = this.polys.filter((p) => !placed.includes(p) && !(p.cell && p.laid && p.gone));
+    const ordered = [];
+    const add = (c) => { if (c.gone || !placed.includes(c)) return; ordered.push(c); for (const k of c.kids) add(k); };
+    for (const c of top) add(c);
+    this.polys = [...keep, ...ordered];
+    this.dirty = true;
+    return true;
   }
 
   // Pulls a cell's edge in by half a seam, once it has stopped spreading, so the bath shows between
@@ -1136,8 +1232,16 @@ export class Marble {
       kind: 'rake', segs, total, offs, perp, speed, waveAmp, waveLength, waveShape, width, dist: 0,
       L: Math.max((speed * D * D) / this.viscosity, 0.25),
     };
-    // A tine's pull reaches about seven times L, which must fit in a repeating tank's tile.
-    if (this.tileWanted ?? this.tileOn) op.L = Math.min(op.L, Math.min(this.width, this.height) / 14);
+    // A tine's pull reaches about seven times L. It must fit in the tank (in a repeating tank's
+    // tile), or a thin bath lets one small comb drag the whole sheet; and a comb's tines mustn't
+    // reach through each other, or they move the sheet as one paddle.
+    op.L = Math.min(op.L, Math.min(this.width, this.height) / 14);
+    if (offs.length > 1) {
+      const sorted = [...offs].sort((a, b) => a - b);
+      let gap = Infinity;
+      for (let k = 1; k < sorted.length; k++) gap = Math.min(gap, sorted[k] - sorted[k - 1]);
+      if (gap > 0) op.L = Math.max(0.25, Math.min(op.L, gap / 2));
+    }
     return this._schedule('rake', args, op, total / speed, true);
   }
 
@@ -2556,6 +2660,7 @@ export class Marble {
       if (op.kind === 'stormont') return !this._advanceStormont(op);
       if (op.kind === 'heartDrop') return !this._advanceHeartDrop(op, dt);
       if (op.kind === 'shell') return !this._advanceShell(op);
+      if (op.kind === 'broom') return !this._landBroom(op);
       if (op.kind === 'hearts') return !this._advanceHeartBend(op, dt);
       if (op.kind === 'rake') return !this._advanceRake(op, dt);
       return !this._advanceTimed(op, dt);
