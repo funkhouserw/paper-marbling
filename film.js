@@ -621,8 +621,8 @@ export class Film extends Marble {
   _beforeInk(ctx) {
     ctx.lineJoin = 'round';
     for (const poly of this.polys) {
-      const { xy, n, color, group } = poly;
-      if (group || isTranslucent(color)) continue;
+      const { xy, n, color, group, cell } = poly;
+      if (group || cell || isTranslucent(color)) continue; // a broom cell keeps its seam of bare bath
       ctx.lineWidth = underpaintWidth(xy, 0, n, CLOSE_GAPS * 2);
       ctx.beginPath();
       for (const [sx, sy] of this.tileShifts([poly])) {
@@ -636,7 +636,7 @@ export class Film extends Marble {
   }
 
   _svgBeforeInk() {
-    return this.polys.filter(({ group, color }) => !group && !isTranslucent(color)).map((poly) => {
+    return this.polys.filter(({ group, color, cell }) => !group && !cell && !isTranslucent(color)).map((poly) => {
       const { xy, n, color } = poly;
       let d = '';
       for (const [sx, sy] of this.tileShifts([poly])) {

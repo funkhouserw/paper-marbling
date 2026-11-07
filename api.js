@@ -35,6 +35,18 @@ export const COMMANDS = [
     ['seed', 'number', null, 'fixes the variation; left out, it is picked for you'],
     AT,
   ] },
+  { name: 'broom', group: 'Ink', summary: 'A broom-straw throw, as for stone and vein marbling: many drops of one colour land at once, of very different sizes, and spread a long way until they meet. Each keeps its own cell, with a thin seam of bare bath where two meet, instead of the colour joining up. Does not advance the timeline.', params: [
+    ['n', 'number', 60, 'how many drops'], X, Y,
+    ['w', 'number', 100, 'width of the area thrown over, % of width', 'w'],
+    ['h', 'number', 100, 'height of the area thrown over, % of height', 'h'],
+    ['size', 'number', 0.15, 'typical amount of ink per drop, as for drop', 'q'],
+    ['spread', 'number', 1, 'how much sizes vary: 0 all alike, 1 a few large among many small'],
+    ['spreading', 'number', 25, 'how many times its plain area a drop can grow on open water'],
+    ['dispersion', 'number', 1.5, 'growth speed, 1/s'],
+    ['gall', 'number', null, 'as for drop'],
+    ['seam', 'number', 1.5, 'width of the bare seam between cells, in mm'],
+    COLOR('#1f4e79'), SHIMMER, AT,
+  ] },
   { name: 'drops', group: 'Ink', summary: 'Random scatter of drops in a box centred on x, y.', params: [
     ['n', 'number', 20, 'how many'], X, Y,
     ['w', 'number', 100, 'box width, % of width', 'w'],
