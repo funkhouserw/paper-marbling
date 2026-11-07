@@ -32,7 +32,7 @@ export const PATTERNS = [
     summary: 'Colours dropped or sprinkled onto the size and left as they land, each later colour pressing the earlier ones into a crowd of spots.',
     sources: ['UW', 'RE', 'TDV'],
     image: { title: 'Ottoman album leaf with marbled margins, ca. 1725–45', url: 'https://www.metmuseum.org/art/collection/search/898273', licence: 'CC0 (Met Open Access)' },
-    example: 'Gilded stone', alsoExample: 'Stone, four colours',
+    example: 'Gilded stone', alsoExample: ['Stone, four colours', 'Stone (Cells)'],
   },
   {
     id: 'antique-spot', family: 'base', names: { en: 'Antique Spot' }, status: 'verified',

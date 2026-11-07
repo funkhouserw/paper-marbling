@@ -374,6 +374,22 @@ for (const [x, y] of spots.slice(0, 2)) flick(y, x, '#e6d23a', 0.014, 10);
 for (const [x, y] of spots.slice(0, 2)) flick((x + 50) / 2, 100 - y, '#cdb8e6', 0.0098, 10);
 flick(50, 50, '#e2574c', 0.0034, 20);
 `,
+  'Stone (Cells)': `// Stone in Cells: the four-colour broom recipe in the simulator that packs drops into cells by
+// geometry. Each colour nests in the cell it lands in and squeezes it (up to twice as thick), and the
+// first throw leaves bare channels between its cells. Rising gall gives each colour a little more
+// than the last.
+viscosity({ value: 1000 });
+bath({ color: '#e9e6df' });
+separate({ on: true });
+gall({ on: true, start: 1, step: 0.5 });
+const flick = (x, y, color, size, n = 60) => { broom({ n, x, y, w: 50, h: 50, size, spread: 0.9, spreading: 25, color }); settle(); };
+const spots = [[25, 33], [75, 67], [72, 26], [27, 74]];
+for (const [x, y] of spots) flick(x, y, '#3b2b24', 0.028);
+for (const [x, y] of spots.slice(0, 3)) flick(100 - x, y, '#3fa7d6', 0.03);
+for (const [x, y] of spots.slice(0, 2)) flick(y, x, '#e6d23a', 0.014, 10);
+for (const [x, y] of spots.slice(0, 2)) flick((x + 50) / 2, 100 - y, '#cdb8e6', 0.0098, 10);
+flick(50, 50, '#e2574c', 0.0034, 20);
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -394,5 +410,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells',
 };
