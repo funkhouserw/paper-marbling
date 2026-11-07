@@ -18,6 +18,7 @@ const LONGEST_SPREAD = 10; // seconds; the last of a film's thinning is too slow
 // With Keep cells separate off, gaps narrower than twice this between films are painted over, so
 // touching drops of one colour join. Thin film's wider channels, where fronts stopped short, stay.
 const CLOSE_GAPS = 0.75; // mm
+const SMALL_CLAIM = 16; // grid cells: every drop lands at least this large, or its whole claim if less
 
 export class ThinFilm extends Marble {
   // The pressure grid doesn't wrap yet, so this simulator can't repeat.
@@ -79,7 +80,7 @@ export class ThinFilm extends Marble {
 
   _deposit(op) {
     const volume = op.quantity * 1000;
-    const r = Math.sqrt(volume / (Math.PI * DROP_THICKNESS));
+    let r = Math.sqrt(volume / (Math.PI * DROP_THICKNESS));
     const reach = r + CELL;
     let weight = 0;
     const cells = [];
@@ -95,9 +96,15 @@ export class ThinFilm extends Marble {
         if (w > 0) { cells.push([row * this.cols + col, w]); weight += w; }
       }
     }
-    if (!weight) return r;
     // The surface this ink can claim, shared over the cells it lands on.
-    const each = ((volume / this.film) * op.spreading) / (weight * CELL * CELL);
+    const claim = (volume / this.film) * op.spreading;
+    // The grid can't spread ink over less than a few of its cells (shared over a whole cell, a small
+    // drop's ink is too thin to push), so small drops stayed tiny dots at their landing size. Every
+    // drop lands at least as large as its claim or SMALL_CLAIM cells, whichever is less; the grid
+    // spreads it from there.
+    r = Math.max(r, Math.sqrt(Math.min(claim, SMALL_CLAIM * CELL * CELL) / Math.PI));
+    if (!weight) return r;
+    const each = claim / (weight * CELL * CELL);
     for (const [q, w] of cells) this.h[q] += each * w;
     return r;
   }

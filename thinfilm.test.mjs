@@ -73,3 +73,18 @@ test('a saved state comes back', () => {
   settle(back);
   assert.ok(Math.abs(area(back.polys[0]) - finished) < 1e-6);
 });
+
+test('a small drop lands about as large as in Classic, not as a tiny dot (#11)', async () => {
+  const { Marble } = await import('./engine.js');
+  const { ThinFilm } = await import('./thinfilm.js');
+  const radius = (E) => {
+    const m = new E({ width: 200, height: 140, seed: 1 });
+    m.drop({ x: 0, y: 0, quantity: 0.002, color: '#123456', at: 0 });
+    for (let t = 0; t < 2000 && m.busy; t++) m.step();
+    const p = m.polys[0];
+    let a = 0; for (let i = 0, k = p.n - 1; i < p.n; k = i++) a += p.xy[k * 2] * p.xy[i * 2 + 1] - p.xy[i * 2] * p.xy[k * 2 + 1];
+    return Math.sqrt(Math.abs(a / 2) / Math.PI);
+  };
+  const classic = radius(Marble), thin = radius(ThinFilm);
+  assert.ok(thin > 0.8 * classic, `Thin film ${thin.toFixed(2)} mm vs Classic ${classic.toFixed(2)} mm`);
+});
