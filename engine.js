@@ -469,6 +469,13 @@ export class Marble {
   // All the outlines of the topmost shape at a point: one, or all of a printed shape's loops. It
   // can look only at frozen ink. A repeating tank's copies count, wherever they show.
   shapeAt(x, y, { frozen = false } = {}) {
+    return this.shapesAt(x, y, { frozen, one: true })[0] ?? null;
+  }
+
+  // Every shape whose fill covers a point, topmost first. Ink drawn later lies over earlier ink
+  // without cutting it, so one point can be under several.
+  shapesAt(x, y, { frozen = false, one = false } = {}) {
+    const found = [];
     for (let p = this.polys.length - 1; p >= 0; p--) {
       const first = this.polys[p];
       const loops = [first];
@@ -488,10 +495,14 @@ export class Marble {
             }
           }
         }
-        if (first.group ? crossings % 2 : winding) return loops;
+        if (first.group ? crossings % 2 : winding) {
+          found.push(loops);
+          if (one) return found;
+          break;
+        }
       }
     }
-    return null;
+    return found;
   }
 
   _applyFreeze({ action, x, y }) {
@@ -829,18 +840,21 @@ export class Marble {
 
   // A clear drop that opened inside a colour becomes a hole in it: its outline joins the colour's
   // even-odd group, right after the colour's own loops, so the bath shows through it.
+  // It cuts every shape under it, each getting its own copy of the hole: the copies start alike and
+  // every engine moves points by where they are, so they stay together.
   _joinCut(op) {
-    const target = op.cut;
-    const hole = op.poly;
-    if (!this.polys.includes(target) || target.frozen) return;
-    target.group ??= this.nextGroup++;
-    Object.assign(hole, { group: target.group, color: target.color, shimmer: target.shimmer });
-    const was = this.polys.indexOf(hole);
-    if (was < 0) return;
+    const targets = (Array.isArray(op.cut) ? op.cut : [op.cut]).filter((t) => this.polys.includes(t) && !t.frozen);
+    const was = this.polys.indexOf(op.poly);
+    if (was < 0 || !targets.length) return;
     this.polys.splice(was, 1);
-    let at = this.polys.indexOf(target);
-    while (this.polys[at + 1]?.group === target.group) at++;
-    this.polys.splice(at + 1, 0, hole);
+    targets.forEach((target, k) => {
+      const hole = k ? { xy: Float64Array.from(op.poly.xy), n: op.poly.n } : op.poly;
+      target.group ??= this.nextGroup++;
+      Object.assign(hole, { group: target.group, color: target.color, shimmer: target.shimmer });
+      let at = this.polys.indexOf(target);
+      while (this.polys[at + 1]?.group === target.group) at++;
+      this.polys.splice(at + 1, 0, hole);
+    });
   }
 
   // Stormont. Turpentine in the colour reaches the surface as tiny spots of low tension, each of
@@ -890,7 +904,10 @@ export class Marble {
     const holes = spots.map(([hx, hy], i) => {
       const a = (share * weights[i]) / total;
       const hole = this.drop({ x: hx, y: hy, quantity: (a * this.film) / 1000, dispersion: 25, spreading: 1, color: 'clear', at: this.time });
-      hole.cut = op.poly;
+      // Through this colour and everything drawn beneath it, never through ink lying on top.
+      const under = this.shapesAt(hx, hy).map((loops) => loops[0]);
+      const k = under.indexOf(op.poly);
+      hole.cut = k >= 0 ? under.slice(k) : [op.poly];
       return { hole, area: a };
     });
     this.log = log;
@@ -2491,7 +2508,9 @@ export class Marble {
         if (op.clear) {
           // Gall water too weak to open over the ink just sinks (Woolnough: "will just sink").
           if (op.open !== undefined && op.open <= 0) continue;
-          op.cut ??= this.shapeAt(op.x, op.y)?.[0] ?? null;
+          // It cuts through every layer of ink at that point, down to the bath.
+          op.cut ??= this.shapesAt(op.x, op.y).map((loops) => loops[0]);
+          if (!op.cut.length) op.cut = null;
         }
         this.sources.push(op);
       }
