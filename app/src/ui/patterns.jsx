@@ -56,7 +56,8 @@ export function PatternsDialog({ tank, onClose }) {
                       </div>
                       {thumbOf(p.image?.url) && (
                         <a href={p.image.url} target="_blank" rel="noopener noreferrer" className="float-right ml-3 mt-1 block w-32 shrink-0">
-                          <img src={thumbOf(p.image.url)} alt={`A real sheet: ${p.image.title}`} loading="lazy" referrerPolicy="no-referrer" className="h-24 w-32 rounded border border-ink-700 object-cover" />
+                          {/* If Commons can't be reached the picture goes, leaving the link below as before. */}
+                          <img src={thumbOf(p.image.url)} alt={`${first}: a real sheet, ${p.image.title}`} loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.closest('a').hidden = true; }} className="h-24 w-32 rounded border border-ink-700 object-cover" />
                           <span className="mt-0.5 block text-[10px] leading-tight text-ink-500">Wikimedia Commons, {p.image.licence}</span>
                         </a>
                       )}
