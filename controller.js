@@ -57,6 +57,7 @@ export const SETTINGS = {
   gall: { kind: 'toggle', label: 'Ox gall', info: 'gall', default: false },
   gallStart: { kind: 'number', label: 'First colour', info: 'gallStart', default: '1', min: 0, max: 10, step: 0.05 },
   gallStep: { kind: 'number', label: 'More per colour', info: 'gallStep', default: '0.15', min: 0, max: 3, step: 0.05 },
+  gallMost: { kind: 'number', label: 'Strongest spread', info: 'gallMost', default: '7', min: 2, max: 50, step: 1 },
   tile: { kind: 'toggle', label: 'Repeating', info: 'tile', default: false, when: 'tile' },
   tileOffset: {
     kind: 'choice', label: 'Offset', info: 'tileOffset', default: '', when: 'tileOffset',
@@ -951,7 +952,7 @@ export class TankController {
   }
 
   // After settings.walls changes.
-  // After gall, gallStart or gallStep change. Takes effect for drops from here on.
+  // After gall, gallStart, gallStep or gallMost change. Takes effect for drops from here on.
   commitGall() {
     const m = this.marble;
     this.act(() => m.setGall(this.gallValues()), 'Ox gall');
@@ -960,7 +961,7 @@ export class TankController {
   gallValues() {
     const s = this.settings;
     const num = (v, d) => (Number.isFinite(Number(v)) && v !== '' ? Number(v) : d);
-    return { on: Boolean(s.gall), start: num(s.gallStart, 1), step: num(s.gallStep, 0.15) };
+    return { on: Boolean(s.gall), start: num(s.gallStart, 1), step: num(s.gallStep, 0.15), most: num(s.gallMost, 7) };
   }
 
   commitWalls() {

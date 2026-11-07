@@ -258,6 +258,7 @@ export const COMMANDS = [
     ['on', 'boolean', true, 'false goes back to every drop opening'],
     ['start', 'number', 1, 'gall for the first colour; 1 spreads as drops always have'],
     ['step', 'number', 0.15, 'how much more each later colour gets'],
+    ['most', 'number', 7, 'how far the strongest gall can spread a drop on clear water, times its plain area, 2 to 50; higher thins veins'],
   ] },
   { name: 'flow', engine: 'setFlow', group: 'Tank', summary: 'Tunes the Wake simulator\'s moving bath, for everything from here on. It applies straight away and other simulators ignore it. The defaults are Wake\'s usual behaviour. For whorls, like paint stirred into water, try friction 0.05, coast 120 and push 3 with viscosity 5 to 10, then settle() and wait.', params: [
     ['cell', 'number', 7, 'flow grid cell size in mm, from 1.5 to 20; smaller keeps smaller curls but each halving costs about four times as much per tick'],

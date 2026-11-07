@@ -35,6 +35,7 @@ const COMMIT = {
   gall: (c) => c.commitGall(),
   gallStart: (c) => c.commitGall(),
   gallStep: (c) => c.commitGall(),
+  gallMost: (c) => c.commitGall(),
   bath: (c) => c.commitBath(),
   pointLimit: (c, v) => c.setPointLimit(Number(v)),
 };

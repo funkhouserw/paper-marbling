@@ -34,12 +34,14 @@ const MAX_DETAIL = 4;
 // gets this share of that, which is all it has to push the ink around it outward.
 const AGAINST_INK_SHARE = 0.25;
 // Ox gall. An ink's spreading pressure rises with its gall and levels off: Π(g) = g / (g + GALL_HALF).
-// On clear water it spreads to 1 + (GALL_MOST - 1)·Π(g) times its plain area, so gall 1 is the
-// default spreading of 4. A drop opens only if its pressure beats the ink it lands on.
+// On clear water it spreads to 1 + (most - 1)·Π(g) times its plain area, where most is the bath's
+// gall({ most }) (GALL_MOST by default, so gall 1 is the default spreading of 4). Raising most lets
+// strong gall reach much further, thinning veins. A drop opens only if its pressure beats the ink
+// it lands on.
 const GALL_HALF = 1;
 const GALL_MOST = 7;
 export const gallPressure = (g) => g / (g + GALL_HALF);
-const gallSpread = (g) => 1 + (GALL_MOST - 1) * gallPressure(g);
+const gallSpread = (g, most = GALL_MOST) => 1 + (most - 1) * gallPressure(g);
 
 // Shell (oil in a colour): Jaffer's pigment profile across a drop that landed with radius r is
 // τ(a) = exp(−ζa²/r²)·ζe^ζ/(e^ζ − 1), thickest in the middle for ζ > 0 (Jaffer 2019, §6; ζ ≈ 2.25
@@ -634,9 +636,13 @@ export class Marble {
   // doesn't set its own gall gets start + step·k, where k counts the colours thrown before its own
   // since the tank was cleared. With gall in play, a drop opens only over weaker ink; otherwise it
   // stays a dot. on: false goes back to every drop opening as before.
-  setGall({ on = true, start = 1, step = 0.15 } = {}) {
+  // most is how far the strongest gall can spread a drop on clear water, as times its plain area.
+  setGall({ on = true, start = 1, step = 0.15, most = GALL_MOST } = {}) {
     this.gallBath = { on, start, step };
-    this.log.push({ fn: 'setGall', args: { on, start, step } });
+    this.gallMost = Math.max(2, Math.min(50, most));
+    const args = { on, start, step };
+    if (this.gallMost !== GALL_MOST) args.most = this.gallMost;
+    this.log.push({ fn: 'setGall', args });
     return this;
   }
 
@@ -802,7 +808,7 @@ export class Marble {
       // their plain size, so each is exactly its share. Darkest last, so it ends in the middle.
       const tints = shellTints(color, 3 * oil, k);
       const g = gall ?? this._bathGall(color);
-      const reach = g === undefined ? spreading : spreading * gallSpread(g) / gallSpread(1);
+      const reach = g === undefined ? spreading : spreading * gallSpread(g, this.gallMost) / gallSpread(1);
       const op = { kind: 'shell', x, y, quantity, dispersion, spreading, reach, gall: g, shimmer, k, tints, next: 0, current: null };
       return this._schedule('drop', args, op);
     }
@@ -820,7 +826,7 @@ export class Marble {
     };
     if (clear) { op.clear = true; op.color = 'rgba(0,0,0,0)'; }
     // More gall, further spread; gall 1 is the default spreading.
-    if (g !== undefined) op.spreading = spreading * gallSpread(g) / gallSpread(1);
+    if (g !== undefined) op.spreading = spreading * gallSpread(g, this.gallMost) / gallSpread(1);
     if (turpentine > 0) op.stormont = { turpentine: Math.min(1, turpentine), evaporation, thrown: false };
     return this._schedule('drop', args, op);
   }

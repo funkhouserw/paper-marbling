@@ -95,6 +95,7 @@ export const SECTIONS = [
       { id: 'gall', kind: 'toggle', label: 'Rising gall for each colour', info: 'gall', value: false, view: 'advanced' },
       { id: 'gallStart', kind: 'number', label: 'First colour', info: 'gallStart', value: 1, min: 0, max: 10, step: 0.05, showIf: { gall: true }, view: 'advanced' },
       { id: 'gallStep', kind: 'number', label: 'More per colour', info: 'gallStep', value: 0.15, min: 0, max: 3, step: 0.05, showIf: { gall: true }, view: 'advanced' },
+      { id: 'gallMost', kind: 'number', label: 'Strongest spread', info: 'gallMost', value: 7, min: 2, max: 50, step: 1, showIf: { gall: true }, view: 'advanced' },
       { id: 'tankHeading', kind: 'heading', label: 'Tank', view: 'advanced' },
       { id: 'tankSize', kind: 'tankSize', label: 'Size (mm)', info: 'tankSize', replaces: ['tankW', 'tankH', 'applyTank'], view: 'advanced' },
       { id: 'walls', kind: 'toggle', label: 'Hard edges', info: 'walls', value: false, when: 'walls', view: 'advanced' },
