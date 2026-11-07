@@ -215,6 +215,13 @@ export function useTank() {
       setUi({ ink: 'clear' });
       return;
     }
+    if (i && typeof i === 'object' && i.custom) {
+      // Any colour, from the + swatch: the next drop's ink, without changing the palette.
+      c.setInk(i.custom, c.inkAlpha());
+      c.shimmer = 0;
+      setUi({ ink: 'custom' });
+      return;
+    }
     const ink = c.inks[i];
     if (!ink) return;
     c.setInk(ink.color, c.inkAlpha());

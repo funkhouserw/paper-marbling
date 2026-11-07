@@ -122,7 +122,7 @@ export function OptionsBar({ tank }) {
         {def.whole && <Button primary onClick={applyTool} className="self-start"><Play size={12} /> {def.label}</Button>}
       </div>
       {def.color && (
-        <div className="shrink-0 pt-1"><Swatches palette={palette} ink={state.ink} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} /></div>
+        <div className="shrink-0 pt-1"><Swatches palette={palette} ink={state.ink} custom={state.inkNow?.rgb} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} /></div>
       )}
       <div className="scroll-thin h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden"><ToolSettings tank={tank} /></div>
     </div>

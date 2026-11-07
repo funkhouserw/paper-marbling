@@ -148,7 +148,7 @@ export function Control({ c: placed, tank, run }) {
             ])}
             onChange={(name) => dispatch({ type: 'set', patch: { palette: name, ink: 0 } })}
           />
-          <Swatches palette={palette} ink={state.ink} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} />
+          <Swatches palette={palette} ink={state.ink} custom={state.inkNow?.rgb} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} />
         </div>
       );
     case 'inkEditor': {

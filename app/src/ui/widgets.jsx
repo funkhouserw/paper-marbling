@@ -357,7 +357,8 @@ export function Button({ children, primary, className, ...rest }) {
 }
 
 // The palette's inks. Shimmering inks get a sheen so metallic reads at a glance.
-export function Swatches({ palette, ink, onPick, size = 'md' }) {
+// custom is the next drop's colour, for the + swatch, which picks any colour outside the palette.
+export function Swatches({ palette, ink, onPick, custom, size = 'md' }) {
   const s = size === 'lg' ? 'size-9' : 'size-6';
   return (
     <div role="radiogroup" aria-label={`${palette.name} inks`} className="flex flex-wrap items-center gap-1.5">
@@ -400,6 +401,27 @@ export function Swatches({ palette, ink, onPick, size = 'md' }) {
           <span className="absolute inset-0 grid place-items-center text-[9px] font-semibold text-ink-900/60">C</span>
         </button>
       )}
+      {/* Any colour: the system colour picker, over a + swatch that shows the colour once chosen. */}
+      <label
+        title="Any colour: pick one outside the palette for the next drops"
+        className={cx(
+          s, 'relative cursor-pointer overflow-hidden rounded-full border transition-transform focus-within:outline-2 focus-within:outline-gilt',
+          ink === 'custom' ? 'scale-110 border-ink-100 ring-2 ring-gilt' : 'border-ink-500 hover:scale-105',
+        )}
+        style={{ background: ink === 'custom' && custom ? custom : 'conic-gradient(#e66, #ec6, #6c6, #6ce, #66e, #c6e, #e66)' }}
+      >
+        {ink !== 'custom' && <span className="absolute inset-[3px] grid place-items-center rounded-full bg-ink-900 text-[12px] font-semibold leading-none text-ink-100">+</span>}
+        <input
+          type="color"
+          role="radio"
+          aria-checked={ink === 'custom'}
+          aria-label="Any colour"
+          value={custom && /^#[0-9a-f]{6}$/i.test(custom) ? custom : '#3fa7d6'}
+          onChange={(e) => onPick({ custom: e.target.value })}
+          onClick={() => { if (ink !== 'custom' && custom) onPick({ custom }); }}
+          className="absolute inset-0 size-full cursor-pointer opacity-0"
+        />
+      </label>
     </div>
   );
 }

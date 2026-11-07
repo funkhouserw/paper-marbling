@@ -264,7 +264,7 @@ export function Phone({ tank, local = false, landscape = false }) {
         {!landscape && <Handle tone="tool" label={expand ? `Fewer ${def.label} settings` : `All ${def.label} settings`} onOpen={toggleStrip} drag={stripDrag} />}
         {def.color && (
           <div className="no-scrollbar flex items-center gap-3 overflow-x-auto px-4 pt-3">
-            <Swatches palette={palette} ink={state.ink} size="lg" onPick={(ink) => set({ ink })} />
+            <Swatches palette={palette} ink={state.ink} custom={state.inkNow?.rgb} size="lg" onPick={(ink) => set({ ink })} />
           </div>
         )}
         <div className="flex items-center gap-2 px-4 pt-3 text-sm">
