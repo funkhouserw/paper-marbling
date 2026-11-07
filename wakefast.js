@@ -123,7 +123,7 @@ export class WakeFast extends Wake {
       const { xy: from, n, group, cell } = poly;
       xy.set(from.subarray(0, n * 2), off * 2);
       // Drawn as the page draws it: darker where squeezed (τ), and a broom cell keeps its seam.
-      const p = { off, n, color: squeezedColour(poly.color, thickness(poly)), group, cell };
+      const p = { off, n, color: squeezedColour(poly.color, thickness(poly)), base: poly.color, group, cell };
       off += n;
       return p;
     });

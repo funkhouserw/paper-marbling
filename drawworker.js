@@ -19,6 +19,15 @@ function shifts(points, W, H, offset) {
   return latticeShifts(-W / 2 - right, W / 2 - left, -H / 2 - high, H / 2 - low, W, H, offset);
 }
 
+function box(points) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < points.length; i += 2) {
+    if (points[i] < x0) x0 = points[i]; if (points[i] > x1) x1 = points[i];
+    if (points[i + 1] < y0) y0 = points[i + 1]; if (points[i + 1] > y1) y1 = points[i + 1];
+  }
+  return [x0, y0, x1, y1];
+}
+
 function trace(ctx, points, sx, sy) {
   ctx.moveTo(points[0] + sx, points[1] + sy);
   for (let i = 2; i < points.length; i += 2) ctx.lineTo(points[i] + sx, points[i + 1] + sy);
@@ -39,8 +48,10 @@ self.onmessage = ({ data: m }) => {
   let kept = 0;
   // Keep cells separate: each loop drawn half a seam into its ink (a hole's loop outward).
   const half = seam / 2;
+  const whole = [];
   const thinned = polys.map((p, k) => {
     let points = thin(xy, p.off, p.n, tol);
+    whole[k] = points;
     if (half) {
       const first = !p.group || polys[k - 1]?.group !== p.group;
       points = Array.from(seamed(Float64Array.from(points), points.length / 2, half, first));
@@ -68,6 +79,24 @@ self.onmessage = ({ data: m }) => {
     } while (group && polys[p + 1]?.group === group && ++p);
     ctx.fillStyle = color;
     ctx.fill(group ? 'evenodd' : 'nonzero');
+    // Overlaps with earlier drops of the same colour are filled whole: those have merged, so no
+    // seam shows inside them. Drops that only touch keep theirs. As in Marble.draw.
+    if (half && !group) {
+      const b = box(whole[p]);
+      for (let q = 0; q < p; q++) {
+        if (polys[q].group || polys[q].base !== polys[p].base) continue;
+        const c = box(whole[q]);
+        if (c[0] > b[2] || c[2] < b[0] || c[1] > b[3] || c[3] < b[1]) continue;
+        ctx.save();
+        ctx.beginPath();
+        for (const [sx, sy] of where(whole[q])) trace(ctx, whole[q], sx, sy);
+        ctx.clip();
+        ctx.beginPath();
+        for (const [sx, sy] of where(whole[p])) trace(ctx, whole[p], sx, sy);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
     if (!half && !group && !polys[p].cell && !translucent(color)) {
       ctx.lineWidth = 1.2 / px;
       ctx.lineJoin = join;

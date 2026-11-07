@@ -8,19 +8,25 @@ import { Wake } from './wake.js';
 import { GridInk } from './gridink.js';
 
 // What's drawn at (x, y): the colour of the topmost path in the SVG that covers it, or the bath.
+const insideD = (d, x, y) => {
+  let inside = false;
+  for (const loop of d.split('Z').filter(Boolean)) {
+    const pts = loop.replace('M', '').split('L').map((p) => p.split(' ').map(Number));
+    for (let i = 0, k = pts.length - 1; i < pts.length; k = i++) {
+      const [ax, ay] = pts[k], [bx, by] = pts[i];
+      if ((ay > -y) !== (by > -y) && x < ax + ((-y - ay) * (bx - ax)) / (by - ay)) inside = !inside;
+    }
+  }
+  return inside;
+};
 const colourAt = (m, x, y) => {
   const svg = m.toSVG();
+  const clips = new Map([...svg.matchAll(/<clipPath id="([^"]+)"><path d="([^"]+)"\/><\/clipPath>/g)].map(([, id, d]) => [id, d]));
   let found = 'bath';
-  for (const [, fill, d] of svg.matchAll(/<path fill="([^"]+)"[^>]* d="([^"]+)"/g)) {
-    for (const loop of d.split('Z').filter(Boolean)) {
-      const pts = loop.replace('M', '').split('L').map((p) => p.split(' ').map(Number));
-      let inside = false;
-      for (let i = 0, k = pts.length - 1; i < pts.length; k = i++) {
-        const [ax, ay] = pts[k], [bx, by] = pts[i];
-        if ((ay > -y) !== (by > -y) && x < ax + ((-y - ay) * (bx - ax)) / (by - ay)) inside = !inside;
-      }
-      if (inside) found = fill;
-    }
+  for (const [tag, fill, d] of svg.matchAll(/<path fill="([^"]+)"[^>]* d="([^"]+)"/g)) {
+    const clip = tag.match(/clip-path="url\(#([^)]+)\)"/);
+    if (clip && !insideD(clips.get(clip[1]), x, y)) continue;
+    if (insideD(d, x, y)) found = fill;
   }
   return found;
 };
@@ -127,4 +133,16 @@ test('Thin film draws seams, and drops landing together make room for each other
   let crossings = 0;
   for (let i = 0; i < b.n; i++) if (!inside(a, b.xy[i * 2], b.xy[i * 2 + 1])) crossings++;
   assert.ok(crossings === 0 || crossings === b.n, `the drops' outlines cross (${crossings} of ${b.n} points outside)`);
+});
+
+test('two drops of one colour that overlap show no seam inside the overlap; touching ones keep it', () => {
+  const square = (x0, x1) => ({ xy: Float64Array.from([x0, -20, x1, -20, x1, 20, x0, 20]), n: 4, color: '#1e4d2b' });
+  const m = new Film({ width: 200, height: 140, seed: 1 });
+  // Overlapping by 0.4 mm, less than a seam: each one's seam band would lie in the other's, leaving
+  // a hairline of bath through what is one merged region (Ilse's photo 38).
+  m.polys.push(square(-30, 0.2), square(-0.2, 30));
+  assert.equal(colourAt(m, 0, 0), '#1e4d2b');
+  const t = new Film({ width: 200, height: 140, seed: 1 });
+  t.polys.push(square(-30, 0), square(0, 30)); // edge to edge
+  assert.equal(colourAt(t, 0, 0), 'bath', 'touching fronts keep their seam');
 });
