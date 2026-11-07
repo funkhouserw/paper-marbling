@@ -57,7 +57,7 @@ viscosity({ value: 1000 });
 const inks = palette('Emerald & Gold').inks;
 for (let i = 0; i < 40; i++) {
   drop({ x: 5 + (i % 8) * 12.8, y: 90 - Math.floor(i / 8) * 20,
-         quantity: 1.7, dispersion: 1.6, color: inks[(i * 3) % inks.length] });
+         quantity: 1.7, dispersion: 1.6, spreading: 2, color: inks[(i * 3) % inks.length] }); // spreading 2 keeps Classic's gaps
 }
 settle();
 fullRake({ angle: 90, teeth: 10, speed: 24, D: 0.7 });
@@ -93,7 +93,7 @@ viscosity({ value: 1000 });
 const inks = palette('Ravenwood Library').inks;
 for (let i = 0; i < 48; i++) {
   drop({ x: 5 + (i % 8) * 12.8 + (Math.floor(i / 8) % 2) * 6.4, y: 91.4 - Math.floor(i / 8) * 16.6,
-         quantity: 1.3, dispersion: 1.8, color: inks[i % inks.length] });
+         quantity: 1.3, dispersion: 1.8, spreading: 2, color: inks[i % inks.length] }); // spreading 2 keeps Classic's rows
 }
 settle();
 fullRake({ angle: 0, teeth: 7, speed: 24, D: 0.7 });
@@ -231,7 +231,7 @@ settle();
 viscosity({ value: 1000 });
 const p = palette('Old Dutch');
 for (let i = 0; i < 8; i++) {
-  for (let j = 0; j < 11; j++) drop({ x: 4 + j * 9.2, y: 6 + i * 12.5, quantity: 1.6, color: p.inks[i % 4] });
+  for (let j = 0; j < 11; j++) drop({ x: 4 + j * 9.2, y: 6 + i * 12.5, quantity: 1.6, spreading: 1, color: p.inks[i % 4] }); // close packed: they meet at their plain size
 }
 settle();
 fullRake({ angle: 0, teeth: 5, speed: 25, D: 1, waveAmp: 5, waveLength: 18, waveShape: 'wave' });
@@ -241,7 +241,7 @@ viscosity({ value: 1000 });
 const inks = palette('Copper & Verdigris').inks;
 for (let r = 0; r < 7; r++) {
   for (let c = 0; c < 9; c++) {
-    drop({ x: 6 + c * 11, y: 92.9 - r * 14.3, quantity: 1.1, dispersion: 1.8,
+    drop({ x: 6 + c * 11, y: 92.9 - r * 14.3, quantity: 1.1, dispersion: 1.8, spreading: 2, // keeps Classic's gaps
            color: inks[r % inks.length] });
   }
 }
