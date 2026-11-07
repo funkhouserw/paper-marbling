@@ -39,6 +39,24 @@ const GALL_HALF = 1;
 const GALL_MOST = 7;
 export const gallPressure = (g) => g / (g + GALL_HALF);
 const gallSpread = (g) => 1 + (GALL_MOST - 1) * gallPressure(g);
+
+// Shell (oil in a colour): Jaffer's pigment profile across a drop that landed with radius r is
+// τ(a) = exp(−ζa²/r²)·ζe^ζ/(e^ζ − 1), thickest in the middle for ζ > 0 (Jaffer 2019, §6; ζ ≈ 2.25
+// matched walnut-oil shells). A shell drop lands as k bands of equal area, and band j, which covers
+// a²/r² from j/k to (j+1)/k, takes the mean τ over that span. Its colour follows his tint law,
+// I' = 1 − (1 − I)^γ per channel with γ = 1/τ.
+export function shellTints(color, zeta, k) {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!hex || !zeta) return Array(k).fill(color);
+  const n = parseInt(hex[1], 16);
+  const rgb = [n >> 16, (n >> 8) & 255, n & 255].map((v) => v / 255);
+  const norm = (zeta * Math.exp(zeta)) / Math.expm1(zeta);
+  return Array.from({ length: k }, (_, j) => {
+    const tau = (norm * k * (Math.exp((-zeta * j) / k) - Math.exp((-zeta * (j + 1)) / k))) / zeta;
+    const out = rgb.map((I) => Math.round(255 * (1 - (1 - I) ** (1 / tau))));
+    return `#${out.map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('')}`;
+  });
+}
 const NO_WATER_LEFT = 0.03; // the share of a drop's edge facing water below which it rests
 // A full tank never quite runs out of water, so spreading also ends after this many times
 // a drop's growth time. Without it, drops keep pushing each other and settle() never ends.
@@ -722,10 +740,25 @@ export class Marble {
   // times its plain size the ink can stretch over water, like adding surfactant to a paint.
   // shimmer (0..1) makes the ink metallic.
   // gall: its ox gall; left out, the bath's (see setGall), or none, which opens as always.
-  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, gall, color = '#1f4e79', shimmer = 0, at } = {}) {
+  // oil makes a Shell: rings darker in the middle than at the edge (negative oil, the other way
+  // round), in bands of equal area, thrown one after another at the same spot.
+  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, gall, oil = 0, bands = 5, color = '#1f4e79', shimmer = 0, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
     const args = { x, y, quantity, dispersion, spreading, color, shimmer };
     if (gall !== undefined && gall !== null) args.gall = gall;
+    if (oil) {
+      args.oil = oil;
+      args.bands = bands;
+      if (at !== undefined) args.at = at;
+      const k = Math.max(2, Math.min(12, Math.round(bands)));
+      // The halo lands first and spreads like any drop; the bands after it land in its middle at
+      // their plain size, so each is exactly its share. Darkest last, so it ends in the middle.
+      const tints = shellTints(color, 3 * oil, k);
+      const g = gall ?? this._bathGall(color);
+      const reach = g === undefined ? spreading : spreading * gallSpread(g) / gallSpread(1);
+      const op = { kind: 'shell', x, y, quantity, dispersion, spreading, reach, gall: g, shimmer, k, tints, next: 0, current: null };
+      return this._schedule('drop', args, op);
+    }
     if (at !== undefined) args.at = at;
     const g = gall ?? this._bathGall(color);
     const maxArea = maxRadius(quantity, this.film) ** 2;
@@ -783,6 +816,35 @@ export class Marble {
     if (op.elapsed < op.duration) return false;
     delete op.poly.shaping;
     return true;
+  }
+
+  // Throws a shell's next band once the last is half grown. The bands aren't logged: the shell's
+  // own drop() is, and replaying it throws them again the same way.
+  _advanceShell(op) {
+    const c = op.current;
+    const growing = c && (this.pending.includes(c) || this.active.includes(c));
+    if (growing && c.elapsed < 0.5 * c.growTime) return false;
+    if (op.next >= op.k) return !growing;
+    const j = op.k - 1 - op.next; // outermost band first
+    const halo = op.next === 0;
+    const log = this.log;
+    const live = this._live;
+    this.log = [];
+    this._live = true;
+    // Each band lands where the last one's middle has been pushed to, so the rings stay centred.
+    if (c) { op.x = c.x; op.y = c.y; }
+    op.current = this.drop({
+      x: op.x, y: op.y,
+      quantity: halo ? op.quantity / op.k : (op.quantity * op.reach) / op.k,
+      dispersion: op.dispersion * 2,
+      spreading: halo ? op.spreading : 1,
+      gall: op.gall,
+      color: op.tints[j], shimmer: op.shimmer, at: this.time,
+    });
+    this.log = log;
+    this._live = live;
+    op.next++;
+    return false;
   }
 
   _advanceHeartBend(op, dt) {
@@ -2282,6 +2344,7 @@ export class Marble {
     this.active = this.active.filter((op) => {
       if (op.kind === 'drop') return !this._advanceDrop(op, dt);
       if (op.kind === 'heartDrop') return !this._advanceHeartDrop(op, dt);
+      if (op.kind === 'shell') return !this._advanceShell(op);
       if (op.kind === 'hearts') return !this._advanceHeartBend(op, dt);
       if (op.kind === 'rake') return !this._advanceRake(op, dt);
       return !this._advanceTimed(op, dt);

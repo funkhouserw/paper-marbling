@@ -20,6 +20,8 @@ export const COMMANDS = [
     ['dispersion', 'number', 0.8, 'growth speed, 1/s'],
     ['spreading', 'number', 4, 'how many times its plain area a drop can grow: alone on clear water it reaches this on every simulator, but in the outline films a drop landing in ink stops at its plain size, so for drops stacked on ink 1 looks the same everywhere; higher also pushes other ink harder, like adding surfactant'],
     ['gall', 'number', null, 'ox gall: more spreads further, and a drop opens only over weaker ink, otherwise staying a dot; left out, the bath\'s gall (see gall()), or none, which always opens'],
+    ['oil', 'number', 0, 'Shell: 0 to 1 makes rings darker in the middle than at the edge, as oil in the colour does; 0.75 is Jaffer\'s fitted walnut-oil shell. Negative makes the middle pale instead'],
+    ['bands', 'number', 5, 'Shell: how many rings, 2 to 12'],
     COLOR('#1f4e79'), SHIMMER, AT,
   ] },
   { name: 'heartDrop', group: 'Ink', summary: 'A heart of ink with a fine point, landing whole: it pushes the ink round it aside as it lands, then holds its shape and never spreads. Does not advance the timeline.', params: [

@@ -97,6 +97,8 @@ export const INFO = {
   gall: 'Ox gall for the whole bath, as a marbler adds a little more with each colour. Each new colour gets more than the last, so it opens over the earlier ones and pushes them into veins. A drop with no more gall than the ink it lands on stays a small dot. Clearing the tank starts the count again.',
   gallStart: 'Gall for the first colour. 1 spreads as drops do with gall off.',
   gallStep: 'How much more gall each later colour gets. 0 keeps it the same, so later colours stay dots wherever they land on ink.',
+  'drop.oil': 'Oil in the colour makes a Shell: the drop lands as rings, darker in the middle and paler at the edge, because the oil runs out ahead of the pigment. 0.75 matches a walnut-oil shell. Below 0 the middle is pale instead.',
+  'drop.bands': 'How many rings a Shell drop is made of. More look smoother but cost more points.',
   'drop.gall': 'This drop\'s own ox gall, instead of the bath\'s. More spreads further, and opens over weaker ink.',
   'spray.gall': 'Ox gall for these dots, instead of the bath\'s.',
   'fillDots.gall': 'Ox gall for these dots, instead of the bath\'s.',

@@ -37,7 +37,7 @@ export const TOOLS = {
         const jitter = v.count > 1 ? m.random() * 0.5 : 0;
         t.place((at) => m.drop({
           x: x + r * Math.cos(a), y: y + r * Math.sin(a),
-          quantity: v.quantity, dispersion: v.dispersion, gall: v.gall, ...ink,
+          quantity: v.quantity, dispersion: v.dispersion, gall: v.gall, oil: v.oil, bands: v.bands, ...ink,
           at: at === undefined || t.queueMode !== 'together' ? at : at + jitter,
         }));
       }
@@ -49,6 +49,8 @@ export const TOOLS = {
       dispersion: ['Spread speed', 0.6, 0.05, 5, 0.05],
       count: ['Drops per click', 1, 1, 60, 1],
       scatter: ['Scatter', 0, 0, 40, 0.5],
+      oil: ['Oil (shell)', 0, -1, 1, 0.05],
+      bands: ['Shell rings', 5, 2, 12, 1, undefined, { advanced: true }],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
     },
   },
