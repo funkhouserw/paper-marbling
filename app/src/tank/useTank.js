@@ -104,7 +104,7 @@ function uiReducer(s, a) {
 
 export function useTank() {
   const controller = useMemo(() => {
-    // The new interface starts on Wake, as the plan decided, unless a simulator was chosen before.
+    // The editor starts on Wake (fast), Ilse's choice, unless a simulator was chosen before.
     const kept = storedSettings(localStorage);
     const last = readKept();
     const lastSettings = pick(last?.settings, SETTINGS);
@@ -112,7 +112,7 @@ export function useTank() {
     const upright = !lastSettings.tankW && !matchMedia('(min-width: 760px) and (min-height: 600px)').matches
       && matchMedia('(orientation: portrait)').matches;
     const size = upright ? { tankW: '700', tankH: '1000' } : {};
-    const c = new TankController({ settings: { simulator: 'wake', ...lastSettings, ...kept, ...size }, trace: textContours });
+    const c = new TankController({ settings: { simulator: 'wakefast', ...lastSettings, ...kept, ...size }, trace: textContours });
     if (last) {
       // Brush settings, only for tools and settings that still exist.
       for (const [tool, values] of Object.entries(last.values ?? {})) {

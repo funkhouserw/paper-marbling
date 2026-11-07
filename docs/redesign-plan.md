@@ -106,7 +106,7 @@ Steps 2–9 are done, apart from a speed check on a real phone (step 1). The new
 ## Decided along the way
 - CodeMirror for the script editor, JavaScript rather than TypeScript, and lucide icons.
 - The new editor is the main page at `/`; the original is archived at `/classic/` so the public repo keeps it. `app/dist` isn't committed.
-- Wake is the default simulator unless one was chosen before.
+- Wake (fast) is the default simulator unless one was chosen before (Ilse, 2026-11-07).
 - Simple view shows every brush setting; Advanced adds the script editor, palette editing, Freeze and the finer panels.
 - Base colour and Simulator are in Simple view. Paper colour stays separate from Base colour.
 - Switching simulator with ink in the tank hands the ink over (not Grid ink, which waits for a clear), and Wake's thin-ribbon cut now runs in every outline simulator.
