@@ -127,7 +127,7 @@ function ValueBox({ value, digits, onCommit, label, min, max, loose }) {
 
 // `toDial`/`fromDial` turn a value into a 0-100 slider position and back, for size-like settings.
 // `showValue` makes the box show and take the real value instead of the slider position.
-export function Slider({ label, value, min, max, step, onChange, info, compact = false, className, hint, toDial, fromDial, dialTop = 100, showValue }) {
+export function Slider({ label, shortLabel, value, min, max, step, onChange, info, compact = false, className, hint, toDial, fromDial, dialTop = 100, showValue }) {
   const id = useId();
   const dial = Boolean(toDial);
   const pos = dial ? toDial(Number(value)) : Number(value);
@@ -138,7 +138,7 @@ export function Slider({ label, value, min, max, step, onChange, info, compact =
   return (
     <div className={cx('flex min-w-0 flex-col gap-1', className)}>
       <div className="flex items-center gap-1 text-xs text-ink-300">
-        <label htmlFor={id} className={cx('truncate', compact && 'max-w-28')}>{label}</label>
+        <label htmlFor={id} title={compact ? [label, hint].filter(Boolean).join(': ') : undefined} className={cx('truncate', compact && 'max-w-28')}>{compact ? (shortLabel ?? label) : label}</label>
         <InfoTip text={info} label={label} />
         {showValue
           ? <ValueBox label={label} digits={0} min={min} max={max} value={Number(value)} onCommit={(n) => onChange(Math.min(max, Math.max(min, n)))} />
@@ -158,7 +158,7 @@ export function Slider({ label, value, min, max, step, onChange, info, compact =
         min={lo} max={hi} step={dial ? 1 : step} value={pos}
         onChange={(e) => onChange(dial ? fromDial(Number(e.target.value)) : Number(e.target.value))}
       />
-      {hint && <small className="text-[11px] text-ink-400">{hint}</small>}
+      {hint && !compact && <small className="text-[11px] text-ink-400">{hint}</small>}
     </div>
   );
 }
@@ -200,7 +200,7 @@ export function NumberField({ label, value, min, max, step, onChange, info }) {
 
 // A dropdown, drawn by us rather than the browser so it matches everywhere. Keyboard: arrows, Home,
 // End, Enter or Space to pick, Escape to close, and typing jumps to an option by its first letters.
-export function Choice({ label, value, options, onChange, info, hideLabel = false }) {
+export function Choice({ label, shortLabel, value, options, onChange, info, hideLabel = false }) {
   const id = useId();
   const entries = Object.entries(options);
   const at = Math.max(0, entries.findIndex(([k]) => String(k) === String(value)));
@@ -242,7 +242,7 @@ export function Choice({ label, value, options, onChange, info, hideLabel = fals
     <div className="flex min-w-0 flex-col gap-1">
       {!hideLabel && (
         <div className="flex items-center gap-1 text-xs text-ink-300">
-          <span id={`${id}-label`}>{label}</span>
+          <span id={`${id}-label`} title={shortLabel && shortLabel !== label ? label : undefined} className="truncate">{shortLabel ?? label}</span>
           <InfoTip text={info} label={label} />
         </div>
       )}

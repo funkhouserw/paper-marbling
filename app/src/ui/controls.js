@@ -52,4 +52,14 @@ export { Snowflake as FreezeIcon };
 export const shownParams = (id, _view) => toolDef(id).params;
 export const shownChoices = (id, _view) => toolDef(id).choices;
 
+// Shorter names for the settings bar, where every setting gets the same width. The full name stays
+// in the panels, the phone, and the (i) and hover text in the bar.
+export const SHORT_LABELS = {
+  'Drops per click': 'Per click', 'Dots per spray': 'Per spray', 'Space between dots': 'Spacing',
+  'Rings in each dot': 'Rings', 'Space between teeth': 'Spacing', 'Tooth thickness': 'Thickness',
+  'Tine thickness': 'Thickness', 'Start above (%)': 'Starts (%)', 'Wave direction (°)': 'Direction (°)',
+  'Starts turning': 'Turns first', 'Swirl strength': 'Strength',
+};
+export const shortLabel = (label) => SHORT_LABELS[label] ?? label;
+
 export const SPEEDS = ['0.5', '1', '2', '5'];

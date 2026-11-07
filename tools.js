@@ -83,7 +83,7 @@ export const TOOLS = {
       return t.place((at) => m.fillDots({ ...options, at }));
     },
     label: 'Fill dots',
-    hint: 'Fills the open space with dots, largest holes first. Use the button below.',
+    hint: 'Fills the open space with dots, largest holes first. Then press its button.',
     whole: true,
     color: true,
     choices: {
@@ -132,7 +132,7 @@ export const TOOLS = {
     }),
     label: 'Stripes',
     choices: { over: ['Existing ink', { over: 'Go on top of it', around: 'Go around it' }, 'over'] },
-    hint: 'Fills the tank with bands of the palette\'s inks. Rake across them for chevrons. Use the button below.',
+    hint: 'Fills the tank with bands of the palette\'s inks. Rake across them for chevrons. Then press its button.',
     whole: true,
     directions: true,
     params: {
@@ -163,7 +163,7 @@ export const TOOLS = {
     waits: true,
     act: (t) => t.place((at) => t.m.hearts({ ...t.v, at })),
     label: 'Hearts',
-    hint: 'A small tine through the middle of every dot that isn\'t frozen, which pulls them into hearts. Use the button below.',
+    hint: 'A small tine through the middle of every dot that isn\'t frozen, which pulls them into hearts. Then press its button.',
     whole: true,
     directions: true,
     params: {
@@ -182,7 +182,7 @@ export const TOOLS = {
     act: (t) => t.place((at) => t.m.fullRake({ ...t.v, at })),
     label: 'Full rake',
     choices: { waveShape: ['Weave shape', WEAVE_CHOICE, 'straight'] },
-    hint: 'Teeth spread evenly across the whole page; offset slides them and wraps at the edges. Pick a direction, then use the button below.',
+    hint: 'Teeth spread evenly across the whole page; offset slides them and wraps at the edges. Pick a direction, then press its button.',
     whole: true,
     directions: true,
     params: {
@@ -211,7 +211,7 @@ export const TOOLS = {
     input: 'whole',
     waits: true,
     act: (t) => t.place((at) => t.m.jiggle({ ...t.v, at })),
-    hint: 'Shakes the whole tank into waves. Use the button below.',
+    hint: 'Shakes the whole tank into waves. Then press its button.',
     whole: true,
     params: {
       angle: ['Wave direction (°)', 0, -180, 180, 5],
@@ -261,7 +261,7 @@ export const TOOLS = {
     waits: true,
     act: (t) => t.place((at) => t.m.air({ ...t.v, at })),
     label: 'Air',
-    hint: 'A breath of air across the whole tank. Each press is a different breath. Use the button below.',
+    hint: 'A breath of air across the whole tank. Each press is a different breath. Then press its button.',
     whole: true,
     params: {
       scale: ['Swirl size', 20, 3, 60, 0.5],

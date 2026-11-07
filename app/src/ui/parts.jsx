@@ -9,7 +9,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Mic, Play, Send
 import { dialToValue, valueToDial } from '../../../api.js';
 import { LiveTank } from '../tank/LiveTank.jsx';
 import tankImage from '../../../docs/images/teal-copper-swirls.jpg';
-import { EXAMPLES, FONTS, INFO, WEAVE_ICONS, shownChoices, shownParams, toolDef } from './controls.js';
+import { EXAMPLES, FONTS, INFO, WEAVE_ICONS, shortLabel, shownChoices, shownParams, toolDef } from './controls.js';
 import { Button, Choice, IconButton, InfoTip, Slider, Swatches, Toggle, cx } from './widgets.jsx';
 import { FAQ, search, wantsScript } from './faq.js';
 
@@ -142,7 +142,7 @@ export function ParamSlider({ tool, p, value, onChange, className, compact }) {
   return (
     <Slider
       className={className} compact={compact}
-      label={p.label} value={value} min={p.min} max={p.max} step={p.step}
+      label={p.label} shortLabel={shortLabel(p.label)} value={value} min={p.min} max={p.max} step={p.step}
       info={INFO[`${tool}.${p.key}`]}
       hint={HINTS[`${tool}.${p.key}`]?.(value)}
       {...(p.dial && {
@@ -177,6 +177,9 @@ const DEFAULT_WEAVE_HEIGHT = 30;
 
 // A tool's settings, laid out in a row (desktop's settings bar) or a column (panels, phone sheet).
 // Every tool's settings come from tools.js, so a new tool or setting appears here by itself.
+// In the desktop settings bar ('row') every setting has the same width, in at most two rows that
+// fill top then bottom, so the bar never changes height; the tool's button sits under its name
+// (OptionsBar), so it isn't repeated here.
 export function ToolSettings({ tank, layout = 'row', limit }) {
   const { state, dispatch, applyTool } = tank;
   const id = state.tool;
@@ -197,7 +200,7 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
     if (key === 'waveAmp' && value > 0 && values.waveShape === 'straight') set('waveShape')('sine');
   };
   return (
-    <div className={cx('flex', row ? 'flex-wrap items-start gap-x-5 gap-y-2' : 'flex-col gap-4')}>
+    <div className={cx(row ? 'grid grid-flow-col grid-rows-2 auto-cols-[10rem] items-start gap-x-5 gap-y-2' : 'flex flex-col gap-4')}>
       {def.text && (
         <>
           <label className="flex flex-col gap-1 text-xs text-ink-300">
@@ -206,18 +209,18 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
               rows={row ? 1 : 3}
               value={values.string ?? ''}
               onChange={(e) => set('string')(e.target.value)}
-              className="w-44 resize-y rounded-md border border-ink-600 bg-ink-800 px-2 py-1 text-xs text-ink-100"
+              className={cx('resize-y rounded-md border border-ink-600 bg-ink-800 px-2 py-1 text-xs text-ink-100', row ? 'h-7 w-full resize-none' : 'w-44')}
             />
           </label>
           <Choice label="Font" value={values.font ?? 'serif'} options={FONTS} onChange={set('font')} />
         </>
       )}
       {params.map((p) => (
-        <ParamSlider key={p.key} tool={id} p={p} value={values[p.key]} compact={row} className={row ? 'w-40' : 'w-full'} onChange={setParam(p.key)} />
+        <ParamSlider key={p.key} tool={id} p={p} value={values[p.key]} compact={row} className="w-full" onChange={setParam(p.key)} />
       ))}
       {choices.map((c) => (c.key === 'waveShape'
         ? <WeavePicker key={c.key} inline={!row} label={c.label} value={values[c.key]} options={c.options} info={INFO[`${id}.${c.key}`]} onChange={setWeave} />
-        : <Choice key={c.key} label={c.label} value={values[c.key]} options={c.options} info={INFO[`${id}.${c.key}`]} onChange={set(c.key)} />
+        : <Choice key={c.key} label={c.label} shortLabel={row ? shortLabel(c.label) : undefined} value={values[c.key]} options={c.options} info={INFO[`${id}.${c.key}`]} onChange={set(c.key)} />
       ))}
       {def.directions && (
         <div className="flex flex-col gap-1">
@@ -235,9 +238,9 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
           </div>
         </div>
       )}
-      {FREEZE_TOOLS.includes(id) && state.view === 'advanced' && <FreezeRow tank={tank} />}
-      {def.whole && (
-        <Button primary onClick={applyTool} className={cx('self-end', row ? '' : 'w-full')}>
+      {FREEZE_TOOLS.includes(id) && state.view === 'advanced' && <div className={row ? 'col-span-2' : ''}><FreezeRow tank={tank} /></div>}
+      {def.whole && !row && (
+        <Button primary onClick={applyTool} className="w-full">
           <Play size={12} /> {def.label}
         </Button>
       )}

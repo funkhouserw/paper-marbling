@@ -107,19 +107,23 @@ export function MenuBar({ tank, commands, panelsOpen, onPanels }) {
   );
 }
 
+// The current tool's settings. Always two rows tall, so the tank doesn't jump when the tool
+// changes. The tool's name is at the left with its button underneath, the one place to look to
+// make a whole-tank tool go.
 export function OptionsBar({ tank }) {
-  const { state, palette, dispatch } = tank;
+  const { state, palette, dispatch, applyTool } = tank;
   const def = toolDef(state.tool);
   const Icon = iconFor(state.tool);
   return (
-    <div className="flex min-h-14 shrink-0 items-start gap-5 border-b border-ink-700 bg-ink-900/70 px-4 py-2">
-      <span className="flex shrink-0 items-center gap-2 pt-1.5 text-sm font-medium">
-        <Icon size={16} className="text-gilt" /> {def.label}
-      </span>
+    <div className="flex h-[128px] shrink-0 items-start gap-5 border-b border-ink-700 bg-ink-900/70 px-4 py-2">
+      <div className="flex w-32 shrink-0 flex-col gap-3 pt-1">
+        <span className="flex items-center gap-2 text-sm font-medium"><Icon size={16} className="shrink-0 text-gilt" /> <span className="truncate">{def.label}</span></span>
+        {def.whole && <Button primary onClick={applyTool} className="self-start"><Play size={12} /> {def.label}</Button>}
+      </div>
       {def.color && (
-        <div className="pt-1"><Swatches palette={palette} ink={state.ink} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} /></div>
+        <div className="shrink-0 pt-1"><Swatches palette={palette} ink={state.ink} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} /></div>
       )}
-      <div className="min-w-0 flex-1"><ToolSettings tank={tank} /></div>
+      <div className="scroll-thin h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden"><ToolSettings tank={tank} /></div>
     </div>
   );
 }
