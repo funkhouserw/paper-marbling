@@ -2,8 +2,9 @@
 // through live.js, so every tool and setting has a place here.
 import {
   Droplet, SprayCan, Grip, Type, Brush, Rows3, Heart, PenTool, Waves, Activity, RefreshCw,
-  Tornado, Wind, Eraser, Snowflake, Columns3, Spline, Sparkles,
+  Tornado, Wind, Eraser, Snowflake, Columns3, Sparkles,
 } from 'lucide-react';
+import { createElement as h } from 'react';
 import { TOOL_GROUPS } from './features.js';
 
 import { TOOLS } from './live.js';
@@ -25,9 +26,21 @@ export const FREEZE_INFO_KEY = 'freeze';
 export const toolDef = (id) => TOOLS[id];
 export const groupOf = (id) => GROUPS.find((g) => g.tools.includes(id)) ?? GROUPS[0];
 
+// Full rake: a comb as wide as the tank, sweeping across it. Drawn like a lucide icon (24 box,
+// 2 px round strokes, currentColor), since lucide has no comb.
+function FullRakeIcon({ size = 24, ...rest }) {
+  return h('svg', {
+    xmlns: 'http://www.w3.org/2000/svg', width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, ...rest,
+  },
+  h('path', { d: 'M2 4h20' }),
+  h('path', { d: 'M3 4v8M7.5 4v8M12 4v8M16.5 4v8M21 4v8' }),
+  h('path', { d: 'M12 15v6M9 18l3 3 3-3' }));
+}
+
 export const ICONS = {
   drop: Droplet, spray: SprayCan, fillDots: Grip, paint: Brush, stripes: Rows3, text: Type,
-  rake: Columns3, fullRake: Spline, hearts: Heart, stylus: PenTool,
+  rake: Columns3, fullRake: FullRakeIcon, hearts: Heart, stylus: PenTool,
   jiggle: Waves, wriggle: Activity, stir: RefreshCw, vortex: Tornado, air: Wind,
   erase: Eraser,
 };

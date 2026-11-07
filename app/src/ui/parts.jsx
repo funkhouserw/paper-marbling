@@ -332,7 +332,8 @@ export function ScriptBody({ tank, onRun, onCapture }) {
   );
 }
 
-// The assistant as a small ink drop. It wobbles gently, and keeps still for "reduce motion".
+// Carra, the assistant, as a small ink drop, named after carrageen, the seaweed that thickens a
+// marbling bath. It wobbles gently, and keeps still for "reduce motion".
 export function InkDrop({ size = 40, color = '#2a6f66', shine = '#43b3a0' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" className="creature-bob">
@@ -360,7 +361,7 @@ const SCRIPT_IDEAS = [
   'Change the script to use gold ink for the last row',
 ];
 
-// The ink drop's chat, in two modes. Questions searches the FAQ in the browser (faq.js), so it
+// Carra's chat, in two modes. Questions searches the FAQ in the browser (faq.js), so it
 // works everywhere and costs nothing. Script asks the assistant, which writes the script; it needs
 // the local server. Advanced view starts in Script, Simple in Questions, and either can switch.
 export function CreatureChat({ onClose, tank, local }) {
@@ -404,14 +405,14 @@ export function CreatureChat({ onClose, tank, local }) {
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-2">
         <InkDrop size={24} />
-        <span className="text-sm font-medium">Ask the drop</span>
+        <span className="text-sm font-medium">Carra</span>
         <span className="flex-1" />
         {chat.length > 0 && (
           <button type="button" className="text-xs text-ink-400 hover:text-ink-100" disabled={busy} onClick={() => (scripting ? tank.clearChat() : setAnswers([]))}>Clear</button>
         )}
         <IconButton size="sm" label="Close" onClick={onClose}><X size={14} /></IconButton>
       </div>
-      <div role="radiogroup" aria-label="What the drop does" className="mx-3 mt-2 flex rounded-md border border-ink-700 p-0.5 text-xs">
+      <div role="radiogroup" aria-label="What Carra does" className="mx-3 mt-2 flex rounded-md border border-ink-700 p-0.5 text-xs">
         {[['questions', 'Questions'], ['script', 'Script']].map(([id, label]) => (
           <button
             key={id} type="button" role="radio" aria-checked={mode === id}
@@ -427,8 +428,8 @@ export function CreatureChat({ onClose, tank, local }) {
       <div ref={log} className="scroll-thin flex-1 space-y-3 overflow-y-auto p-3 text-sm">
         <p className="rounded-lg bg-ink-800 px-3 py-2 text-ink-300">
           {scripting
-            ? 'Hi! Describe a pattern or a change and I\'ll write it into the script. Nothing happens in the tank until you run it.'
-            : 'Hi! Ask me how anything works, or browse the questions below.'}
+            ? 'Hi, I\'m Carra! Describe a pattern or a change and I\'ll write it into the script. Nothing happens in the tank until you run it.'
+            : 'Hi, I\'m Carra! Ask me how anything works, or browse the questions below.'}
         </p>
         {chat.length === 0 && scripting && SCRIPT_IDEAS.map((idea) => (
           <button key={idea} type="button" onClick={() => setText(idea)} className="block w-full rounded-lg border border-ink-700 px-3 py-2 text-left text-ink-100 hover:border-ink-400">

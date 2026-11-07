@@ -301,7 +301,7 @@ export function Creature({ tank, local }) {
           </div>
         )
         : (
-          <button type="button" aria-label="Ask the drop" title="Ask the drop" onClick={() => set(true)} className="rounded-full p-1 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-gilt">
+          <button type="button" aria-label="Ask Carra" title="Ask Carra" onClick={() => set(true)} className="rounded-full p-1 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-gilt">
             <InkDrop size={44} />
           </button>
         )}
