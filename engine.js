@@ -851,6 +851,10 @@ export class Marble {
     const count = Math.max(1, Math.round((lap.gap * teeth) / across));
     const firstAt = at ?? this._now;
     const ops = [];
+    // A lap along the tank's own sides (half-drop going across, brick going up or down) crosses the
+    // tile a whole number of times in a straight line.
+    const straight = Math.abs(lap.x) < 1e-9 || Math.abs(lap.y) < 1e-9;
+    const parts = Math.round(lap.length / (Math.abs(lap.y) < 1e-9 ? W : H));
     const wrapped = (t, sideways) => {
       const x = c * t - s * sideways;
       const y = s * t + c * sideways;
@@ -869,6 +873,18 @@ export class Marble {
         last = here;
       }
       from ??= wrapped(0, sideways);
+      if (straight) {
+        // Each tile-width of the lap is its own tine, and they all go at once, as on a tank with no
+        // offset. One long tine would sweep the tile's rows one after another.
+        for (let p = 0; p < parts; p++) {
+          const x = from[0] + c * size * p;
+          const y = from[1] + s * size * p;
+          const start = [wrapX(x, y, W, H, off) - c * 20, wrapY(x, y, W, H, off) - s * 20];
+          const end = [start[0] + c * (size + 40), start[1] + s * (size + 40)];
+          ops.push(this.rake({ from: start, to: end, offsets: [0], speed, D, waveAmp, waveLength, waveShape, width, at: ops.length ? firstAt : at }));
+        }
+        continue;
+      }
       const to = [from[0] + lap.x, from[1] + lap.y];
       ops.push(this.rake({ from, to, offsets: [0], speed, D, waveAmp, waveLength, waveShape, width, at: k ? firstAt : at }));
     }
