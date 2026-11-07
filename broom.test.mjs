@@ -3,8 +3,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Marble } from './engine.js';
 
+// The packed-cell layout belongs to the Cells simulator; elsewhere a broom only places drops.
+class CellsTank extends Marble { get cellsLayout() { return true; } }
+
 test('a broom throw is one logged command of many separate cells with bare seams between them', () => {
-  const m = new Marble({ width: 600, height: 420, seed: 2 });
+  const m = new CellsTank({ width: 600, height: 420, seed: 2 });
   m.broom({ n: 40, size: 0.05, color: '#b5793f' });
   m.runUntilIdle();
   assert.equal(m.log.length, 1);
@@ -28,13 +31,13 @@ test('a broom throw is one logged command of many separate cells with bare seams
   // A drop landing inside an earlier cell of the same throw nests in it with no seam, as same-colour
   // ink landing on itself merges; the rest keep a seam.
   assert.ok(straight <= meetings * 0.3, `${straight} of ${meetings} cell edges with no seam`);
-  const again = new Marble({ width: 600, height: 420, seed: 2 }).replay(m.log);
+  const again = new CellsTank({ width: 600, height: 420, seed: 2 }).replay(m.log);
   again.runUntilIdle();
   assert.equal(again.polys.length, m.polys.length);
 });
 
 test('broom sizes vary widely: the biggest cell is many times the smallest', () => {
-  const m = new Marble({ width: 1000, height: 700, seed: 4 });
+  const m = new CellsTank({ width: 1000, height: 700, seed: 4 });
   const throwOp = m.broom({ n: 80, size: 0.05, spread: 1 });
   const q = throwOp.drops.map((d) => d.quantity).sort((a, b) => a - b);
   assert.ok(q.at(-1) / q[0] > 20, `${q[0]} to ${q.at(-1)}`);
@@ -42,7 +45,7 @@ test('broom sizes vary widely: the biggest cell is many times the smallest', () 
 
 test('cells laid out by transport keep their areas, nest, and squeeze the colour they land in', async () => {
   const { thickness } = await import('./engine.js');
-  const m = new Marble({ width: 1000, height: 700, seed: 3 });
+  const m = new CellsTank({ width: 1000, height: 700, seed: 3 });
   // The first colour covers most of a walled bath, so the second can only make room by squeezing it.
   m.walls({ on: true, at: 0 });
   m.broom({ n: 260, size: 0.05, spread: 0.8, spreading: 6, color: '#b5793f' });
@@ -64,7 +67,7 @@ test('cells laid out by transport keep their areas, nest, and squeeze the colour
 });
 
 test('a combed cell is never laid out again: a later throw leaves the combing alone', () => {
-  const m = new Marble({ width: 1000, height: 700, seed: 3 });
+  const m = new CellsTank({ width: 1000, height: 700, seed: 3 });
   m.broom({ n: 40, size: 0.05, spreading: 6, color: '#b5793f' });
   m.runUntilIdle();
   m.rake({ from: [-480, 0], to: [480, 0], teeth: 6, spacing: 60, speed: 150, D: 10 });
@@ -80,7 +83,7 @@ test('a combed cell is never laid out again: a later throw leaves the combing al
 
 test('without hard edges, broom cells near an edge carry on past it instead of pressing flat', () => {
   const run = (walls) => {
-    const m = new Marble({ width: 1000, height: 700, seed: 3 });
+    const m = new CellsTank({ width: 1000, height: 700, seed: 3 });
     if (walls) m.walls({ on: true, at: 0 });
     m.broom({ n: 40, size: 0.4, spread: 0.8, spreading: 25, color: '#1f2f5c' });
     m.runUntilIdle();
@@ -90,4 +93,18 @@ test('without hard edges, broom cells near an edge carry on past it instead of p
   };
   assert.ok(run(true) <= 1, 'walls hold the cells in');
   assert.ok(run(false) > 20, 'open water lets them carry on past the edge');
+});
+
+test('outside the Cells simulator a broom throw is ordinary drops: one logged command, no cells', () => {
+  const m = new Marble({ width: 600, height: 420, seed: 2 });
+  m.broom({ n: 30, size: 0.05, color: '#b5793f' });
+  m.runUntilIdle();
+  assert.equal(m.log.length, 1);
+  assert.equal(m.log[0].fn, 'broom');
+  assert.ok(m.polys.length > 20 && m.polys.length <= 30, `about one outline per drop (${m.polys.length})`);
+  assert.ok(m.polys.every((p) => !p.cell), 'plain drops, not laid-out cells');
+  // Replaying the log throws the same drops.
+  const again = new Marble({ width: 600, height: 420, seed: 2 }).replay(m.log);
+  again.runUntilIdle();
+  assert.deepEqual(Array.from(again.polys[7].xy.subarray(0, 8)), Array.from(m.polys[7].xy.subarray(0, 8)));
 });

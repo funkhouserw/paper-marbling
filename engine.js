@@ -260,6 +260,7 @@ function seeded(seed) {
 // Thin ribbons. Stretching makes ink ever longer and thinner, and past a certain width it can't be
 // seen but still costs points, so every outline simulator cuts ribbons narrower than THINNEST.
 const THINNEST = 0.5; // mm
+const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
 const CUT_EVERY = 15; // ticks
 const MIN_CUT = 8; // points
 const MIN_PIECE = 24; // points
@@ -1081,8 +1082,9 @@ export class Marble {
   }
 
   // A broom-straw throw: many drops of one colour at once, of very different sizes (log-normal,
-  // spread is σ), spreading a long way. Each keeps its own cell: where two meet, a seam of bare bath
-  // `seam` mm wide stays between them, as in stone and vein marbling, instead of the colour joining.
+  // spread is σ), landing over w x h within a third of a second. It's only a way of putting ink down:
+  // the drops are ordinary drops, and what they do (spread, push, keep separate) is the simulator's.
+  // seam is kept for older logs and the Cells simulator.
   broom({ n = 60, x = 0, y = 0, w = this.width, h = this.height, size = 0.15, spread = 1, spreading = 25, dispersion = 1.5, gall, seam = 1.5, color = '#1f4e79', shimmer = 0, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color);
     const args = { n, x, y, w, h, size, spread, spreading, dispersion, seam, color, shimmer };
@@ -1095,10 +1097,29 @@ export class Marble {
       y: y + (this.random() - 0.5) * h,
       quantity: size * Math.exp(spread * Math.max(-2.5, Math.min(2.5, gauss()))), // no freak giants
     }));
-    return this._schedule('broom', args, { kind: 'broom', drops, spreading, seam, color, shimmer }, 0.5);
+    return this._schedule('broom', args, { kind: 'broom', drops, spreading, dispersion, gall, seam, color, shimmer }, 0.5);
   }
 
-  // The throw lands as its settled layout (stone.js). Cells form a tree, a Voronoi treemap
+  // The throw's drops land as ordinary drops, each within BROOM_LANDING seconds of the throw. Their
+  // order comes from a fixed sequence rather than the random numbers, so where the drops fall
+  // matches logs from before. They're scheduled live and unlogged: the throw is what's logged.
+  _placeBroom(op) {
+    const log = this.log;
+    const live = this._live;
+    this.log = [];
+    this._live = true;
+    try {
+      op.drops.forEach((d, i) => {
+        this.drop({ x: d.x, y: d.y, quantity: d.quantity, spreading: op.spreading, dispersion: op.dispersion, gall: op.gall, color: op.color, shimmer: op.shimmer, at: this.time + BROOM_LANDING * ((i * 0.6180339887) % 1) });
+      });
+    } finally {
+      this.log = log;
+      this._live = live;
+    }
+    return true;
+  }
+
+  // In the Cells simulator, the throw lands as its settled layout (stone.js). Cells form a tree, a Voronoi treemap
   // (Nocaj & Brandes 2012): a drop falling in an earlier colour's cell becomes its child, one on bare
   // bath is a top-level cell, and one in a cell of its own colour joins it. Each throw re-solves the
   // whole tree of cells that haven't been combed yet, top down: every cell gets its own ink plus its
@@ -2778,7 +2799,7 @@ export class Marble {
       if (op.kind === 'stormont') return !this._advanceStormont(op);
       if (op.kind === 'heartDrop') return !this._advanceHeartDrop(op, dt);
       if (op.kind === 'shell') return !this._advanceShell(op);
-      if (op.kind === 'broom') return !this._landBroom(op);
+      if (op.kind === 'broom') return !(this.cellsLayout ? this._landBroom(op) : this._placeBroom(op));
       if (op.kind === 'hearts') return !this._advanceHeartBend(op, dt);
       if (op.kind === 'rake') return !this._advanceRake(op, dt);
       return !this._advanceTimed(op, dt);
