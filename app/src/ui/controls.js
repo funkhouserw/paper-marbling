@@ -38,8 +38,17 @@ function FullRakeIcon({ size = 24, ...rest }) {
   h('path', { d: 'M12 15v6M9 18l3 3 3-3' }));
 }
 
+// Heart drop: heart B with its long, fine point, drawn like a lucide icon.
+function HeartDropIcon({ size = 24, ...rest }) {
+  return h('svg', {
+    xmlns: 'http://www.w3.org/2000/svg', width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, ...rest,
+  },
+  h('path', { d: 'M12 6.2C10.6 3.9 6 3.6 5.2 7.2c-.5 2.3 1.4 4.3 3.4 6.2 1.4 1.4 2.6 3.2 3.4 7.6.8-4.4 2-6.2 3.4-7.6 2-1.9 3.9-3.9 3.4-6.2C18 3.6 13.4 3.9 12 6.2Z' }));
+}
+
 export const ICONS = {
-  drop: Droplet, spray: SprayCan, fillDots: Grip, paint: Brush, stripes: Rows3, text: Type,
+  drop: Droplet, heartDrop: HeartDropIcon, spray: SprayCan, fillDots: Grip, paint: Brush, stripes: Rows3, text: Type,
   rake: Columns3, fullRake: FullRakeIcon, hearts: Heart, stylus: PenTool,
   jiggle: Waves, wriggle: Activity, stir: RefreshCw, vortex: Tornado, air: Wind,
   erase: Eraser,
