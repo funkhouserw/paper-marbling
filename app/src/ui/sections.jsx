@@ -252,6 +252,7 @@ export function Control({ c: placed, tank, run }) {
           </div>
         </div>
       );
+    case 'heading': return <h4 className="-mb-1 mt-1 flex items-center gap-1 border-t border-ink-700 pt-3 text-[11px] font-medium uppercase tracking-wider text-ink-400">{c.label}<InfoTip text={info} label={c.label} /></h4>;
     case 'custom': return null; // drawn by its own section (script drawer, assistant)
     default: throw new Error(`Unknown control kind ${c.kind}`);
   }

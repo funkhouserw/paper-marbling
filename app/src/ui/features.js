@@ -83,6 +83,14 @@ export const SECTIONS = [
     id: 'tank', label: 'Tank', icon: 'square', desktop: 'panel', phone: 'menu', view: 'simple',
     controls: [
       { id: 'simulator', kind: 'simulator', label: 'Simulator', info: 'simulator' },
+      // The moving bath, for the simulators that have one (Wake), under its own heading.
+      { id: 'bathHeading', kind: 'heading', label: 'Moving bath', info: 'flowPreset', when: 'flow', view: 'advanced' },
+      { id: 'flowPreset', kind: 'choice', label: 'Preset', info: 'flowPreset', value: 'calm', options: { calm: 'Calm: ink stops soon after the tool', curling: 'Curling: long feathers and wobble', whorls: 'Whorls: wakes roll up into spirals', storm: 'Storm: chaos, needs a high point limit', custom: 'Custom' }, replaces: ['bathPanel'], when: 'flow', view: 'advanced' },
+      { id: 'flowPush', kind: 'number', label: 'Rake push', info: 'flowPush', value: 1, min: 0, max: 20, step: 0.5, when: 'flow', view: 'advanced' },
+      { id: 'flowFriction', kind: 'number', label: 'Floor drag', info: 'flowFriction', value: 0.25, min: 0, max: 10, step: 0.05, when: 'flow', view: 'advanced' },
+      { id: 'flowCoast', kind: 'number', label: 'Longest coast (s)', info: 'flowCoast', value: 25, min: 1, max: 600, step: 5, when: 'flow', view: 'advanced' },
+      { id: 'flowCell', kind: 'number', label: 'Flow grid (mm)', info: 'flowCell', value: 7, min: 1.5, max: 20, step: 0.5, when: 'flow', view: 'advanced' },
+      { id: 'tankHeading', kind: 'heading', label: 'Tank', view: 'advanced' },
       { id: 'tankSize', kind: 'tankSize', label: 'Size (mm)', info: 'tankSize', replaces: ['tankW', 'tankH', 'applyTank'], view: 'advanced' },
       { id: 'walls', kind: 'toggle', label: 'Hard edges', info: 'walls', value: false, when: 'walls', view: 'advanced' },
       { id: 'toolsWait', kind: 'toggle', label: 'Tools wait for ink to settle', info: 'toolsWait', value: true, view: 'advanced' },
@@ -97,16 +105,6 @@ export const SECTIONS = [
       { id: 'tile', kind: 'toggle', label: 'Repeating', info: 'tile', value: false },
       { id: 'tileOffset', kind: 'choice', label: 'Offset', info: 'tileOffset', value: '', options: { '': 'None', brick: 'Brick', halfDrop: 'Half-drop' }, when: 'tileOffset' },
       { id: 'tilePreview', kind: 'action', action: 'seeRepeat', showIf: { tile: true } },
-    ],
-  },
-  {
-    id: 'bath', label: 'Moving bath', icon: 'waves', info: 'flowPreset', desktop: 'panel', phone: 'menu', view: 'advanced', when: 'flow',
-    controls: [
-      { id: 'flowPreset', kind: 'choice', label: 'Preset', info: 'flowPreset', value: 'calm', options: { calm: 'Calm: ink stops soon after the tool', curling: 'Curling: long feathers and wobble', whorls: 'Whorls: wakes roll up into spirals', storm: 'Storm: chaos, needs a high point limit', custom: 'Custom' }, replaces: ['bathPanel'] },
-      { id: 'flowPush', kind: 'number', label: 'Rake push', info: 'flowPush', value: 1, min: 0, max: 20, step: 0.5 },
-      { id: 'flowFriction', kind: 'number', label: 'Floor drag', info: 'flowFriction', value: 0.25, min: 0, max: 10, step: 0.05 },
-      { id: 'flowCoast', kind: 'number', label: 'Longest coast (s)', info: 'flowCoast', value: 25, min: 1, max: 600, step: 5 },
-      { id: 'flowCell', kind: 'number', label: 'Flow grid (mm)', info: 'flowCell', value: 7, min: 1.5, max: 20, step: 0.5 },
     ],
   },
   {

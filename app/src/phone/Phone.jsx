@@ -1,8 +1,8 @@
 // The phone layout, after Lightroom and CapCut: the tank on top, a thumb strip at the bottom,
 // and settings that rise from the strip. The ☰ sheet holds the same sections as the desktop
 // panels, from features.js, as tabs. A long press on the tank opens its menu.
-import { useState } from 'react';
-import { Code, Menu, Pause, Play, Redo2, Search, Trash2, Undo2, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Bookmark, Code, FastForward, Menu, Pause, Play, Printer, Redo2, Search, Trash2, Undo2, X } from 'lucide-react';
 import { FreezeIcon, GROUPS, INFO, NEEDS, groupOf, iconFor, shownChoices, shownParams, toolDef } from '../ui/controls.js';
 import { FIXED } from '../ui/features.js';
 import { Button, Choice, IconButton, Swatches, cx } from '../ui/widgets.jsx';
@@ -10,23 +10,57 @@ import { CreatureChat, InkDrop, ParamSlider, ScriptBody, TankArea, ToolSettings 
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { ViewSwitch, useOverlays } from '../desktop/Desktop.jsx';
 
+// A bottom sheet. Drag its top edge up to open it fully, down to shrink it or put it away; a tap
+// on the handle toggles its height, and a tap outside closes it. The X stays for anyone who wants it.
 function Sheet({ title, onClose, height = 'half', children }) {
+  const [tall, setTall] = useState(height === 'full');
+  const [drag, setDrag] = useState(0);
+  const start = useRef(null);
+  const down = (e) => {
+    if (e.target.closest('button:not([data-handle])')) return;
+    start.current = { y: e.clientY, moved: 0 };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const move = (e) => {
+    if (!start.current) return;
+    const dy = e.clientY - start.current.y;
+    start.current.moved = Math.max(start.current.moved, Math.abs(dy));
+    setDrag(dy);
+  };
+  const up = () => {
+    if (!start.current) return;
+    const { moved } = start.current;
+    start.current = null;
+    const dy = drag;
+    setDrag(0);
+    if (moved < 6) setTall((t) => !t);
+    else if (dy > 80) { if (tall && height !== 'full') setTall(false); else onClose(); }
+    else if (dy < -50) setTall(true);
+  };
   return (
-    <div
-      role="dialog" aria-label={title}
-      className={cx(
-        'absolute inset-x-0 bottom-0 z-40 flex flex-col rounded-t-2xl border-t border-ink-600 bg-ink-900 shadow-2xl',
-        height === 'full' ? 'top-10' : 'h-[55%]',
-      )}
-    >
-      <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-ink-600" />
-      <div className="flex items-center px-4 py-2">
-        <h2 className="text-sm font-medium">{title}</h2>
-        <span className="flex-1" />
-        <IconButton size="sm" label="Close" onClick={onClose}><X size={16} /></IconButton>
+    <>
+      <div className="absolute inset-0 z-30 bg-black/30" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog" aria-label={title}
+        style={{ transform: drag ? `translateY(${drag > 0 ? drag : drag / 3}px)` : undefined, transition: drag ? 'none' : 'transform 0.2s, top 0.2s, height 0.2s' }}
+        className={cx(
+          'absolute inset-x-0 bottom-0 z-40 flex flex-col rounded-t-2xl border-t border-ink-600 bg-ink-900 shadow-2xl',
+          tall ? 'top-10' : 'h-[55%]',
+        )}
+      >
+        <div className="touch-none select-none" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+          <button type="button" data-handle aria-label={tall ? 'Make smaller' : 'Make taller'} className="mx-auto mt-1 block px-6 py-1.5">
+            <span className="block h-1 w-10 rounded-full bg-ink-600" />
+          </button>
+          <div className="flex items-center px-4 pb-2">
+            <h2 className="text-sm font-medium">{title}</h2>
+            <span className="flex-1" />
+            <IconButton size="sm" label="Close" onClick={onClose}><X size={16} /></IconButton>
+          </div>
+        </div>
+        <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4">{children}</div>
       </div>
-      <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4">{children}</div>
-    </div>
+    </>
   );
 }
 
@@ -46,6 +80,11 @@ function MenuSheet({ tank, commands, local, onClose, onScript }) {
           <span className="flex-1" />
           <IconButton label="Find a command" onClick={() => { onClose(); commands.run('commandPalette'); }}><Search size={18} /></IconButton>
           {state.view === 'advanced' && <Button onClick={onScript}><Code size={13} /> Script</Button>}
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[['clear', 'Clear the tank', Trash2], ['pull', 'Pull a print', Printer], ['saveState', 'Save state', Bookmark], ['finish', 'Finish now', FastForward]].map(([id, label, Icon]) => (
+            <Button key={id} className="h-10 justify-start" onClick={() => { commands.run(id); if (id === 'clear' || id === 'pull') onClose(); }}><Icon size={14} /> {label}</Button>
+          ))}
         </div>
         <ViscositySlider c={visc} value={state.settings.visc} info={INFO.viscosity} className="w-full" onChange={(value) => dispatch({ type: 'setting', key: 'visc', value })} />
         <div role="tablist" aria-label="Sections" className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto px-4">
@@ -118,6 +157,7 @@ export function Phone({ tank, local = false, landscape = false }) {
         <div className="flex items-center gap-2 px-4 pt-3 text-sm">
           <Icon size={16} className="text-gilt" />
           <span className="font-medium">{def.label}</span>
+          {def.whole && <Button primary className="ml-1 h-8" onClick={applyTool}><Play size={12} /> {def.label}</Button>}
           <span className="flex-1" />
           <button type="button" onClick={() => setSheet('more')} className="text-xs text-gilt-soft underline-offset-2 hover:underline">
             All settings
@@ -137,7 +177,6 @@ export function Phone({ tank, local = false, landscape = false }) {
               <Choice label={c.label} value={values[c.key]} options={c.options} info={INFO[`${state.tool}.${c.key}`]} onChange={(value) => dispatch({ type: 'value', tool: state.tool, key: c.key, value })} />
             </div>
           ))}
-          {def.whole && <Button primary className="h-11 shrink-0 snap-start self-center px-5" onClick={applyTool}>{def.label}</Button>}
         </div>
         {/* Tools in the chosen group */}
         <div className="no-scrollbar flex gap-1 overflow-x-auto px-2">
