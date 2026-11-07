@@ -99,6 +99,8 @@ export const SECTIONS = [
       { id: 'tankHeading', kind: 'heading', label: 'Tank', view: 'advanced' },
       { id: 'tankSize', kind: 'tankSize', label: 'Size (mm)', info: 'tankSize', replaces: ['tankW', 'tankH', 'applyTank'], view: 'advanced' },
       { id: 'walls', kind: 'toggle', label: 'Hard edges', info: 'walls', value: false, when: 'walls', view: 'advanced' },
+      { id: 'separate', kind: 'toggle', label: 'Keep cells separate', info: 'separate', value: true },
+      { id: 'seam', kind: 'number', label: 'Seam width (mm)', info: 'seam', value: '', min: 0.1, max: 5, step: 0.1, showIf: { separate: true }, view: 'advanced' },
       { id: 'toolsWait', kind: 'toggle', label: 'Tools wait for ink to settle', info: 'toolsWait', value: true, view: 'advanced' },
       { id: 'queueMode', kind: 'choice', label: 'While paused, add', info: 'queueMode', value: 'together', options: { together: 'All at once', order: 'In order', settled: 'Each after the last settles' }, view: 'advanced' },
       { id: 'queueGap', kind: 'number', label: 'Gap (s)', value: 0.5, min: 0, max: 30, step: 0.1, showIf: { queueMode: 'order' }, replaces: ['queueGapLabel'], view: 'advanced' },

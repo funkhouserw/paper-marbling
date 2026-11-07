@@ -53,6 +53,10 @@ export const SETTINGS = {
   // Starts as the palette's bath; see usePalette().
   bath: { kind: 'colour', label: 'Base colour', info: 'baseColour', default: '#f4efe2' },
   walls: { kind: 'toggle', label: 'Hard edges', info: 'walls', default: false, when: 'walls' },
+  // Keep cells separate (every simulator): drops that spread into each other keep a thin bare seam,
+  // even of one colour; a drop landing inside a same-colour drop still joins it. See Marble.separate.
+  separate: { kind: 'toggle', label: 'Keep cells separate', info: 'separate', default: true },
+  seam: { kind: 'number', label: 'Seam width (mm)', info: 'seam', default: '', min: 0.1, max: 5, step: 0.1 },
   // Ox gall for the bath: each new colour gets gallStart + gallStep·k. See Marble.setGall.
   gall: { kind: 'toggle', label: 'Ox gall', info: 'gall', default: false },
   gallStart: { kind: 'number', label: 'First colour', info: 'gallStart', default: '1', min: 0, max: 10, step: 0.05 },
@@ -155,7 +159,7 @@ export function parseHex(text) {
 
 // What a step did, from its log entries: the first that isn't only timing.
 const STEP_NAMES = {
-  setViscosity: 'Viscosity', setFlow: 'Moving bath', openWater: 'Simulator', simulator: 'Simulator', walls: 'Hard edges', tile: 'Repeating',
+  setViscosity: 'Viscosity', setFlow: 'Moving bath', openWater: 'Simulator', simulator: 'Simulator', walls: 'Hard edges', separate: 'Keep cells separate', tile: 'Repeating',
   setBath: 'Base colour', freeze: 'Freeze', unfreeze: 'Unfreeze', unfreezeAll: 'Unfreeze all', print: 'Text',
 };
 const TIMING = new Set(['settle', 'wait']);
@@ -365,6 +369,7 @@ export class TankController {
       if (n.openWaterOn !== Boolean(this.model().spreading)) n.openWater({ on: Boolean(this.model().spreading), at: n.time });
       if (n.tileOn && (!s.tile || !n.tileSupported)) n.tile({ on: false, at: n.time });
       if (n.wallsOn && !s.walls) n.walls({ on: false, at: n.time });
+      if (typeof n.separate === 'function' && n.separateOn !== Boolean(s.separate)) n.separate({ ...this.separateValues(), at: n.time });
       const visc = Number(s.visc);
       if (Number.isFinite(visc) && visc > 0 && visc !== n.viscosity) n.setViscosity({ value: visc });
     });
@@ -729,6 +734,7 @@ export class TankController {
     const water = last('openWater');
     if (water) this.showSpreading(water.args.on);
     s.walls = last('walls')?.args.on ?? false;
+    s.separate = last('separate')?.args.on ?? this.marble.separateOn ?? true;
     s.tile = last('tile')?.args.on ?? this.model().repeatsAtFirst === true;
     s.tileOffset = last('tile')?.args.offset ?? '';
     this.syncTile();
@@ -861,6 +867,7 @@ export class TankController {
     this.queueEnd = 0;
     if (model.spreading) m.openWater({ on: true, at: 0 });
     if (s.walls) m.walls({ on: true, at: 0 });
+    if (typeof m.separate === 'function') m.separate({ ...this.separateValues(), at: 0 });
     if (s.gall) m.setGall(this.gallValues()); // a new tank starts counting colours again
     this.syncTile(); // the tick may not have caught up yet, on the first tank after a reload
     if (s.tile && this.capabilities().tile && (!model.repeatsAtFirst || this.tileOffset())) m.tile({ on: true, offset: this.tileOffset(), at: 0 });
@@ -949,6 +956,19 @@ export class TankController {
   commitTileOffset() {
     this.setRepeat(true, this.tileOffset());
     this.emit('settings');
+  }
+
+  // After separate or seam change. Takes effect for ink from here on.
+  commitSeparate() {
+    const m = this.marble;
+    if (typeof m.separate !== 'function') return;
+    this.act(() => m.live(() => m.separate({ ...this.separateValues(), at: m.time })), 'Keep cells separate');
+  }
+
+  separateValues() {
+    const s = this.settings;
+    const seam = s.seam === '' || s.seam === null || s.seam === undefined ? null : Number(s.seam);
+    return { on: s.separate !== false, seam: Number.isFinite(seam) && seam > 0 ? seam : null };
   }
 
   // After settings.walls changes.
