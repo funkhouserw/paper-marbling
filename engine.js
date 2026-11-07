@@ -757,13 +757,15 @@ export class Marble {
 
   // A spray of many fine dots, most of them tiny, thickest in the middle like a real spray.
   // min and max are the radii the dots end up at.
-  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, gall, at } = {}) {
+  // skew shapes the mix of sizes between min and max: 3 (the default) makes most dots tiny, 1 spreads
+  // them evenly on a log scale, below 1 favours big ones.
+  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, skew = 3, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, gall, at } = {}) {
     const start = at ?? this._now;
     const growth = this.spreadFactor;
     for (let i = 0; i < n; i++) {
       const angle = this.random() * 2 * Math.PI;
       const reach = radius * Math.sqrt(-Math.log(1 - this.random() * 0.98)) / 2;
-      const r = min * (max / min) ** (this.random() ** 3);
+      const r = min * (max / min) ** (this.random() ** skew);
       this.drop({
         x: x + reach * Math.cos(angle),
         y: y + reach * Math.sin(angle),

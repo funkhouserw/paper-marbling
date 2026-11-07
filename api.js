@@ -81,6 +81,7 @@ export const COMMANDS = [
     ['n', 'number', 150, 'how many dots; keep the whole script to about 600'],
     size('min', 0.05, 'smallest dot radius'),
     size('max', 0.6, 'largest dot radius'),
+    ['skew', 'number', 3, 'the mix of sizes: 3 mostly tiny dots, 1 an even mix, 0.5 mostly big ones'],
     ['colors', 'color[]', ['#1f4e79'], 'picked at random; CSS colours or palette inks'],
     ['dispersion', 'number', 4, '1/s'],
     ['stagger', 'number', 0.4, 'spreads start times over this many seconds'],

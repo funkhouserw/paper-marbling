@@ -106,16 +106,24 @@ export const TOOLS = {
     act(t) {
       const { m, v, point: [x, y], share = 1 } = t;
       const colors = v.sprayColors === 'one' ? [t.ink] : t.inks;
-      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min: Math.min(v.min, v.max), max: v.max, colors, gall: v.gall, at }));
+      // The smallest dot is a share of the largest, so the two sliders can't hide a ×17 range.
+      const min = v.max * Math.max(0.01, Math.min(1, v.smallest / 100));
+      const skew = { small: 3, even: 1.4, big: 0.6 }[v.sizes] ?? 1.4;
+      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min, max: v.max, skew, colors, gall: v.gall, at }));
     },
     hint: 'Click, or drag, to spray fine dots. They use the colours chosen below.',
     color: true,
-    choices: { sprayColors: ['Spray colours', { palette: 'All inks in the palette', one: 'Just the chosen ink' }, 'palette'] },
+    choices: {
+      sprayColors: ['Spray colours', { palette: 'All inks in the palette', one: 'Just the chosen ink' }, 'palette'],
+      sizes: ['Dot sizes', { small: 'Mostly small', even: 'Even mix', big: 'Mostly big' }, 'even'],
+    },
     params: {
-      n: ['Dots per spray', 150, 10, 600, 10],
+      // Defaults give a spatter like a broom flicked over the size (stone video, photo 36): a range
+      // of dot sizes, not dust.
+      n: ['Dots per spray', 120, 10, 600, 10],
       radius: ['Spray width', 15, 1, 60, 0.5],
-      min: ['Smallest dot', 0.05, 0.02, 1, 0.01],
       max: ['Largest dot', 0.6, 0.05, 5, 0.01],
+      smallest: ['Smallest dot (% of largest)', 20, 1, 100, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
     },
   },
