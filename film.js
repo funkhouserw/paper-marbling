@@ -394,7 +394,8 @@ export class Film extends Marble {
     op.under ??= this.shapeAt(op.x, op.y)?.[0] ?? false;
     let give = 1;
     const under = op.under;
-    if (under && under.a0 && this.polys.includes(under)) {
+    // A drop landing in its own colour merges into it rather than squeezing it.
+    if (under && under.a0 && under.color !== op.color && this.polys.includes(under)) {
       under.inkArea = this._inkArea(under);
       const tau = under.a0 / Math.max(1e-9, under.inkArea);
       const s = Math.max(0, Math.min(0.999, (tau - 1) / (Math.max(1.01, under.tauMax ?? FILM_TAU_MAX) - 1)));

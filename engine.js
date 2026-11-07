@@ -484,8 +484,9 @@ export class Marble {
     return this._schedule('ribbonCut', args, { kind: 'ribbonCut', on });
   }
 
-  // How much surface a shape's own ink covers: its outline's area less the shapes lying inside it
-  // and over it (later in the list), counting only those not inside another such shape. A drop
+  // How much surface a shape's own ink covers: its outline's area less the shapes of other colours
+  // lying inside it and over it (later in the list), counting only those not inside another such
+  // shape. A drop
   // that landed in a colour turned that colour into a ring; this is the ring's area.
   _inkArea(poly) {
     const at = this.polys.indexOf(poly);
@@ -511,7 +512,8 @@ export class Marble {
     const inside = [];
     for (let k = at + 1; k < this.polys.length; k++) {
       const q = this.polys[k];
-      if (q.group || !q.n) continue;
+      // A drop of the same colour inside it has merged with it: that's more of its own ink.
+      if (q.group || !q.n || q.color === poly.color) continue;
       const c = box(q);
       if (c[0] < b[0] || c[2] > b[2] || c[1] < b[1] || c[3] > b[3]) continue;
       if (holds(poly, q.xy[0], q.xy[1])) inside.push(q);

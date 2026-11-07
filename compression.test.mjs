@@ -41,3 +41,14 @@ test('a gallier colour opens over the last in Film instead of staying a dot', ()
   };
   assert.ok(run(true) > 2 * run(false), `${run(true)} vs ${run(false)}`);
 });
+
+test('a drop landing in its own colour merges: it neither squeezes nor darkens it', () => {
+  const m = new Film({ width: 200, height: 140, seed: 3 });
+  m.walls({ on: true, at: 0 });
+  m.drop({ x: 0, y: 0, quantity: 1, color: '#3b2b24', at: 0 });
+  for (let t = 0; t < 3000 && m.busy; t++) m.step();
+  const brown = m.polys[0];
+  for (let k = 0; k < 6; k++) m.drop({ x: (k - 2.5) * 8, y: 0, quantity: 0.2, color: '#3b2b24' });
+  for (let t = 0; t < 3000 && m.busy; t++) m.step();
+  assert.ok(m._inkArea(brown) >= 0.99 * brown.a0, 'its own colour inside it counts as its ink');
+});
