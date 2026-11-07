@@ -120,7 +120,8 @@ test('a later flick leaves settled cells it cannot reach where they are (Hard ed
   };
   flick(-150, 0, '#1f5a3a');
   flick(150, 50, '#1f5a3a');
-  const mid = (p) => { let x = 0, y = 0; for (let i = 0; i < p.n; i++) { x += p.xy[i * 2]; y += p.xy[i * 2 + 1]; } return [x / p.n, y / p.n]; };
+  // The area centroid: refining or thinning an outline's points doesn't move it.
+  const mid = (p) => { let a = 0, x = 0, y = 0; for (let i = 0, k = p.n - 1; i < p.n; k = i++) { const c = p.xy[k * 2] * p.xy[i * 2 + 1] - p.xy[i * 2] * p.xy[k * 2 + 1]; a += c; x += (p.xy[k * 2] + p.xy[i * 2]) * c; y += (p.xy[k * 2 + 1] + p.xy[i * 2 + 1]) * c; } return [x / (3 * a), y / (3 * a)]; };
   const before = new Map(m.polys.map((p) => [p, mid(p)]));
   const ops = [];
   const land = m._landBroom.bind(m);
@@ -131,7 +132,7 @@ test('a later flick leaves settled cells it cannot reach where they are (Hard ed
   for (const c of fixed) {
     assert.ok(m.polys.includes(c), 'a settled cell out of reach is still there');
     const [x, y] = mid(c), [x0, y0] = before.get(c);
-    // Only the bath's own drift moves it, a few millimetres; a re-lay moved such cells 100 mm.
-    assert.ok(Math.hypot(x - x0, y - y0) < 5, `and has not moved (${Math.hypot(x - x0, y - y0).toFixed(1)} mm)`);
+    // A re-lay moved such cells 100 mm.
+    assert.ok(Math.hypot(x - x0, y - y0) < 0.5, `and has not moved (${Math.hypot(x - x0, y - y0).toFixed(1)} mm)`);
   }
 });

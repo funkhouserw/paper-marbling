@@ -9,6 +9,14 @@ import { Marble } from './engine.js';
 export class Cells extends Marble {
   get cellsLayout() { return true; }
 
+  // A drop's cell spreads to at most this many times its plain area. A broom throw asks for 25,
+  // which on open water let one flick cover several tanks, so its cells came out few and huge.
+  get cellSpreadMax() { return 8; }
+
+  // Squeezed ink thickens to at most this. At 3.5 nested cells darkened to navy; real paint on size
+  // darkens visibly but not that far.
+  get cellTauMax() { return 2; }
+
   // The layout keeps each cell inside one tile only with walls; it doesn't repeat yet.
   get tileSupported() { return false; }
 
