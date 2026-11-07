@@ -201,7 +201,30 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     octx.save();
     octx.lineWidth = px;
     octx.setLineDash([5 * px, 4 * px]);
-    const paths = m.heartPaths(c.inMm('hearts'));
+    const values = c.inMm('hearts');
+    if (values.style !== 'tine') {
+      // Bend: the heart each round loop becomes, at its own size.
+      const bends = m.heartBends({ ...values, seed: 1 });
+      for (const [colour, phase] of [['#000c', 0], ['#fffc', 4.5 * px]]) {
+        octx.beginPath();
+        octx.strokeStyle = colour;
+        octx.lineDashOffset = phase;
+        for (const { poly, to, n } of bends) {
+          for (const [sx, sy] of m.tileShifts([poly])) {
+            for (let i = 0; i < n; i++) {
+              const [x, y] = toPx([to[i * 2] + sx, to[i * 2 + 1] + sy]);
+              if (i) octx.lineTo(x, y);
+              else octx.moveTo(x, y);
+            }
+            octx.closePath();
+          }
+        }
+        octx.stroke();
+      }
+      octx.restore();
+      return;
+    }
+    const paths = m.heartPaths(values);
     const line = (from, to, sx, sy) => {
       const [ax, ay] = toPx([from[0] + sx, from[1] + sy]);
       const [bx, by] = toPx([to[0] + sx, to[1] + sy]);

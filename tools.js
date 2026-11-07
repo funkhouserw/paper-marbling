@@ -51,6 +51,21 @@ export const TOOLS = {
       scatter: ['Scatter', 0, 0, 40, 0.5],
     },
   },
+  heartDrop: {
+    input: 'click',
+    act(t) {
+      const { m, v, point: [x, y], ink } = t;
+      t.place((at) => m.heartDrop({ x, y, quantity: v.quantity, angle: v.angle, variation: v.variation, ...ink, at }));
+    },
+    label: 'Heart drop',
+    hint: 'Click to place a heart of ink. It pushes the ink round it aside, then keeps its shape and its fine point until a tool moves it.',
+    color: true,
+    params: {
+      quantity: ['Size', 1.5, 0.05, 30, 0.05],
+      angle: ['Angle (°)', 0, -180, 180, 1],
+      variation: ['Variation', 0.3, 0, 1, 0.05],
+    },
+  },
   spray: {
     input: 'click',
     drag: { spacing: () => 0.75, share: 0.25 },
@@ -162,12 +177,14 @@ export const TOOLS = {
     input: 'whole',
     waits: true,
     act: (t) => t.place((at) => t.m.hearts({ ...t.v, at })),
-    label: 'Hearts',
-    hint: 'A small tine through the middle of every dot that isn\'t frozen, which pulls them into hearts. Then press its button.',
+    label: 'Heart strike',
+    choices: { style: ['Style', { bend: 'Bend round loops into hearts', tine: 'Drag a tine through each' }, 'bend'] },
+    hint: 'Turns every round dot that isn\'t frozen into a heart, rings and all. The dashed outlines show what each becomes. Then press its button.',
     whole: true,
     directions: true,
     params: {
       angle: ['Angle (°)', 270, 0, 360, 1],
+      variation: ['Variation', 0.3, 0, 1, 0.05],
       above: ['Start above (%)', 130, 0, 300, 5],
       below: ['End below (%)', 130, 0, 300, 5],
       pull: ['Pull (%)', 25, 5, 100, 1],
