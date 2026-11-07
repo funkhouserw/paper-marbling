@@ -6,6 +6,7 @@ import { SECTIONS, ACTIONS } from './features.js';
 import { SETTINGS } from '../../../controller.js';
 import { COMMANDS } from '../../../api.js';
 import { MODEL_NOTES } from '../../../modelnotes.js';
+import { PATTERNS } from '../../../patterns.js';
 
 // Hand-written answers to what people ask most. `topic` groups them in the browsable list.
 export const FAQ = [
@@ -75,6 +76,14 @@ export const DOCS = [
     const n = MODEL_NOTES[m.id] ?? {};
     return { title: `The ${m.label} simulator`, text: [m.title, n.how, n.good && `Good for: ${n.good}`, n.limit && `Watch out for: ${n.limit}`].filter(Boolean).join(' '), kind: 'simulator' };
   }),
+  // Traditional patterns, from the checked catalogue (patterns.js). Every name it goes by is in the
+  // title, so "battal" or "Steinmarmor" finds Stone; a loosely supported definition says so.
+  ...PATTERNS.map((p) => ({
+    title: ((t) => t[0].toUpperCase() + t.slice(1))(`${[p.names.en, p.names.tr, p.names.de, p.names.ja].filter(Boolean).join(', ')}: a traditional pattern`),
+    text: p.summary + (p.status === 'verified' ? '' : p.status === 'partly' ? ' (Sources agree on the outline; details vary.)' : ' (No historical definition found.)')
+      + (p.example ? ` Try the "${p.example}" example.` : ''),
+    kind: 'pattern', topic: 'Patterns',
+  })),
   ...COMMANDS.map((c) => ({
     title: `Script command ${c.name}()`,
     text: `${c.summary}${(c.params ?? []).length ? ` Options: ${c.params.map((p) => (Array.isArray(p) ? `${p[0]} (${p[3]})` : '')).filter(Boolean).join('; ')}.` : ''}`,
