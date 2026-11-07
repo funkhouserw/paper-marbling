@@ -7,6 +7,7 @@
 // the browser. Options, from the same places:
 //   PORT (8000), MARBLE_MODEL (gpt-6-luna), MARBLE_EFFORT (medium), OPENAI_BASE_URL (https://api.openai.com/v1)
 import { createServer } from 'node:http';
+import { labEnabled, labRoute } from './lab/routes.mjs';
 import { access, appendFile, mkdir, readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -285,6 +286,7 @@ export const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (url.pathname.startsWith('/api/') && !fromThisComputer(req)) return json(res, 403, { error: 'Forbidden' });
+    if (await labRoute(req, res, url, json, MAX_BODY)) return;
     if (url.pathname === '/api/chat') {
       // Other websites open in the browser must not be able to spend the key.
       const origin = req.headers.origin;
@@ -326,6 +328,13 @@ export const server = createServer(async (req, res) => {
     if (url.pathname === '/new' || url.pathname.startsWith('/new/')) {
       res.writeHead(301, { Location: '/' });
       return res.end();
+    }
+    // The lab's page exists only where the lab is on (Ilse's computer), and only for this computer.
+    if (url.pathname === '/lab' || url.pathname.startsWith('/lab/')) {
+      if (!labEnabled || !fromThisComputer(req)) { res.writeHead(404); return res.end('Not found'); }
+      if (url.pathname !== '/lab/') { res.writeHead(url.pathname === '/lab' ? 301 : 404, url.pathname === '/lab' ? { Location: '/lab/' } : {}); return res.end(); }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(await readFile(join(ROOT, 'lab/index.html')));
     }
     if (url.pathname === '/classic') {
       res.writeHead(301, { Location: '/classic/' });
