@@ -16,9 +16,6 @@ const MAX_SUBSTEPS = 30;
 const LONGEST_SPREAD = 10; // seconds; the last of a film's thinning is too slow to watch
 
 export class ThinFilm extends Marble {
-  // Keep cells separate isn't drawn here yet: this simulator ignores the setting for now.
-  get seamSupported() { return false; }
-
   // The pressure grid doesn't wrap yet, so this simulator can't repeat.
   get tileSupported() { return false; }
 
@@ -78,10 +75,7 @@ export class ThinFilm extends Marble {
       op.placed = true;
       op.age = 0;
       const r = this._deposit(op);
-      // The drop lands as a disc of that radius, so the ink already there makes room for it first,
-      // as a drop growing pushes everything aside. Without this it was born overlapping its
-      // neighbours, and across a seam the flow never separated them.
-      this._pushLocally(op.x, op.y, r);
+      // Lands as a disc of that radius once this tick's flush makes room for it (see _flushGrowth).
       this.landing.push([op, r]);
       this.flowSpeed = Infinity;
     }
@@ -112,7 +106,18 @@ export class ThinFilm extends Marble {
 
   _flushGrowth() {
     this.growth = [];
-    super._flushGrowth();
+    // Each drop lands as a disc, so the ink already there makes room for it first, as a drop
+    // growing pushes everything aside, one drop after another: drops landing in the same tick
+    // make room for each other too. Without this they were born overlapping (by up to a radius
+    // when sprayed together), and across the overlap the flow never separated them.
+    const landing = this.landing;
+    for (const item of landing) {
+      this._pushLocally(item[0].x, item[0].y, item[1]);
+      this.landing = [item];
+      super._flushGrowth();
+    }
+    this.landing = [];
+    if (!landing.length) super._flushGrowth();
     const toolRunning = this.active.some((op) => op.kind !== 'drop');
     if (toolRunning) return;
     if (this.toolMoved) {
