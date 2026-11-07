@@ -41,6 +41,9 @@ const FILM_TAU_MAX = 4;
 // A drop stops feeding where the film it landed in pushes back this hard: -ln(1 - s) = 3 at s = 0.95,
 // so it stops just short of the film's cap.
 const SQUEEZE_DRIVE = 3;
+// A drop whose gall beats the ink it lands in by this share of its pressure opens to its full spread
+// (gall 1.5 over gall 1 is 0.17).
+const GALL_OPENS = 0.15;
 
 const polygonArea = ({ xy, n }) => {
   let sum = 0;
@@ -377,10 +380,11 @@ export class Film extends Marble {
     op.head ??= 1;
     op.area ??= 0;
     const rate = op.dispersion === Infinity ? 1 : 1 - Math.exp(-op.dispersion * dt);
-    // A drop always reaches its plain size; with gall, the share of its spread its pressure beats
-    // the ink under it by, so a stronger colour pushes the last into veins. Past that, only an
-    // edge facing water draws it on.
-    const floor = op.open > 0 ? Math.max(op.plain, op.limit * Math.min(1, op.open)) : op.plain;
+    // A drop always reaches its plain size. With gall it opens further over weaker ink, from plain
+    // towards its full spread as its pressure beats the ink under it by more, fully once by
+    // GALL_OPENS (one step of Rising gall), so a stronger colour pushes the last into veins (as in
+    // Classic, where any margin opens it fully). Past that, only an edge facing water draws it on.
+    const floor = op.open > 0 ? op.plain + (op.limit - op.plain) * Math.min(1, op.open / GALL_OPENS) : op.plain;
     const toPlain = Math.max(0, floor - op.area) * rate;
     const toLimit = Math.max(0, op.limit - op.area) * rate * op.head;
     // The compression limit: a drop landing in a film squeezes it, and the film pushes back the

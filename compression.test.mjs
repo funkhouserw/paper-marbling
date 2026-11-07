@@ -26,3 +26,18 @@ test("a ring's ink area is its outline less the drops inside it", () => {
   assert.equal(m._inkArea(outer), 1600 - 400);
   assert.equal(m._inkArea(inner), 400 - 100);
 });
+
+test('a gallier colour opens over the last in Film instead of staying a dot', () => {
+  const run = (gall) => {
+    const m = new Film({ width: 300, height: 200, seed: 3 });
+    if (gall) m.setGall({ on: true, start: 1, step: 0.5 });
+    m.drop({ x: 0, y: 0, quantity: 2, color: '#3b2b24', at: 0 });
+    for (let t = 0; t < 3000 && m.busy; t++) m.step();
+    m.drop({ x: 0, y: 0, quantity: 0.1, color: '#3fa7d6' });
+    for (let t = 0; t < 3000 && m.busy; t++) m.step();
+    const blue = m.polys.find((p) => p.color === '#3fa7d6');
+    let a = 0; for (let i = 0, k = blue.n - 1; i < blue.n; k = i++) a += blue.xy[k * 2] * blue.xy[i * 2 + 1] - blue.xy[i * 2] * blue.xy[k * 2 + 1];
+    return Math.abs(a / 2);
+  };
+  assert.ok(run(true) > 2 * run(false), `${run(true)} vs ${run(false)}`);
+});
