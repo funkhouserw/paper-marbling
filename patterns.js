@@ -141,6 +141,7 @@ export const PATTERNS = [
     id: 'hatip', family: 'ebru', names: { tr: 'hatip ebrusu' }, status: 'partly',
     summary: 'Motifs built from drops of colour placed inside one another and drawn with a stylus, named after Hatip Mehmed Efendi (d. 1773).',
     sources: ['TDV'], image: { title: 'Hatip Yürek Ebru', url: commons('Hatip_Y%C3%BCrek_Ebru.jpg'), licence: 'CC BY-SA 4.0' },
+    example: 'Hatip hearts',
   },
   {
     id: 'cicekli', family: 'ebru', names: { tr: 'çiçekli ebru', en: 'floral ebru' }, status: 'verified',

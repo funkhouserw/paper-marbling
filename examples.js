@@ -457,6 +457,23 @@ settle();
 broom({ n: 120, x: 50, y: 50, w: 95, h: 95, size: 0.0012, spread: 0.6, spreading: 25, color: '#f6f2ea' });
 settle();
 `,
+  'Hatip hearts': `// Hatip (yürek, "hearts"), after a Turkish ebru: a pale stone ground, then rows of hearts, each an
+// orange heart with a dark one landed inside it, so the orange stays as a rim. Named after Hatip
+// Mehmed Efendi (d. 1773), whose motifs are built from drops placed inside one another.
+viscosity({ value: 1000 });
+bath({ color: '#e9e6d6' });
+broom({ n: 70, x: 50, y: 50, w: 100, h: 100, size: 0.16, spread: 0.9, spreading: 25, color: '#c9cfa0' });
+settle();
+broom({ n: 50, x: 50, y: 50, w: 100, h: 100, size: 0.02, spread: 0.8, spreading: 25, color: '#a9b4a0' });
+settle();
+const spots = [];
+for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) spots.push([9 + c * 16 + (r % 2) * 8, 10 + r * 20]);
+// All the orange first, then a dark heart inside each, so no orange lands on a finished heart.
+for (const [x, y] of spots) heartDrop({ x, y, quantity: 0.16, angle: 315, variation: 0.15, color: '#d8643a' });
+settle();
+for (const [x, y] of spots) heartDrop({ x, y, quantity: 0.08, angle: 315, variation: 0.15, color: '#1d1a1c' });
+settle();
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -477,5 +494,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic',
 };
