@@ -611,6 +611,7 @@ export class Film extends Marble {
         op.poly = { xy, n, color: op.color, shimmer: op.shimmer };
         if (op.pressure !== undefined) op.poly.gall = op.pressure;
         this.polys.push(op.poly);
+        if (op.cut) this._joinCut(op);
       }
       if (op.poly) op.area = polygonArea(op.poly);
     }
