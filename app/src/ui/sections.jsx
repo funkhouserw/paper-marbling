@@ -32,7 +32,7 @@ export function capabilities(simulator) {
     erase: simulator !== 'gridink',
     hearts: simulator !== 'gridink',
     freeze: simulator !== 'gridink',
-    tile: !['spreading', 'thinfilm'].includes(simulator),
+    tile: !['spreading', 'thinfilm', 'cells'].includes(simulator),
     tileOffset: ['classic', 'film', 'wake', 'wakefast'].includes(simulator),
     walls: simulator !== 'gridink',
     flow: ['wake', 'wakefast', 'gridink'].includes(simulator),

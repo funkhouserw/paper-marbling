@@ -12,9 +12,9 @@ export const MODEL_NOTES = {
     limit: 'The first attempt at this idea, and Film does it better. It doesn\'t repeat.',
   },
   cells: {
-    how: 'Every drop keeps its own cell. Drops that land together are laid out together as their settled shapes by partial optimal transport: each cell is a power (Laguerre) cell clipped by a disc, with weights solved by Newton\'s method so every drop gets its area. Packed drops share straight walls with a seam of bare bath between them; a drop landing in another colour nests inside that cell and squeezes its ink darker (τ); one landing in its own colour merges into it.',
-    good: 'Stone and vein marbling: broom-straw throws, then a second colour into the first.',
-    limit: 'A beta. Layouts are solved, not flowed, so later throws can still move cells near them; no repeating tank yet, and combed ink takes no part in later layouts.',
+    how: 'Every drop keeps its own cell. Drops that land together are laid out at once as the shapes they settle into: a power (Laguerre) diagram with each cell clipped by a disc, its weights found by Newton\'s method so every drop gets exactly its area (partial optimal transport). Packed drops press into polygons with a seam of bare bath between them; a drop that lands in another colour nests inside it and squeezes that colour darker; one that lands in its own colour joins it.',
+    good: 'Stone and vein marbling: a broom-straw throw, then the next colour opening inside the last.',
+    limit: 'A beta. Cells are solved, not flowed, so a later throw can still nudge cells near it; combed ink takes no part in later layouts, and there\'s no repeating tank yet.',
   },
   thinfilm: {
     how: 'Solves a thin-film equation, c_t = div(c K grad P) with P = ln(c), where c is how many times over the ink here could cover its surface at its thinnest. Crowded ink flows towards less crowded ink, and a film stops once c falls to 1. Bare water has no pressure, so separate films don\'t feel each other until they touch.',
