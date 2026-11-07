@@ -168,6 +168,7 @@ export const ACTIONS = [
   { id: 'askDrop', label: 'Ask Carra Jean', menu: 'Help' },
   { id: 'credits', label: 'Thanks and credits', menu: 'Help' },
   { id: 'howItWorks', label: 'How it works', menu: 'Help', replaces: ['howItWorks'] },
+  { id: 'sourceCode', label: 'Source code on GitHub', menu: 'Help', replaces: ['sourceCode'] },
 ];
 
 export const MENU_ORDER = ['File', 'Edit', 'Tank', 'View', 'Help'];

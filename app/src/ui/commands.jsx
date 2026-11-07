@@ -40,6 +40,7 @@ function perform(id, tank, ctx) {
     case 'askDrop': return set({ creature: true });
     case 'editPalettes': return set({ paletteOpen: true });
     case 'credits': return set({ creditsOpen: true });
+    case 'sourceCode': return window.open('https://github.com/funkhouserw/paper-marbling', '_blank', 'noopener');
     case 'howItWorks': return window.open('../how-it-works.html', '_blank');
     default: throw new Error(`No handler for action ${id}`);
   }

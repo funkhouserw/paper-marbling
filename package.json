@@ -9,9 +9,11 @@
     "start": "node server.mjs",
     "test": "node --test *.test.mjs",
     "build": "node scripts/build.mjs",
-    "preview": "node scripts/preview.mjs"
+    "preview": "node scripts/preview.mjs",
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "wrangler": "^4.158.0"
   }
 }

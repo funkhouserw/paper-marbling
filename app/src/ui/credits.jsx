@@ -93,6 +93,7 @@ export function CreditsDialog({ onClose }) {
               Each entry says what was taken from it and where it shows up.
             </p>
             <p className="text-ink-400">— Ilse</p>
+            <p className="text-xs text-ink-300">Marbler is open source: <a className={LINK} href="https://github.com/funkhouserw/paper-marbling" target="_blank" rel="noopener noreferrer">github.com/funkhouserw/paper-marbling</a>. Its licence and the conditions on the code derived from pst-marble are in <code>NOTICE</code>.</p>
           </section>
           <Markdown source={bibliography} />
         </div>

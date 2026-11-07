@@ -52,4 +52,17 @@ await writeFile(join(dist, 'classic/index.html'), mark(await readFile(join(root,
 for (const file of ['how-it-works.html', 'how-it-works.css', 'favicon.svg', 'classic/style.css', 'LICENSE', 'NOTICE']) await cp(join(root, file), join(dist, file));
 await cp(join(root, 'docs/images'), join(dist, 'docs/images'), { recursive: true });
 
+// Cloudflare reads headers from dist/_headers. They come from vercel.json's rules, so both hosts
+// send the same security headers. The editor's assets/ have content hashes in their names, so they
+// can be cached for good; the classic page's files keep their names, so they can't.
+const { headers: rules } = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
+const lines = rules[0].headers.map(({ key, value }) => `  ${key}: ${value}`);
+await writeFile(join(dist, '_headers'), `/*\n${lines.join('\n')}\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n`);
+await writeFile(join(dist, '404.html'), `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found · Marbler</title><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0e0f11;color:#e6e8eb;font:15px/1.5 system-ui,sans-serif}a{color:#e9cf7a}</style>
+</head><body><main><p>There's nothing here.</p><p><a href="/">Open Marbler</a> · <a href="/how-it-works.html">How it works</a></p></main></body></html>
+`);
+
 console.log('Built dist/: the editor at /, the classic page at /classic/');

@@ -68,7 +68,7 @@ The key stays in that local server and never reaches the browser. It's worth usi
     (cd app && npm install)
     npm run build
 
-This writes a static site to `dist/`: the editor at the top, the classic editor in `classic/`, and How it works. The assistant's script writing and the timing recorder are left out, and any static host can serve it. `vercel.json` sets this up for Vercel, along with security headers. `npm run preview` serves the build locally with those same headers.
+This writes a static site to `dist/`: the editor at the top, the classic editor in `classic/`, and How it works. The assistant's script writing and the timing recorder are left out, and any static host can serve it. `wrangler.jsonc` sets it up for Cloudflare (`npm run deploy`), and `vercel.json` for Vercel; both hosts get the same security headers, written into `dist/_headers` for Cloudflare. `npm run preview` serves the build locally with those same headers.
 
 ## Develop
 
