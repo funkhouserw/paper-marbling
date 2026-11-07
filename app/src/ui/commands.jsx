@@ -39,6 +39,7 @@ function perform(id, tank, ctx) {
     case 'commandPalette': return set({ commandOpen: true });
     case 'askDrop': return set({ creature: true });
     case 'editPalettes': return set({ paletteOpen: true });
+    case 'credits': return set({ creditsOpen: true });
     case 'howItWorks': return window.open('../how-it-works.html', '_blank');
     default: throw new Error(`No handler for action ${id}`);
   }

@@ -9,6 +9,7 @@ import { Button, IconButton, InfoTip, Swatches, cx } from '../ui/widgets.jsx';
 import { CreatureChat, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } from '../ui/parts.jsx';
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { CommandPalette, ContextMenu, Notice, useCommands, useShortcuts } from '../ui/commands.jsx';
+import { CreditsDialog } from '../ui/credits.jsx';
 
 export function ViewSwitch({ view, onChange }) {
   return (
@@ -372,6 +373,7 @@ export function useOverlays(tank, local) {
       {tank.state.commandOpen && <CommandPalette tank={tank} commands={commands} onClose={() => tank.dispatch({ type: 'set', patch: { commandOpen: false } })} />}
       <Notice tank={tank} />
       {tank.state.viewer && <Viewer tank={tank} />}
+      {tank.state.creditsOpen && <CreditsDialog onClose={() => tank.dispatch({ type: 'set', patch: { creditsOpen: false } })} />}
       {tank.state.paletteOpen && (
         <SectionDialog
           section={SECTIONS.find((x) => x.id === 'palettes')} tank={tank} commands={commands} local={local}

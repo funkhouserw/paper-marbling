@@ -166,6 +166,7 @@ export const ACTIONS = [
   { id: 'toggleScript', label: 'Script drawer', menu: 'View', shortcut: '⌘E', view: 'advanced' },
   { id: 'commandPalette', label: 'Find a command…', menu: 'Help', shortcut: '⌘K' },
   { id: 'askDrop', label: 'Ask Carra Jean', menu: 'Help' },
+  { id: 'credits', label: 'Thanks and credits', menu: 'Help' },
   { id: 'howItWorks', label: 'How it works', menu: 'Help', replaces: ['howItWorks'] },
 ];
 
