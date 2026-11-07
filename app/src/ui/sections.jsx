@@ -7,7 +7,7 @@ import { ACTIONS, SECTIONS } from './features.js';
 import { SETTINGS } from '../../../controller.js';
 import { TINTS as PAPER_TINTS } from '../../../paper.js';
 import { INFO, PALETTES, SIMULATORS } from './controls.js';
-import { Button, Choice, NumberField, Slider, Swatches, Toggle, cx } from './widgets.jsx';
+import { Button, Choice, InfoTip, NumberField, Slider, Swatches, Toggle, cx } from './widgets.jsx';
 
 export const SECTION_ICONS = {
   palette: Palette, history: History, bookmark: Bookmark, printer: Printer, download: Download, square: Square,
@@ -204,21 +204,31 @@ export function Control({ c: placed, tank, run }) {
       );
     case 'simulator':
       return <Choice label={c.label} value={s.simulator} info={info} options={Object.fromEntries(SIMULATORS.map((m) => [m.id, m.label]))} onChange={(v) => dispatch({ type: 'setting', key: 'simulator', value: v })} />;
-    case 'tankSize':
+    case 'tankSize': {
+      // Only resizing clears the tank, so the size has its own box and the button only wakes up
+      // once the size typed differs from the tank's. Every other setting applies straight away.
+      const now = tank.controller?.marble;
+      const changed = now ? Number(s.tankW) !== now.width || Number(s.tankH) !== now.height : true;
       return (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2 rounded-md border border-ink-700 p-2">
+          <div className="flex items-center gap-1 text-xs text-ink-300">
+            Tank size{now ? <span className="text-ink-400">: {now.width} × {now.height} mm now</span> : null}
+            <InfoTip text={info} label="Tank size" />
+          </div>
           <div className="flex flex-col gap-1.5">
-            <NumberField label="Tank width (mm)" value={s.tankW} min={100} max={4000} step={10} info={info} onChange={(v) => dispatch({ type: 'setting', key: 'tankW', value: String(v) })} />
-            <NumberField label="Tank height (mm)" value={s.tankH} min={100} max={4000} step={10} onChange={(v) => dispatch({ type: 'setting', key: 'tankH', value: String(v) })} />
+            <NumberField label="Width (mm)" value={s.tankW} min={100} max={4000} step={10} onChange={(v) => dispatch({ type: 'setting', key: 'tankW', value: String(v) })} />
+            <NumberField label="Height (mm)" value={s.tankH} min={100} max={4000} step={10} onChange={(v) => dispatch({ type: 'setting', key: 'tankH', value: String(v) })} />
           </div>
           <div className="flex flex-wrap gap-1">
             {[['1000', '700', 'Landscape'], ['700', '1000', 'Portrait'], ['800', '800', 'Square']].map(([w, h, name]) => (
               <Button key={name} onClick={() => dispatch({ type: 'set', patch: { settings: { ...s, tankW: w, tankH: h } } })}>{name}</Button>
             ))}
-            <Button primary onClick={() => run('clear')}>Apply (clears tank)</Button>
           </div>
+          <Button primary={changed} disabled={!changed} className="self-start" onClick={() => run('clear')}>Resize tank (clears it)</Button>
+          {changed && <p className="text-xs text-ink-400">The new size takes effect when you resize, which empties the tank. Undo can't bring the ink back.</p>}
         </div>
       );
+    }
     case 'colourToggle':
       return (
         <div className="flex flex-col gap-1.5">
