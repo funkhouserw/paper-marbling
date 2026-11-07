@@ -384,12 +384,12 @@ export function Swatches({ palette, ink, onPick, size = 'md' }) {
           )}
         </button>
       ))}
-      {/* Clear (gall water): ink in the bath's colour. Thrown last, it opens pale cells and squeezes
-          the colours into veins. It's drawn, not transparent: a drop inside ink sits on top of it. */}
+      {/* Clear (gall water): no colour of its own. Inside ink it cuts a real hole, showing the bath (or
+          nothing, in a transparent export); thrown last, it squeezes the colours into veins. */}
       {palette.bath && (
         <button
           type="button" role="radio" aria-checked={ink === 'clear'}
-          aria-label="Clear (gall water): ink in the bath colour" title="Clear (gall water): thrown last, it squeezes the colours into veins"
+          aria-label="Clear (gall water): cuts real holes" title="Clear (gall water): cuts real holes; thrown last, it squeezes the colours into veins"
           onClick={() => onPick('clear')}
           className={cx(
             s, 'relative overflow-hidden rounded-full border border-dashed transition-transform focus-visible:outline-2 focus-visible:outline-gilt',

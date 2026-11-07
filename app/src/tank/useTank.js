@@ -208,8 +208,8 @@ export function useTank() {
 
   const pickInk = useCallback((i) => {
     if (i === 'clear') {
-      // Clear (gall water) is ink in the bath's colour.
-      c.setInk(c.settings.bath, 1);
+      // Clear (gall water): the engine's 'clear', which cuts a real hole in the ink it opens in.
+      c.setInk('clear', 1);
       c.shimmer = 0;
       setUi({ ink: 'clear' });
       return;
