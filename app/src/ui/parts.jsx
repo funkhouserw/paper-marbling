@@ -234,7 +234,7 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
           </div>
         </div>
       )}
-      {FREEZE_TOOLS.includes(id) && <FreezeRow tank={tank} />}
+      {FREEZE_TOOLS.includes(id) && state.view === 'advanced' && <FreezeRow tank={tank} />}
       {def.whole && (
         <Button primary onClick={applyTool} className={cx('self-end', row ? '' : 'w-full')}>
           <Play size={12} /> {def.label}
