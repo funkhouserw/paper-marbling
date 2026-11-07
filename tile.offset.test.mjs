@@ -219,3 +219,22 @@ test('slanted laps replay the same', () => {
   box(a.polys[0]).forEach((v, i) => assert.ok(Math.abs(v - box(b.polys[0])[i]) < 0.1));
   assert.ok(Math.abs(a.time - b.time) < 0.1, `${a.time} and ${b.time}`);
 });
+
+test('a full rake across a half-drop tank moves every tine at once, one tile-width each', () => {
+  for (const [offset, angle, size] of [['halfDrop', 0, 1000], ['halfDrop', 180, 1000], ['brick', 90, 700]]) {
+    const m = new Marble({ width: 1000, height: 700, seed: 1 });
+    m.tile({ on: true, offset, at: 0 });
+    m.step();
+    const op = m.fullRake({ angle, teeth: 5, speed: 68, D: 10 });
+    const ops = op.together ?? [op];
+    assert.ok(ops.length >= 4, `${offset} ${angle}: ${ops.length} tines`);
+    for (const o of ops) {
+      assert.equal(o.at, ops[0].at, `${offset} ${angle}: tines start together`);
+      assert.ok(Math.abs(o.total - (size + 40)) < 1e-6, `${offset} ${angle}: each crosses the tile once`);
+    }
+    // Evenly spaced across the tile.
+    const across = ops.map((o) => (angle % 180 ? o.segs[0].ax : o.segs[0].ay)).sort((a, b) => a - b);
+    const gaps = across.slice(1).map((v, i) => v - across[i]);
+    for (const g of gaps) assert.ok(Math.abs(g - gaps[0]) < 2, `${offset} ${angle}: even spacing ${gaps}`);
+  }
+});
