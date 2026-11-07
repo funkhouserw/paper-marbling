@@ -126,6 +126,7 @@ export const INFO = {
   'broom.count': 'How many drops one flick throws.',
   'broom.quantity': 'How much colour one flick carries in all, shared out among its drops by size.',
   'broom.scatter': 'How far around the click the drops land.',
+  'broom.spreading': 'How many times its landing size each drop can grow on open water before it meets other ink. Lower keeps the cells small and leaves more bare bath; 25 is the long spread of stone marbling.',
   'broom.variation': 'How unequal the drops are: 0 makes them all the same, higher gives a few large drops among many small ones.',
   'broom.gall': 'Ox gall for this flick. Bath uses the bath\'s rising gall, if it\'s on.',
   'rake.teeth': TEETH,

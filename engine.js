@@ -1231,7 +1231,12 @@ export class Marble {
     // Whether a cell fits is re-decided every tick: a drop too small to show at first still grows.
     const clear = (c) => { delete c.gone; for (const k of c.kids ?? []) clear(k); };
     for (const c of top) clear(c);
-    layout(top, [-W / 2, -H / 2, W / 2, -H / 2, W / 2, H / 2, -W / 2, H / 2]);
+    // The tank's walls bound the cells only with Hard edges (or a repeating tank, where the cells
+    // must stay within one tile). On open water, cells near an edge carry on past it, rounded, as
+    // any drop does, instead of pressing flat against an edge that isn't there.
+    const pad = this.wallsOn || this.tileOn ? 0 : Math.max(W, H);
+    const X = W / 2 + pad, Y = H / 2 + pad;
+    layout(top, [-X, -Y, X, -Y, X, Y, -X, Y]);
     if (done) for (const c of placed) delete c.fresh;
     // The laid-out cells replace their old outlines, parents before their children so children
     // draw on top; everything else keeps its place.

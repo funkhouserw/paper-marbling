@@ -43,7 +43,8 @@ test('broom sizes vary widely: the biggest cell is many times the smallest', () 
 test('cells laid out by transport keep their areas, nest, and squeeze the colour they land in', async () => {
   const { thickness } = await import('./engine.js');
   const m = new Marble({ width: 1000, height: 700, seed: 3 });
-  // The first colour covers most of the bath, so the second can only make room by squeezing it.
+  // The first colour covers most of a walled bath, so the second can only make room by squeezing it.
+  m.walls({ on: true, at: 0 });
   m.broom({ n: 260, size: 0.05, spread: 0.8, spreading: 6, color: '#b5793f' });
   m.settle();
   m.broom({ n: 90, size: 0.05, spread: 0.6, spreading: 6, color: '#1f2f5c' });
@@ -75,4 +76,18 @@ test('a combed cell is never laid out again: a later throw leaves the combing al
   m.runUntilIdle();
   // Laying the combed cells out again would snap them back to compact, convex shapes.
   assert.ok(Math.abs(total() - combed) < 0.05 * combed, `${total()} vs ${combed}`);
+});
+
+test('without hard edges, broom cells near an edge carry on past it instead of pressing flat', () => {
+  const run = (walls) => {
+    const m = new Marble({ width: 1000, height: 700, seed: 3 });
+    if (walls) m.walls({ on: true, at: 0 });
+    m.broom({ n: 40, size: 0.4, spread: 0.8, spreading: 25, color: '#1f2f5c' });
+    m.runUntilIdle();
+    let far = 0;
+    for (const p of m.polys) for (let i = 0; i < p.n; i++) far = Math.max(far, Math.abs(p.xy[i * 2]) - 500, Math.abs(p.xy[i * 2 + 1]) - 350);
+    return far;
+  };
+  assert.ok(run(true) <= 1, 'walls hold the cells in');
+  assert.ok(run(false) > 20, 'open water lets them carry on past the edge');
 });

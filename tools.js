@@ -69,7 +69,7 @@ export const TOOLS = {
       const { m, v, point: [x, y], ink } = t;
       const n = Math.max(1, Math.round(v.count));
       const size = v.quantity / n / Math.exp(v.variation ** 2 / 2);
-      t.place((at) => m.broom({ n, x, y, w: 2 * v.scatter, h: 2 * v.scatter, size, spread: v.variation, gall: v.gall ?? undefined, ...ink, at }));
+      t.place((at) => m.broom({ n, x, y, w: 2 * v.scatter, h: 2 * v.scatter, size, spread: v.variation, spreading: v.spreading, gall: v.gall ?? undefined, ...ink, at }));
     },
     hint: 'Click to flick a broom-straw brush: many drops of the colour at once, a few large and many small, over the reach. Throw colour after colour for stone and vein.',
     color: true,
@@ -78,6 +78,7 @@ export const TOOLS = {
       quantity: ['Colour per flick', 12, 0.5, 100, 0.5],
       scatter: ['Reach', 30, 2, 80, 0.5],
       variation: ['Size spread', 0.9, 0, 2, 0.05],
+      spreading: ['How far it spreads', 25, 1, 50, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }],
     },
   },
