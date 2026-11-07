@@ -474,6 +474,20 @@ settle();
 for (const [x, y] of spots) heartDrop({ x, y, quantity: 0.08, angle: 315, variation: 0.15, color: '#1d1a1c' });
 settle();
 `,
+  'Taraklı': `// Taraklı ebru, after a Turkish gelgit sheet: fine horizontal bands raked up and down between each
+// other's lines into tall zigzags, then combed up with a fine tarak (comb) so every band breaks into
+// small arches.
+viscosity({ value: 1000 });
+bath({ color: '#efe8da' });
+stripes({ angle: 0, count: 50, colors: ['#4a2a6a', '#e0b030', '#c8582a', '#7a4a9a', '#f0d070'], variation: 0.4, slivers: 0.3 });
+settle();
+fullRake({ angle: 90, teeth: 7, speed: 26, D: 0.9 });
+settle();
+fullRake({ angle: 270, teeth: 7, offset: 7.14, speed: 26, D: 0.9 });
+settle();
+fullRake({ angle: 90, teeth: 60, speed: 26, D: 0.5 });
+settle();
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -494,5 +508,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic',
 };

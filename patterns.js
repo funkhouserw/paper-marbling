@@ -127,6 +127,7 @@ export const PATTERNS = [
     id: 'tarakli', family: 'ebru', names: { tr: 'taraklı', en: 'combed ebru' }, status: 'verified',
     summary: 'Ebru combed with a tarak (comb).', sources: ['TDV'],
     image: { title: 'Taraklı Gel Git Ebru', url: commons('Tarakl%C4%B1_Gel_Git_Ebru.jpg'), licence: 'CC BY-SA 4.0' },
+    example: 'Taraklı',
   },
   {
     id: 'bulbul-yuvasi', family: 'ebru', names: { tr: 'bülbül yuvası', en: "nightingale's nest" }, status: 'verified',
