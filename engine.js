@@ -191,6 +191,7 @@ export function maxRadius(quantity, film) {
 }
 
 const HEART_LAND = 0.6; // seconds a Heart drop takes to land and push the ink round it aside
+const HOLES_CLOSE = 0.6; // share of a Stormont hole's area that evaporation closes
 const PUSH_RAYS = 720; // directions a bending heart's push is worked out in
 const ROUND_ENOUGH = 0.95; // Heart strike bends only loops at least this round: 4πA/P², 1 for a circle
 
@@ -742,10 +743,13 @@ export class Marble {
   // gall: its ox gall; left out, the bath's (see setGall), or none, which opens as always.
   // oil makes a Shell: rings darker in the middle than at the edge (negative oil, the other way
   // round), in bands of equal area, thrown one after another at the same spot.
-  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, gall, oil = 0, bands = 5, color = '#1f4e79', shimmer = 0, at } = {}) {
+  // turpentine (0 to 1) makes a Stormont: as the colour spreads it breaks into a lace of holes,
+  // more and finer with more turpentine. evaporation (seconds) lets them partly close again.
+  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, gall, oil = 0, bands = 5, turpentine = 0, evaporation = 0, color = '#1f4e79', shimmer = 0, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
     const args = { x, y, quantity, dispersion, spreading, color, shimmer };
     if (gall !== undefined && gall !== null) args.gall = gall;
+    if (turpentine > 0) Object.assign(args, { turpentine, evaporation });
     if (oil) {
       args.oil = oil;
       args.bands = bands;
@@ -761,6 +765,9 @@ export class Marble {
     }
     if (at !== undefined) args.at = at;
     const g = gall ?? this._bathGall(color);
+    // 'clear' is gall water: no colour of its own. Inside ink it cuts a real hole, showing the bare
+    // bath, and on open water it only pushes.
+    const clear = color === 'clear';
     const maxArea = maxRadius(quantity, this.film) ** 2;
     const growTime = dispersion === Infinity ? 0 : -Math.log(GROWTH_DONE) / dispersion;
     const op = {
@@ -768,8 +775,10 @@ export class Marble {
       exposure: 1, owed: 0, spreading,
       gall: g,
     };
+    if (clear) { op.clear = true; op.color = 'rgba(0,0,0,0)'; }
     // More gall, further spread; gall 1 is the default spreading.
     if (g !== undefined) op.spreading = spreading * gallSpread(g) / gallSpread(1);
+    if (turpentine > 0) op.stormont = { turpentine: Math.min(1, turpentine), evaporation, thrown: false };
     return this._schedule('drop', args, op);
   }
 
@@ -815,6 +824,97 @@ export class Marble {
     }
     if (op.elapsed < op.duration) return false;
     delete op.poly.shaping;
+    return true;
+  }
+
+  // A clear drop that opened inside a colour becomes a hole in it: its outline joins the colour's
+  // even-odd group, right after the colour's own loops, so the bath shows through it.
+  _joinCut(op) {
+    const target = op.cut;
+    const hole = op.poly;
+    if (!this.polys.includes(target) || target.frozen) return;
+    target.group ??= this.nextGroup++;
+    Object.assign(hole, { group: target.group, color: target.color, shimmer: target.shimmer });
+    const was = this.polys.indexOf(hole);
+    if (was < 0) return;
+    this.polys.splice(was, 1);
+    let at = this.polys.indexOf(target);
+    while (this.polys[at + 1]?.group === target.group) at++;
+    this.polys.splice(at + 1, 0, hole);
+  }
+
+  // Stormont. Turpentine in the colour reaches the surface as tiny spots of low tension, each of
+  // which thins the film until it punctures (Néel & Villermaux 2018), so the colour breaks into a
+  // lace of holes and "flies out". Here the holes are clear drops seeded inside the colour as it
+  // spreads: Poisson-disc spaced, log-normal in size, and together 35 to 70% of its area. They open
+  // almost at once, as real ones do in milliseconds, and are real holes: the bath shows through.
+  _throwHoles(op) {
+    const s = op.stormont;
+    s.thrown = true;
+    const { xy, n } = op.poly;
+    let twice = 0, x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let i = 0, k = n - 1; i < n; k = i++) {
+      twice += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+      x0 = Math.min(x0, xy[i * 2]); x1 = Math.max(x1, xy[i * 2]);
+      y0 = Math.min(y0, xy[i * 2 + 1]); y1 = Math.max(y1, xy[i * 2 + 1]);
+    }
+    const area = Math.abs(twice) / 2;
+    const t = s.turpentine;
+    const spacing = Math.sqrt(area / Math.PI) / (4 + 12 * t);
+    const inside = (px, py) => {
+      let c = false;
+      for (let i = 0, k = n - 1; i < n; k = i++) {
+        const yi = xy[i * 2 + 1], yk = xy[k * 2 + 1];
+        if ((yi > py) !== (yk > py) && px < ((xy[k * 2] - xy[i * 2]) * (py - yi)) / (yk - yi) + xy[i * 2]) c = !c;
+      }
+      return c;
+    };
+    const spots = [];
+    const most = Math.min(700, Math.ceil(area / (0.9 * spacing * spacing)));
+    for (let tries = 0; tries < most * 30 && spots.length < most; tries++) {
+      const px = x0 + this.random() * (x1 - x0);
+      const py = y0 + this.random() * (y1 - y0);
+      if (!inside(px, py) || spots.some(([qx, qy]) => (qx - px) ** 2 + (qy - py) ** 2 < spacing * spacing)) continue;
+      spots.push([px, py]);
+    }
+    if (!spots.length) return;
+    // Log-normal sizes, scaled so the holes come to their share of the colour's area.
+    const gauss = () => Math.sqrt(-2 * Math.log(1 - this.random())) * Math.cos(2 * Math.PI * this.random());
+    const weights = spots.map(() => Math.exp(1.0 * gauss())); // heavy-tailed: mostly tiny, a few large
+    const total = weights.reduce((a, b) => a + b, 0);
+    const share = (0.35 + 0.35 * t) * area;
+    const log = this.log;
+    const live = this._live;
+    this.log = [];
+    this._live = true;
+    const holes = spots.map(([hx, hy], i) => {
+      const a = (share * weights[i]) / total;
+      const hole = this.drop({ x: hx, y: hy, quantity: (a * this.film) / 1000, dispersion: 25, spreading: 1, color: 'clear', at: this.time });
+      hole.cut = op.poly;
+      return { hole, area: a };
+    });
+    this.log = log;
+    this._live = live;
+    // Through pending, since this runs while the active list is being filtered.
+    if (s.evaporation > 0) {
+      this.pending.push({ kind: 'stormont', holes, evaporation: s.evaporation, at: this.time });
+      this.pending.sort((a, b) => a.at - b.at);
+    }
+  }
+
+  // As the turpentine evaporates, the holes close again by about this share of their area,
+  // pulling the colour back in, so the lace thickens and the colour pales back.
+  _advanceStormont(op) {
+    if (op.holes.some(({ hole }) => this.pending.includes(hole) || this.active.includes(hole))) return false;
+    const log = this.log;
+    const live = this._live;
+    this.log = [];
+    this._live = true;
+    for (const { hole, area } of op.holes) {
+      this.erase({ x: hole.x, y: hole.y, radius: Math.sqrt((HOLES_CLOSE * area) / Math.PI), duration: op.evaporation, at: this.time });
+    }
+    this.log = log;
+    this._live = live;
     return true;
   }
 
@@ -1692,7 +1792,7 @@ export class Marble {
     if (this.growth.length) this._pushApart(this.growth);
     this.growth = [];
     for (const [op, r] of this.landing) {
-      const n = 48;
+      const n = op.cut ? 16 : 48; // holes are many and small; refining adds points where they grow
       const xy = new Float64Array(n * 4);
       for (let i = 0; i < n; i++) {
         xy[i * 2] = op.x + r * Math.cos((i / n) * 2 * Math.PI);
@@ -1701,6 +1801,7 @@ export class Marble {
       op.poly = { xy, n, color: op.color, shimmer: op.shimmer };
       if (op.pressure !== undefined) op.poly.gall = op.pressure;
       this.polys.push(op.poly);
+      if (op.cut) this._joinCut(op);
     }
     this.landing = [];
   }
@@ -2337,12 +2438,22 @@ export class Marble {
       if (op.kind === 'drop') {
         op.at = this.time;
         if (op.gall !== undefined) this._openDrop(op);
+        if (op.clear) {
+          // Gall water too weak to open over the ink just sinks (Woolnough: "will just sink").
+          if (op.open !== undefined && op.open <= 0) continue;
+          op.cut ??= this.shapeAt(op.x, op.y)?.[0] ?? null;
+        }
         this.sources.push(op);
       }
       this.active.push(op);
     }
     this.active = this.active.filter((op) => {
-      if (op.kind === 'drop') return !this._advanceDrop(op, dt);
+      if (op.kind === 'drop') {
+        const done = this._advanceDrop(op, dt);
+        if (op.stormont && !op.stormont.thrown && op.poly && done) this._throwHoles(op); // once it has spread, so no solid core is left
+        return !done;
+      }
+      if (op.kind === 'stormont') return !this._advanceStormont(op);
       if (op.kind === 'heartDrop') return !this._advanceHeartDrop(op, dt);
       if (op.kind === 'shell') return !this._advanceShell(op);
       if (op.kind === 'hearts') return !this._advanceHeartBend(op, dt);

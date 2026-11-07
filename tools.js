@@ -37,7 +37,7 @@ export const TOOLS = {
         const jitter = v.count > 1 ? m.random() * 0.5 : 0;
         t.place((at) => m.drop({
           x: x + r * Math.cos(a), y: y + r * Math.sin(a),
-          quantity: v.quantity, dispersion: v.dispersion, gall: v.gall, oil: v.oil, bands: v.bands, ...ink,
+          quantity: v.quantity, dispersion: v.dispersion, gall: v.gall, oil: v.oil, bands: v.bands, turpentine: v.turpentine, evaporation: v.evaporation, ...ink,
           at: at === undefined || t.queueMode !== 'together' ? at : at + jitter,
         }));
       }
@@ -51,6 +51,8 @@ export const TOOLS = {
       scatter: ['Scatter', 0, 0, 40, 0.5],
       oil: ['Oil (shell)', 0, -1, 1, 0.05],
       bands: ['Shell rings', 5, 2, 12, 1, undefined, { advanced: true }],
+      turpentine: ['Turpentine (stormont)', 0, 0, 1, 0.05],
+      evaporation: ['Holes close over (s)', 0, 0, 20, 0.5, undefined, { advanced: true }],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
     },
   },

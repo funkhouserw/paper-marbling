@@ -22,6 +22,8 @@ export const COMMANDS = [
     ['gall', 'number', null, 'ox gall: more spreads further, and a drop opens only over weaker ink, otherwise staying a dot; left out, the bath\'s gall (see gall()), or none, which always opens'],
     ['oil', 'number', 0, 'Shell: 0 to 1 makes rings darker in the middle than at the edge, as oil in the colour does; 0.75 is Jaffer\'s fitted walnut-oil shell. Negative makes the middle pale instead'],
     ['bands', 'number', 5, 'Shell: how many rings, 2 to 12'],
+    ['turpentine', 'number', 0, 'Stormont: 0 to 1; as it spreads the colour breaks into a lace of real holes showing the bath, more and finer with more turpentine'],
+    ['evaporation', 'number', 0, 'Stormont: seconds over which the holes partly close again as the turpentine evaporates; 0 leaves them open'],
     COLOR('#1f4e79'), SHIMMER, AT,
   ] },
   { name: 'heartDrop', group: 'Ink', summary: 'A heart of ink with a fine point, landing whole: it pushes the ink round it aside as it lands, then holds its shape and never spreads. Does not advance the timeline.', params: [
