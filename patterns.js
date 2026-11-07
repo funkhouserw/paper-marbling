@@ -48,6 +48,8 @@ export const PATTERNS = [
     id: 'stormont', family: 'base', names: { en: 'Stormont' }, status: 'verified',
     summary: 'Turpentine in the last colour thrown makes it break into a lace of fine holes.',
     sources: ['RE', 'WOOL', 'UW', 'AAT'], image: { title: 'Woolnough 1881, No. 30', url: 'https://archive.org/details/wholeartofmarbli00wool', licence: 'Public Domain Mark' },
+
+    example: 'Stormont',
   },
   {
     id: 'gloster', family: 'base', names: { en: 'Gloster' }, status: 'partly',

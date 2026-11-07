@@ -332,6 +332,17 @@ settle();
 broom({ n: 420, size: 0.065, spread: 0.6, spreading: 6, color: '#3fa7d6' });
 settle();
 `,
+  'Stormont': `// Stormont: a stone ground thrown with the broom, then a last colour with turpentine in it. As that
+// colour spreads, the turpentine thins it into a lace of fine holes showing the bare size.
+viscosity({ value: 1000 });
+bath({ color: '#f4efe2' });
+broom({ n: 140, size: 0.08, spread: 0.8, spreading: 6, color: '#7a2e24' });
+settle();
+broom({ n: 260, size: 0.06, spread: 0.6, spreading: 6, color: '#2f4a6b' });
+settle();
+for (let i = 0; i < 30; i++) drop({ x: random() * 100, y: random() * 100, quantity: 0.9, turpentine: 0.35, color: '#e2c27a' });
+settle();
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -352,5 +363,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic',
 };
