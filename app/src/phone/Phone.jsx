@@ -100,7 +100,7 @@ export function Phone({ tank, local = false, landscape = false }) {
       <main className="relative flex min-h-0 flex-1 items-center justify-center p-2">
         <TankArea tank={tank} className="size-full" onMenu={openMenu} />
         <button
-          type="button" aria-label="Ask Carra" onClick={() => setSheet('creature')}
+          type="button" aria-label="Ask Carra Jean" onClick={() => setSheet('creature')}
           className="absolute bottom-3 right-3 rounded-full p-1 focus-visible:outline-2 focus-visible:outline-gilt"
         >
           <InkDrop size={36} />

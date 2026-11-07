@@ -1,4 +1,4 @@
-// Carra's FAQ: every explanation the app already has, plus hand-written how-tos, searched in
+// Carra Jean's FAQ: every explanation the app already has, plus hand-written how-tos, searched in
 // the browser with BM25. No server, no key and no model, so it answers on the public demo too, and
 // asking it costs nothing. Plain JavaScript, so node tests can use it.
 import { INFO, TOOLS, SIMULATORS } from './live.js';
@@ -15,7 +15,7 @@ export const FAQ = [
   { topic: 'Getting started', q: 'What is the difference between Simple and Advanced?', a: 'Both have every tool and every brush setting. Advanced adds the script editor, tank size, repeating, the moving bath, detail and the finer print and export options.' },
   { topic: 'Getting started', q: 'How do I find a command?', a: 'Press ⌘K (Ctrl+K) and type what you want, or right-click the tank (long-press on a phone) for the commands that act on it.' },
   { topic: 'Getting started', q: 'How do I clear the tank?', a: 'The bin icon at the bottom, or Clear in the Tank menu. Undo brings the ink back.' },
-  { topic: 'Getting started', q: 'Who is Carra?', a: 'Carra is the little ink drop in the corner of the tank. She is named after carrageen, the seaweed traditionally boiled to thicken a marbling bath. Ask her how anything works; when Marbler runs on your own computer, she can also write scripts for you.' },
+  { topic: 'Getting started', q: 'Who is Carra Jean?', a: 'Carra Jean is the little ink drop in the corner of the tank. Say her name quickly: she is named after carrageen, the seaweed traditionally boiled to thicken a marbling bath. Ask her how anything works; when Marbler runs on your own computer, she can also write scripts for you.' },
   // Patterns
   { topic: 'Patterns', q: 'How do I make feathers?', a: 'Put drops down, let them settle, then use Full rake one way and back again with an offset. In Wake, a thin bath (viscosity 5 to 60) and a fast rake curl the feathers.' },
   { topic: 'Patterns', q: 'How do I make a nonpareil or comb pattern?', a: 'Cover the tank with Stripes or Fill dots, rake it one way with Full rake, then rake it across at 90° with more teeth and a smaller spacing.' },
@@ -38,7 +38,7 @@ export const FAQ = [
   // Scripts
   { topic: 'Scripts', q: 'What is a script?', a: 'A few lines of JavaScript that make a pattern step by step: drops, rakes, waits and so on. Every tool has a script command, so anything you can do by hand a script can repeat exactly. Open the editor with Script in Advanced, or ⌘E.' },
   { topic: 'Scripts', q: 'How do I edit and run a script myself?', a: 'Switch to Advanced and press Script (⌘E). Pick one of the Examples to start from, change it, and press Run (⌘↵). Clear tank first decides whether it starts on an empty tank or on top of what is there.' },
-  { topic: 'Scripts', q: 'Can Carra write a script for me?', a: 'Yes, when Marbler runs on your own computer with its server. Switch Carra to Script and describe the pattern, such as "five rows of blue drops, then a feather rake". It writes the script, and Run makes it.' },
+  { topic: 'Scripts', q: 'Can Carra Jean write a script for me?', a: 'Yes, when Marbler runs on your own computer with its server. Switch Carra Jean to Script and describe the pattern, such as "five rows of blue drops, then a feather rake". It writes the script, and Run makes it.' },
   { topic: 'Scripts', q: 'How do I save a script?', a: 'In the script editor, type a name and press Save. My scripts lists them, and choosing one opens it with the simulator it was saved on.' },
   { topic: 'Scripts', q: 'How do I see the script for what I just did by hand?', a: 'Copy session, in the script editor or the File menu, copies everything done to the tank as a script that reproduces it.' },
   { topic: 'Scripts', q: 'How do I time things in a script?', a: 'wait(seconds) moves the timeline on, settle() waits until all ink is at rest, and inOrder() makes each action start after the last one finishes. Most commands also take at: to start at a given time.' },

@@ -130,7 +130,7 @@ export const SECTIONS = [
     ],
   },
   {
-    id: 'assistant', label: 'Ask Carra', icon: 'drop', info: 'assistant', desktop: 'creature', phone: 'creature', view: 'simple',
+    id: 'assistant', label: 'Ask Carra Jean', icon: 'drop', info: 'assistant', desktop: 'creature', phone: 'creature', view: 'simple',
     controls: [
       { id: 'chatLog', kind: 'custom', label: 'Chat', replaces: ['assistantLocal', 'clearChat'] },
       { id: 'prompt', kind: 'custom', label: 'Your question', replaces: ['generate'] },
@@ -165,7 +165,7 @@ export const ACTIONS = [
   { id: 'viewAdvanced', label: 'Advanced view', menu: 'View' },
   { id: 'toggleScript', label: 'Script drawer', menu: 'View', shortcut: '⌘E', view: 'advanced' },
   { id: 'commandPalette', label: 'Find a command…', menu: 'Help', shortcut: '⌘K' },
-  { id: 'askDrop', label: 'Ask Carra', menu: 'Help' },
+  { id: 'askDrop', label: 'Ask Carra Jean', menu: 'Help' },
   { id: 'howItWorks', label: 'How it works', menu: 'Help', replaces: ['howItWorks'] },
 ];
 

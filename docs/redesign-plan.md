@@ -76,8 +76,8 @@ These are unmeasured so far, so they get checked first.
 2. **Memory:** undo keeps up to 500 MB, and the point limit is tuned for laptops. Phones would need lower limits for both.
 3. **Grid ink:** it needs two WebGL float extensions (`gridgl.js:205`) and falls back to the much slower CPU version without them. Phones may need the half-float fallback we previously set aside.
 
-## The creature: Carra
-- **Name:** Carra, after carrageen, the seaweed traditionally used to thicken a marbling bath (Ilse, 2026-11-07). She's a teal ink drop with eyes.
+## The creature: Carra Jean
+- **Name:** Carra Jean, after carrageen, the seaweed traditionally used to thicken a marbling bath (Ilse, 2026-11-07). She's a teal ink drop with eyes.
 - **Shape:** a small animated ink drop in a corner. Tapping it opens a chat panel on desktop or a sheet on a phone, which gives chat real room and frees up the sidebar.
 - **Answering questions:** an FAQ written from How it works, searched in the browser. This costs nothing, needs no key and works on the public demo.
 - **Writing scripts:** only appears when running locally with your own API key. The public demo doesn't show it at all.
