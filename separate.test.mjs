@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Marble } from './engine.js';
 import { ThinFilm } from './thinfilm.js';
+import { Film } from './film.js';
 
 // What's drawn at (x, y): the colour of the topmost path in the SVG that covers it, or the bath.
 const colourAt = (m, x, y) => {
@@ -95,6 +96,22 @@ test('an old saved tank loads joined, and stays joined after undoing', () => {
 });
 
 test('simulators without seams yet ignore the setting', () => {
-  const m = new ThinFilm({ width: 100, height: 100, seed: 1 });
+  const m = new Film({ width: 100, height: 100, seed: 1 });
   assert.equal(m.seamsDrawn, false);
+});
+
+test('Thin film draws seams, and drops landing together make room for each other', () => {
+  const m = new ThinFilm({ width: 200, height: 140, seed: 1 });
+  m.drop({ x: -10, y: 0, quantity: 1, color: '#224466', at: 0 });
+  m.drop({ x: 10, y: 0, quantity: 1, color: '#663322', at: 0 });
+  for (let t = 0; t < 3000 && m.busy; t++) m.step();
+  assert.equal(m.seamsDrawn, true);
+  assert.doesNotMatch(m.toSVG(), /stroke=/);
+  // The later drop landed in the earlier one, which now lies round it: none of the later drop's
+  // outline is outside the earlier one's, and the two never cross.
+  const [a, b] = m.polys;
+  const inside = (p, x, y) => { let w = false; for (let i = 0, k = p.n - 1; i < p.n; k = i++) { const ax = p.xy[k * 2], ay = p.xy[k * 2 + 1], bx = p.xy[i * 2], by = p.xy[i * 2 + 1]; if ((ay > y) !== (by > y) && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) w = !w; } return w; };
+  let crossings = 0;
+  for (let i = 0; i < b.n; i++) if (!inside(a, b.xy[i * 2], b.xy[i * 2 + 1])) crossings++;
+  assert.ok(crossings === 0 || crossings === b.n, `the drops' outlines cross (${crossings} of ${b.n} points outside)`);
 });
