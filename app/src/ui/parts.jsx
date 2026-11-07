@@ -5,7 +5,7 @@ import { keymap } from '@codemirror/view';
 import { Prec } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Mic, Play, Send, Snowflake, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Mic, Play, RotateCcw, Send, Snowflake, X } from 'lucide-react';
 import { dialToValue, valueToDial } from '../../../api.js';
 import { LiveTank } from '../tank/LiveTank.jsx';
 import tankImage from '../../../docs/images/teal-copper-swirls.jpg';
@@ -142,15 +142,21 @@ export function ParamSlider({ tool, p, value, onChange, className, compact }) {
   // A setting the tank can choose for itself: null is Auto. Moving the slider takes over; the Auto
   // pill hands it back.
   const isAuto = Boolean(p.auto) && (value === null || value === undefined);
-  const autoPill = p.auto && (
+  // On Auto, a pill says so (and leaves Auto when pressed); otherwise a small icon goes back, so the
+  // label keeps its room beside the number.
+  const autoPill = p.auto && (isAuto ? (
     <button
-      type="button" aria-pressed={isAuto} title={isAuto ? 'The tank chooses: none on a repeating tank, a little otherwise' : 'Let the tank choose'}
-      onClick={() => onChange(isAuto ? p.min + (p.max - p.min) / 3 : null)}
-      className={cx('rounded-full border px-1.5 text-[10px] leading-4', isAuto ? 'border-gilt bg-gilt/15 text-gilt-soft' : 'border-ink-600 text-ink-400 hover:text-ink-100')}
+      type="button" aria-pressed="true" title="The tank chooses: none on a repeating tank, a little otherwise. Press to choose yourself."
+      onClick={() => onChange(p.min + (p.max - p.min) / 3)}
+      className="rounded-full border border-gilt bg-gilt/15 px-1.5 text-[10px] leading-4 text-gilt-soft"
     >
       {p.auto}
     </button>
-  );
+  ) : (
+    <button type="button" aria-label={`${p.label}: back to ${p.auto}`} title={`Back to ${p.auto}`} onClick={() => onChange(null)} className="shrink-0 rounded p-0.5 text-ink-400 hover:text-ink-100">
+      <RotateCcw size={11} />
+    </button>
+  ));
   return (
     <Slider
       headerExtra={autoPill} hideValue={isAuto}

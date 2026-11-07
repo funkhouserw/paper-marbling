@@ -17,7 +17,7 @@ import { ViewSwitch, useOverlays } from '../desktop/Desktop.jsx';
 // to open it fully, down to shrink it or put it away; a tap on the handle toggles its height, and a
 // tap outside closes it.
 const SLIDE_MS = 220;
-function Sheet({ title, onClose, height = 'half', peek = null, children }) {
+function Sheet({ title, onClose, height = 'half', peek = null, dropping = false, children }) {
   const [tall, setTall] = useState(height === 'full');
   const [drag, setDrag] = useState(0);
   const [entered, setEntered] = useState(peek !== null);
@@ -52,13 +52,13 @@ function Sheet({ title, onClose, height = 'half', peek = null, children }) {
   };
   const following = peek !== null || drag !== 0;
   const transform = peek !== null ? `translateY(max(0px, calc(100% - ${peek}px)))`
-    : !entered || leaving ? 'translateY(100%)'
+    : !entered || leaving || dropping ? 'translateY(100%)'
       : drag ? `translateY(${drag > 0 ? drag : drag / 3}px)` : undefined;
   return (
     <>
       <div
         className="absolute inset-0 z-30 bg-black/30" onClick={close} aria-hidden="true"
-        style={{ opacity: entered && !leaving ? 1 : 0, transition: `opacity ${SLIDE_MS}ms` }}
+        style={{ opacity: entered && !leaving && !dropping ? 1 : 0, transition: `opacity ${SLIDE_MS}ms` }}
       />
       <div
         role="dialog" aria-label={title}
@@ -97,13 +97,13 @@ function Handle({ label, onOpen, drag, tone = 'menu' }) {
 const visc = FIXED.find((c) => c.id === 'visc');
 
 // The ☰ sheet: view, viscosity, then each section as a tab.
-function MenuSheet({ tank, commands, local, onClose, onScript, peek }) {
+function MenuSheet({ tank, commands, local, onClose, onScript, peek, dropping }) {
   const { state, dispatch } = tank;
   const sections = sectionsFor('menu', 'phone', state, local);
   const [tab, setTab] = useState(sections[0]?.id);
   const section = sections.find((s) => s.id === tab) ?? sections[0];
   return (
-    <Sheet title="Marbler" height="full" peek={peek} onClose={onClose}>
+    <Sheet title="Marbler" height="full" peek={peek} dropping={dropping} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
           <ViewSwitch view={state.view} onChange={(v) => commands.run(v === 'simple' ? 'viewSimple' : 'viewAdvanced')} />
@@ -148,6 +148,7 @@ export function Phone({ tank, local = false, landscape = false }) {
   // While a finger drags a sheet up from below: how far, in px. The sheet follows it, then opens
   // fully past a short distance or drops back.
   const [peek, setPeek] = useState(null);
+  const [dropping, setDropping] = useState(false);
   const dragged = useRef(0);
   const dragOpen = (name) => ({
     onPointerDown: (e) => {
@@ -167,8 +168,9 @@ export function Phone({ tank, local = false, landscape = false }) {
         if (!opened) return;
         dragged.current = performance.now();
         setPeek(null);
-        // By the last move seen: a cancelled touch has no useful position of its own.
-        if (last < 60) setSheet(null);
+        // By the last move seen: a cancelled touch has no useful position of its own. Too short a
+        // drag lets the sheet slide back down before it goes.
+        if (last < 60) { setDropping(true); setTimeout(() => { setSheet(null); setDropping(false); }, 230); }
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
@@ -179,6 +181,8 @@ export function Phone({ tank, local = false, landscape = false }) {
   // the finger) or tap it, and drag or tap again to fold it back. expand is the extra height in px.
   const [expand, setExpand] = useState(0);
   const [stretching, setStretching] = useState(false);
+  const [folding, setFolding] = useState(false);
+  const fold = () => { setFolding(true); setExpand(0); setTimeout(() => setFolding(false), 230); };
   const openHeight = () => Math.round(window.innerHeight * 0.5);
   const stripDrag = {
     onPointerDown: (e) => {
@@ -201,14 +205,18 @@ export function Phone({ tank, local = false, landscape = false }) {
         setStretching(false);
         if (!moved) return;
         dragged.current = performance.now();
-        setExpand(base ? (last < openHeight() - 60 ? 0 : openHeight()) : (last > 60 ? openHeight() : 0));
+        const open = base ? last >= openHeight() - 60 : last > 60;
+        if (open) setExpand(openHeight()); else fold();
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
       window.addEventListener('pointercancel', up);
     },
   };
-  const toggleStrip = () => { if (performance.now() - dragged.current > 300) setExpand((h) => (h ? 0 : openHeight())); };
+  const toggleStrip = () => {
+    if (performance.now() - dragged.current < 300) return;
+    if (expand) fold(); else setExpand(openHeight());
+  };
   // A tap opens it too, but not the click that ends a drag.
   const tapOpen = (name) => () => { if (performance.now() - dragged.current > 300) setSheet(name); };
   const def = toolDef(state.tool);
@@ -264,7 +272,7 @@ export function Phone({ tank, local = false, landscape = false }) {
           </button>
         </div>
         {/* All the tool's settings, when the strip has been pulled up */}
-        {!landscape && expand > 0 && (
+        {!landscape && (expand > 0 || folding) && (
           <div
             className="scroll-thin overflow-y-auto px-4 py-3"
             style={{ height: expand, transition: stretching ? 'none' : 'height 0.22s ease-out' }}
@@ -273,7 +281,7 @@ export function Phone({ tank, local = false, landscape = false }) {
           </div>
         )}
         {/* Settings: swipe sideways for more */}
-        <div className={cx('no-scrollbar flex gap-5 px-4 py-3', !landscape && expand > 0 && 'hidden', landscape ? 'flex-col gap-3 overflow-y-auto' : 'snap-x snap-mandatory scroll-px-4 overflow-x-auto')}>
+        <div className={cx('no-scrollbar flex gap-5 px-4 py-3', !landscape && (expand > 0 || folding) && 'hidden', landscape ? 'flex-col gap-3 overflow-y-auto' : 'snap-x snap-mandatory scroll-px-4 overflow-x-auto')}>
           {params.map((p) => (
             <ParamSlider
               key={p.key} tool={state.tool} p={p} value={values[p.key]}
@@ -329,11 +337,11 @@ export function Phone({ tank, local = false, landscape = false }) {
       </div>
 
       {sheet === 'more' && (
-        <Sheet title={`${def.label} settings`} peek={peek} onClose={() => setSheet(null)}>
+        <Sheet title={`${def.label} settings`} peek={peek} dropping={dropping} onClose={() => setSheet(null)}>
           <ToolSettings tank={{ ...tank, state: { ...state, view: 'advanced' } }} layout="column" />
         </Sheet>
       )}
-      {sheet === 'menu' && <MenuSheet tank={tank} commands={commands} local={local} peek={peek} onClose={() => setSheet(null)} onScript={() => setSheet('script')} />}
+      {sheet === 'menu' && <MenuSheet tank={tank} commands={commands} local={local} peek={peek} dropping={dropping} onClose={() => setSheet(null)} onScript={() => setSheet('script')} />}
       {sheet === 'script' && (
         <Sheet title="Script" height="full" onClose={() => setSheet(null)}>
           <ScriptBody tank={tank} onRun={() => commands.run('runScript')} onCapture={() => commands.run('copySession')} />
