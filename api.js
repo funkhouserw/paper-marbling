@@ -135,6 +135,7 @@ export const COMMANDS = [
     ['waveShape', 'string', 'sine', 'the weave: straight, sine, scallop, points, zigzag, fin, breaker (crest hangs over), curl (loops over itself), spiral (winds into a spiral at each crest), wave (a breaking surf wave), shell (overlapping arches), flick (long slide, small flick) or hook (teardrop under each crest)'],
     size('width', 0, 'how much space each tine takes up; ink bulges aside and closes behind it; 0 is a point of force'),
     ['reach', 'number', 0.5, "how far each tine's pull may reach, as a share of the gap to the next tine; more lets a fine or wavy comb drag further, but past about 1 the teeth move the sheet as one paddle"],
+    ['ease', 'number', 0, 'seconds the comb takes to come up to speed at the start and to slow to a stop at the end; 0 starts and stops at full speed'],
     AT,
   ] },
   { name: 'fullRake', group: 'Tools', summary: 'A rake across the whole tank with evenly spaced teeth.', params: [
@@ -149,6 +150,7 @@ export const COMMANDS = [
     size('width', 0, 'how much space each tine takes up; ink bulges aside and closes behind it; 0 is a point of force'),
     size('overhang', null, 'how far the teeth start and end past the edges; left out, 2 cm on a plain tank and none on a repeating one, where anything past an edge is raked again at the other'),
     ['reach', 'number', 0.5, "how far each tine's pull may reach, as a share of the gap between tines; more lets a fine or wavy comb drag further"],
+    ['ease', 'number', 0, 'seconds the comb takes to come up to speed at the start and to slow to a stop at the end; 0 starts and stops at full speed'],
     AT,
   ] },
   { name: 'stylus', group: 'Tools', summary: 'One tine along a path.', params: [
