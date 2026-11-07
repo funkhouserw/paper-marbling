@@ -33,6 +33,7 @@ const COMMIT = {
   walls: (c) => c.commitWalls(),
   separate: (c) => c.commitSeparate(),
   seam: (c) => c.commitSeparate(),
+  channel: (c) => c.commitSeparate(),
   ribbonCut: (c) => c.commitRibbonCut(),
   useBath: (c) => c.commitBath(),
   gall: (c) => c.commitGall(),

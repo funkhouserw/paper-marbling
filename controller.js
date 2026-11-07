@@ -57,6 +57,7 @@ export const SETTINGS = {
   // even of one colour; a drop landing inside a same-colour drop still joins it. See Marble.separate.
   separate: { kind: 'toggle', label: 'Keep cells separate', info: 'separate', default: true },
   seam: { kind: 'number', label: 'Seam width (mm)', info: 'seam', default: '', min: 0.1, max: 5, step: 0.1 },
+  channel: { kind: 'number', label: 'Bare channel (% of cell)', info: 'channel', default: '', min: 0, max: 15, step: 0.5 },
   // The thin-ink cut (every outline simulator): ribbons stretched under half a millimetre are cut
   // away while tools move ink. See Marble.ribbonCut.
   ribbonCut: { kind: 'toggle', label: 'Cut hairline ink', info: 'ribbonCut', default: true },
@@ -981,7 +982,8 @@ export class TankController {
   separateValues() {
     const s = this.settings;
     const seam = s.seam === '' || s.seam === null || s.seam === undefined ? null : Number(s.seam);
-    return { on: s.separate !== false, seam: Number.isFinite(seam) && seam > 0 ? seam : null };
+    const ch = s.channel === '' || s.channel === null || s.channel === undefined ? null : Number(s.channel);
+    return { on: s.separate !== false, seam: Number.isFinite(seam) && seam > 0 ? seam : null, share: Number.isFinite(ch) && ch >= 0 ? ch / 100 : null };
   }
 
   // After settings.walls changes.
