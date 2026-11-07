@@ -273,9 +273,34 @@ for (let p = 0; p < passes; p++) {
   });
   settle();
 }
-`
+`,
+  'Hair-vein': `// Hair-vein (Film, Wake): a thin ground that spreads to cover the bath, then a stronger throw of
+// finer clear gall-water. Less colour, not more clear, is what thins the veins. Beaten on
+// in three passes. Each clear drop carries more gall than the ground (spreading 4 against 1),
+// so it opens and squeezes the colours into veins between the clear cells. Passes interleave on a
+// jittered grid, settling in between, so the cells come out even instead of bursting outwards.
+// Clear is drawn in the bath colour: a drop inside ink sits on top of it.
+viscosity({ value: 1000 });
+const water = '#f3eee0';
+bath({ color: water });
+const inks = palette('Old Dutch').inks;
+const veins = [inks[0], inks[1], inks[2], inks[3]];
+for (let r = 0; r < 9; r++) for (let c = 0; c < 12; c++) drop({ x: (c + 0.5 + (random() - 0.5) * 0.8) * 100 / 12, y: (r + 0.5 + (random() - 0.5) * 0.8) * 100 / 9, quantity: 0.4, spreading: 4, color: veins[Math.floor(random() * veins.length)] });
+settle();
+const cols = 40, rows = 27, passes = 3;
+const cells = [];
+for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) cells.push([c, r]);
+for (let p = 0; p < passes; p++) {
+  cells.forEach(([c, r], i) => {
+    if ((i + r) % passes !== p) return;
+    drop({ x: (c + 0.5 + (random() - 0.5) * 0.6) * 100 / cols, y: (r + 0.5 + (random() - 0.5) * 0.6) * 100 / rows,
+           quantity: 0.14, spreading: 4, color: water });
+  });
+  settle();
+}
+`,
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film',
 };
