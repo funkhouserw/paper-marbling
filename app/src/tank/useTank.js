@@ -204,6 +204,13 @@ export function useTank() {
   latestUi.current = ui;
 
   const pickInk = useCallback((i) => {
+    if (i === 'clear') {
+      // Clear (gall water) is ink in the bath's colour.
+      c.setInk(c.settings.bath, 1);
+      c.shimmer = 0;
+      setUi({ ink: 'clear' });
+      return;
+    }
     const ink = c.inks[i];
     if (!ink) return;
     c.setInk(ink.color, c.inkAlpha());
