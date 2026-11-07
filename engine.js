@@ -1149,8 +1149,11 @@ export class Marble {
       if (!p.cell || !p.laid || !this.polys.includes(p)) return false;
       const now = shape(p);
       const was = p.laid;
-      return Math.abs(now.area - was.area) < 0.01 * was.area && Math.hypot(now.x - was.x, now.y - was.y) < 0.5
-        && Math.abs(now.perimeter - was.perimeter) < 0.01 * was.perimeter;
+      // Loose enough for the small drift a neighbour's landing or the bath gives (under a mm, or 2%
+      // of area); a combed cell moves many millimetres and stretches its perimeter far more. Tighter,
+      // drops landing in drifted cells fell back to ordinary drops, whose push un-laid more cells.
+      return Math.abs(now.area - was.area) < 0.03 * was.area && Math.hypot(now.x - was.x, now.y - was.y) < Math.max(2, 0.05 * Math.sqrt(was.area))
+        && Math.abs(now.perimeter - was.perimeter) < 0.03 * was.perimeter;
     };
     // The first tick sorts the drops into the tree; every tick after re-solves it as they grow.
     if (!op.top) {
@@ -1190,6 +1193,24 @@ export class Marble {
         top.push(cell);
       }
     }
+    // Settled cells the new drops can't reach stay where they are, as fixed walls, instead of
+    // re-solving every cell on the tank (which made far cells jump and was slow). A cell is reached
+    // when a new drop lands within its final radius of the cell's outline, or in the cell; never
+    // farther than a sixth of the tank, so a heavy throw in a full tank squeezes what's near it
+    // instead of the whole tank at once.
+    const most = Math.min(this.width, this.height) / 6;
+    const reach = op.drops.map((d) => ({ x: d.x, y: d.y, r: Math.min(most, Math.sqrt((plain(d.quantity) * op.spreading) / Math.PI)) }));
+    op.fixed = new Set();
+    for (const c of top) {
+      if (c.fresh) continue;
+      const o = centreOf(Array.from(c.xy.subarray(0, c.n * 2)));
+      let size = 0;
+      for (let k = 0; k < c.n; k++) size = Math.max(size, Math.hypot(c.xy[k * 2] - o.x, c.xy[k * 2 + 1] - o.y));
+      if (!reach.some((d) => Math.hypot(d.x - o.x, d.y - o.y) < size + d.r)) op.fixed.add(c);
+      // A cell that moves again starts from where it lies now, not where its drop first landed
+      // (which may by now be under a neighbour that stays put), with its weight solved afresh.
+      else if (o.area > 0) { c.site = [o.x, o.y]; c.psi = 0; }
+    }
     }
     const top = op.top;
     // New cells grow as fronts spread on a deep layer (area ∝ t^¾, Jensen 1995), each tick a
@@ -1201,9 +1222,15 @@ export class Marble {
     const W = this.width, H = this.height;
     const total = (c) => ownNow(c) + c.kids.filter((k) => !k.gone).reduce((sum, k) => sum + total(k), 0);
     const placed = [];
-    const layout = (cells, domain, most = Infinity, nested = false) => {
+    const hasFresh = (c) => c.fresh || c.kids.some(hasFresh);
+    // Within a hundredth of a millimetre, point for point.
+    const sameOutline = (a, b) => a.length === b.length && a.every((v, k) => Math.abs(v - b[k]) < 0.01);
+    const layout = (cells, domain, most = Infinity, nested = false, obstacles = []) => {
       if (!cells.length || domain.length < 6) { for (const c of cells) c.gone = true; return; }
       const room = Math.min(most, 0.97 * polygonArea(domain));
+      // No room at all (a parent squeezed to its cap): its children are hidden this tick, rather than
+      // asking the transport for cells of no area, which has no solution.
+      if (!(room > 1)) { for (const c of cells) c.gone = true; return; }
       // New ink spreads in full and squeezes the older: each cell's own ink gives first, down to
       // its cap, and only then do the children inside it give too.
       const own = cells.map(ownNow);
@@ -1230,15 +1257,18 @@ export class Marble {
           for (let k = 0; k < cells.length; k++) { share[k] *= g; inner[k] = 0; }
         }
       }
+      // Squeezed ink doesn't spread back out: an older cell never gets more room than it had.
+      // (A cell that has taken in more ink of its own colour gets room in proportion.)
+      cells.forEach((c, k) => { if (!c.fresh && c.share > 0 && c.shareOf > 0) share[k] = Math.min(share[k], (c.share * own[k]) / c.shareOf); });
       const want = cells.map((c, k) => share[k] + inner[k]);
-      cells.forEach((c, k) => { c.share = share[k]; });
+      cells.forEach((c, k) => { c.share = share[k]; c.shareOf = own[k]; });
       // Each cell is drawn eroded by half its channel, so it asks the solve for that much more:
       // its drawn area is then what it was allotted, and the ink between cells is what's left.
       const gapOf = (a) => (apart ? Math.max(op.seam, (nested ? 0 : SEAM_SHARE) * Math.sqrt(a)) : 0);
       let ask = want.map((a) => a + 1.1 * 2 * Math.sqrt(Math.PI * a) * (gapOf(a) / 2));
       // Never more than the domain holds, or the transport has no solution.
       const askSum = ask.reduce((a, b) => a + b, 0);
-      const holds = 0.995 * polygonArea(domain);
+      const holds = 0.995 * Math.min(polygonArea(domain), most / 0.97);
       if (askSum > holds) ask = ask.map((a) => (a * holds) / askSum);
       // A parent's cell moves when it's laid out again; its children's sites stay inside it.
       if (nested) {
@@ -1248,7 +1278,7 @@ export class Marble {
           c.site = keepInside(domain, c.rel ? [now.x + c.rel.dx * k, now.y + c.rel.dy * k] : c.site);
         }
       }
-      const solved = partialTransport(cells.map((c) => c.site), ask, domain, { weights: cells.map((c) => c.psi), iterations: done ? 60 : 4 });
+      const solved = partialTransport(cells.map((c) => c.site), ask, domain, { weights: cells.map((c) => c.psi), iterations: done ? 60 : 4, obstacles });
       const shapes = solved.cells;
       cells.forEach((c, k) => { c.psi = solved.weights[k]; });
       cells.forEach((c, k) => {
@@ -1259,7 +1289,8 @@ export class Marble {
         // thin as its share allows: a hairline seam, the rest of its ink lying as the rim.
         const gap = !apart ? 0 : nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
         const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
-        const pts = outer.length >= 6 ? grow(erode(outer, gap / 2 + round), round) : [];
+        const core = outer.length >= 6 ? erode(outer, gap / 2 + round) : [];
+        const pts = core.length >= 6 ? grow(core, round) : [];
         if (pts.length < 6) { c.gone = true; return; }
         const m = pts.length / 2;
         c.xy = new Float64Array(m * 4);
@@ -1274,30 +1305,49 @@ export class Marble {
         const tauOf = () => (c.fresh ? 1 : Math.min(c.tauMax, Math.max(1, ownNow(c) / Math.max(1e-9, c.share))));
         if (!kids.length) { c.a0 = tauOf() * polygonArea(pts); return; }
         // Children inside, leaving the parent's own ink as a rim no thinner than its cap allows.
-        const inside = erode(pts, op.seam);
+        // The rounded cell pulled in by a seam: for a convex core that's the core grown by round − seam.
+        const inside = round >= op.seam ? grow(core, round - op.seam) : erode(core, op.seam - round);
         const area = polygonArea(pts);
         // Children fill what the parent's own share leaves (never squeezing it past its cap).
         const kidRoom = Math.max(0, area - Math.max(c.share, ownNow(c) / c.tauMax));
-        layout(kids, inside, kidRoom, true);
+        // Children with no new ink inside a parent that hasn't moved come out as they did last
+        // tick: reuse that, instead of re-solving every nest on the tank each tick of every throw.
+        const was = c.nest;
+        if (was && !kids.some(hasFresh) && Math.abs(was.room - kidRoom) <= 1e-6 * kidRoom && sameOutline(was.inside, inside)) {
+          for (const d of was.placed) placed.push(d);
+          for (const d of was.gone) d.gone = true;
+        } else {
+          const from = placed.length;
+          layout(kids, inside, kidRoom, true);
+          const gone = [];
+          const walk = (k) => { if (k.gone) gone.push(k); for (const x of k.kids) walk(x); };
+          for (const k of c.kids) walk(k);
+          c.nest = { inside, room: kidRoom, placed: placed.slice(from), gone };
+        }
         c.a0 = tauOf() * area;
       });
     };
     // Whether a cell fits is re-decided every tick: a drop too small to show at first still grows.
     const clear = (c) => { delete c.gone; for (const k of c.kids ?? []) clear(k); };
-    for (const c of top) clear(c);
+    const moving = top.filter((c) => !op.fixed.has(c));
+    for (const c of moving) clear(c);
     // The tank's walls bound the cells only with Hard edges (or a repeating tank, where the cells
     // must stay within one tile). On open water, cells near an edge carry on past it, rounded, as
     // any drop does, instead of pressing flat against an edge that isn't there.
     const pad = this.wallsOn || this.tileOn ? 0 : Math.max(W, H);
     const X = W / 2 + pad, Y = H / 2 + pad;
-    layout(top, [-X, -Y, X, -Y, X, Y, -X, Y]);
+    const tank = [-X, -Y, X, -Y, X, Y, -X, Y];
+    const walls = [...op.fixed].map((c) => Array.from(c.xy.subarray(0, c.n * 2)));
+    // The room left is the tank less what the settled cells hold.
+    const free = polygonArea(tank) - walls.reduce((a, w) => a + polygonArea(w), 0);
+    layout(moving, tank, 0.97 * free, false, walls);
     if (done) for (const c of placed) delete c.fresh;
     // The laid-out cells replace their old outlines, parents before their children so children
     // draw on top; everything else keeps its place.
     const keep = this.polys.filter((p) => !placed.includes(p) && !(p.cell && p.laid && p.gone));
     const ordered = [];
     const add = (c) => { if (c.gone || !placed.includes(c)) return; ordered.push(c); for (const k of c.kids) add(k); };
-    for (const c of top) add(c);
+    for (const c of moving) add(c);
     this.polys = [...keep, ...ordered];
     this.dirty = true;
     return done;

@@ -110,3 +110,28 @@ test('outside the Cells simulator a broom throw is ordinary drops: one logged co
   again.runUntilIdle();
   assert.deepEqual(Array.from(again.polys[7].xy.subarray(0, 8)), Array.from(m.polys[7].xy.subarray(0, 8)));
 });
+
+test('a later flick leaves settled cells it cannot reach where they are (Hard edges)', () => {
+  const m = new CellsTank({ width: 1000, height: 700, seed: 1 });
+  m.walls({ on: true, at: 0 });
+  const flick = (x, y, color) => {
+    m.broom({ n: 100, x, y, w: 154, h: 154, size: 0.08, spread: 0.9, spreading: 25, color });
+    for (let t = 0; t < 600 && m.busy; t++) m.step();
+  };
+  flick(-150, 0, '#1f5a3a');
+  flick(150, 50, '#1f5a3a');
+  const mid = (p) => { let x = 0, y = 0; for (let i = 0; i < p.n; i++) { x += p.xy[i * 2]; y += p.xy[i * 2 + 1]; } return [x / p.n, y / p.n]; };
+  const before = new Map(m.polys.map((p) => [p, mid(p)]));
+  const ops = [];
+  const land = m._landBroom.bind(m);
+  m._landBroom = (op) => { if (!ops.includes(op)) ops.push(op); return land(op); };
+  flick(0, -200, '#6cb8a6');
+  const fixed = ops[0].fixed;
+  assert.ok(fixed.size > 20, `most settled cells are out of reach (${fixed.size})`);
+  for (const c of fixed) {
+    assert.ok(m.polys.includes(c), 'a settled cell out of reach is still there');
+    const [x, y] = mid(c), [x0, y0] = before.get(c);
+    // Only the bath's own drift moves it, a few millimetres; a re-lay moved such cells 100 mm.
+    assert.ok(Math.hypot(x - x0, y - y0) < 5, `and has not moved (${Math.hypot(x - x0, y - y0).toFixed(1)} mm)`);
+  }
+});
