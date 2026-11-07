@@ -223,9 +223,25 @@ export function Control({ c: placed, tank, run }) {
       );
     case 'colourToggle':
       return (
-        <div className="flex items-center gap-2">
-          <Toggle label={c.label} checked={Boolean(s[c.id])} info={info} onChange={set} />
-          <input type="color" aria-label="Base colour picker" value={s.bath} onChange={(e) => dispatch({ type: 'setting', key: 'bath', value: e.target.value })} className="h-6 w-8 cursor-pointer rounded border border-ink-600 bg-transparent" />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <Toggle label={c.label} checked={Boolean(s[c.id])} info={info} onChange={set} />
+            <input type="color" aria-label="Base colour picker" value={s.bath} onChange={(e) => dispatch({ type: 'setting', key: 'bath', value: e.target.value })} className="h-6 w-8 cursor-pointer rounded border border-ink-600 bg-transparent" />
+          </div>
+          {/* The paper tints as quick picks. Picking one turns the base colour on. */}
+          <div role="radiogroup" aria-label="Base colour quick picks" className="flex items-center gap-1.5">
+            {Object.entries(PAPER_TINTS).map(([name, color]) => {
+              const on = Boolean(s[c.id]) && s.bath?.toLowerCase() === color;
+              return (
+                <button
+                  key={name} type="button" role="radio" aria-checked={on} aria-label={`Base colour: ${name}`} title={name}
+                  onClick={() => { dispatch({ type: 'setting', key: 'bath', value: color }); if (!s[c.id]) set(true); }}
+                  className={cx('size-5 rounded border', on ? 'border-gilt ring-1 ring-gilt' : 'border-ink-600')}
+                  style={{ background: color }}
+                />
+              );
+            })}
+          </div>
         </div>
       );
     case 'custom': return null; // drawn by its own section (script drawer, assistant)

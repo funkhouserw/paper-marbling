@@ -32,6 +32,7 @@ export const SECTIONS = [
     id: 'palette', label: 'Palette', icon: 'palette', info: 'palette', desktop: 'panel', phone: 'menu', view: 'simple',
     controls: [
       { id: 'palette', kind: 'palette', label: 'Palette', info: 'palette' },
+      { id: 'useBath', kind: 'colourToggle', label: 'Base colour', info: 'baseColour', colour: 'bath', replaces: ['bath'] },
       { id: 'inkColour', kind: 'inkEditor', label: 'Ink', info: 'color.swatches', view: 'advanced', infos: ['color.alpha', 'color.shimmer'] },
       { id: 'paletteEditor', kind: 'paletteEditor', label: 'Edit and save', info: 'myPalettes', view: 'advanced', replaces: ['paletteInks', 'addInk', 'paletteName', 'savePalette', 'deletePalette'] },
     ],
@@ -75,7 +76,6 @@ export const SECTIONS = [
     controls: [
       { id: 'simulator', kind: 'simulator', label: 'Simulator', info: 'simulator' },
       { id: 'tankSize', kind: 'tankSize', label: 'Size (mm)', info: 'tankSize', replaces: ['tankW', 'tankH', 'applyTank'] },
-      { id: 'useBath', kind: 'colourToggle', label: 'Base colour', info: 'baseColour', colour: 'bath', replaces: ['bath'] },
       { id: 'walls', kind: 'toggle', label: 'Hard edges', info: 'walls', value: false, when: 'walls' },
       { id: 'toolsWait', kind: 'toggle', label: 'Tools wait for ink to settle', info: 'toolsWait', value: true },
       { id: 'queueMode', kind: 'choice', label: 'While paused, add', info: 'queueMode', value: 'together', options: { together: 'All at once', order: 'In order', settled: 'Each after the last settles' } },
