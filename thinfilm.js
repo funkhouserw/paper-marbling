@@ -5,7 +5,8 @@
 // and a film stops once c falls to 1. Bare water has c = 0 and no pressure: separate films can't
 // feel each other until they touch, and then they share a pressure and push as one. Outlines
 // stay vector: they ride on the same flow that moves c.
-import { Marble } from './engine.js';
+import { Marble, isTranslucent } from './engine.js';
+import { underpaintWidth } from './thin.js';
 
 const CELL = 5; // mm
 const MARGIN = 300; // mm of surface beyond the tank, for when there are no walls
@@ -14,12 +15,43 @@ const DROP_THICKNESS = 0.5; // mm; a new drop lands this thick
 const CALM = 0.25; // mm/s; below this the film counts as settled
 const MAX_SUBSTEPS = 30;
 const LONGEST_SPREAD = 10; // seconds; the last of a film's thinning is too slow to watch
+// With Keep cells separate off, gaps narrower than twice this between films are painted over, so
+// touching drops of one colour join. Thin film's wider channels, where fronts stopped short, stay.
+const CLOSE_GAPS = 0.75; // mm
 
 export class ThinFilm extends Marble {
   // The pressure grid doesn't wrap yet, so this simulator can't repeat.
   get tileSupported() { return false; }
 
   get spreadFactor() { return 4; }
+
+  get closeGaps() { return this.seamsDrawn ? 0 : CLOSE_GAPS; }
+
+  // Under everything, so it only ever shows over bare bath (as in Film), and only with separation off.
+  _beforeInk(ctx) {
+    if (this.seamsDrawn) return;
+    ctx.lineJoin = 'round';
+    for (const poly of this.polys) {
+      const { xy, n, color, group, cell } = poly;
+      if (group || cell || isTranslucent(color)) continue;
+      ctx.lineWidth = underpaintWidth(xy, 0, n, CLOSE_GAPS * 2);
+      ctx.beginPath();
+      ctx.moveTo(xy[0], xy[1]);
+      for (let i = 1; i < n; i++) ctx.lineTo(xy[i * 2], xy[i * 2 + 1]);
+      ctx.closePath();
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    }
+  }
+
+  _svgBeforeInk() {
+    if (this.seamsDrawn) return '';
+    return this.polys.filter(({ group, color, cell }) => !group && !cell && !isTranslucent(color)).map(({ xy, n, color }) => {
+      const pts = [];
+      for (let i = 0; i < n; i++) pts.push(`${xy[i * 2].toFixed(2)} ${(-xy[i * 2 + 1]).toFixed(2)}`);
+      return `<path fill="none" stroke="${color}" stroke-width="${underpaintWidth(xy, 0, n, CLOSE_GAPS * 2).toFixed(3)}" stroke-linejoin="round" d="M${pts.join('L')}Z"/>`;
+    }).join('');
+  }
 
   constructor(options) {
     super(options);

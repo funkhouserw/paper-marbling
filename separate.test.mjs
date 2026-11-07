@@ -174,3 +174,19 @@ test('where cells face bare bath the seam widens with their size; inside another
   m.step();
   assert.equal(colourAt(m, 99.5, 0), '#224466');
 });
+
+test('Thin film with separation off joins drops of one colour across a hairline gap', () => {
+  const square = (x0, x1) => ({ xy: Float64Array.from([x0, -20, x1, -20, x1, 20, x0, 20]), n: 4, color: '#1e4d2b' });
+  const make = (on) => {
+    const m = new ThinFilm({ width: 200, height: 140, seed: 1 });
+    if (!on) m.separateOn = false;
+    m.polys.push(square(-30, -0.4), square(0.4, 30)); // 0.8 mm apart
+    return m;
+  };
+  // Off: each square gets an underpaint stroke reaching half its width past its edge, so two of
+  // them cover a gap up to that wide (the sampler here doesn't model strokes, so read the widths).
+  const widths = [...make(false).toSVG().matchAll(/fill="none" stroke="[^"]+" stroke-width="([\d.]+)"/g)].map((w) => Number(w[1]));
+  assert.equal(widths.length, 2, 'off: an underpaint under each drop');
+  assert.ok(widths.every((w) => w >= 0.8), `wide enough to close a 0.8 mm gap (${widths})`);
+  assert.equal(colourAt(make(true), 0, 0), 'bath', 'on: the seam stays');
+});
