@@ -195,7 +195,8 @@ const HEART_LAND = 0.6; // seconds a Heart drop takes to land and push the ink r
 const TAU_MAX = 4;
 const SEAM_SHARE = 0.03; // bare channel between broom cells, as a share of a cell's size (√area)
 const BROOM_TAU_MAX = 3; // how far a broom cell's ink can be squeezed; by eye on Ilse's photo 31, to measure
-const ROUND_SHARE = 0.12; // corner radius, likewise // the most a film can be squeezed: a monolayer collapses past a point (Π–A isotherm)
+const ROUND_SHARE = 0.12;
+const BROOM_SPREAD = 2.5; // seconds a broom throw takes to spread out // corner radius, likewise // the most a film can be squeezed: a monolayer collapses past a point (Π–A isotherm)
 const HOLES_CLOSE = 0.6; // share of a Stormont hole's area that evaporation closes
 const PUSH_RAYS = 720; // directions a bending heart's push is worked out in
 const ROUND_ENOUGH = 0.95; // Heart strike bends only loops at least this round: 4πA/P², 1 for a circle
@@ -1093,7 +1094,11 @@ export class Marble {
       return Math.abs(now.area - was.area) < 0.01 * was.area && Math.hypot(now.x - was.x, now.y - was.y) < 0.5
         && Math.abs(now.perimeter - was.perimeter) < 0.01 * was.perimeter;
     };
-    const top = this.polys.filter((p) => laid(p) && !(p.parentCell && laid(p.parentCell)));
+    // The first tick sorts the drops into the tree; every tick after re-solves it as they grow.
+    if (!op.top) {
+    op.top = this.polys.filter((p) => laid(p) && !(p.parentCell && laid(p.parentCell)));
+    op.start = this.time;
+    const top = op.top;
     const log = this.log;
     const live = this._live;
     for (const d of op.drops) {
@@ -1113,31 +1118,41 @@ export class Marble {
       if (under) under.kids.push(cell);
       else top.push(cell);
     }
+    }
+    const top = op.top;
+    // New cells grow as fronts spread on a deep layer (area ∝ t^¾, Jensen 1995), each tick a
+    // settled layout (the films' pressure evens out far faster than the fronts move).
+    const e = (this.time - op.start) / BROOM_SPREAD;
+    const done = e >= 1;
+    const grown = done ? 1 : Math.max(0.02, e ** 0.75);
+    const ownNow = (c) => (c.fresh ? c.own * grown : c.own);
     const W = this.width, H = this.height;
-    const total = (c) => c.own + c.kids.filter((k) => !k.gone).reduce((sum, k) => sum + total(k), 0);
+    const total = (c) => ownNow(c) + c.kids.filter((k) => !k.gone).reduce((sum, k) => sum + total(k), 0);
     const placed = [];
     const layout = (cells, domain, most = Infinity) => {
       if (!cells.length || domain.length < 6) { for (const c of cells) c.gone = true; return; }
       const room = Math.min(most, 0.97 * polygonArea(domain));
       // New ink spreads in full and squeezes the older: each cell's own ink gives first, down to
       // its cap, and only then do the children inside it give too.
-      const own = cells.map((c) => c.own);
-      const inner = cells.map((c) => total(c) - c.own);
+      const own = cells.map(ownNow);
+      const inner = cells.map((c) => total(c) - ownNow(c));
       const sumOwn = own.reduce((a, b) => a + b, 0);
       const sumInner = inner.reduce((a, b) => a + b, 0);
       // Ink thrown just now doesn't give; it's what does the squeezing.
       const give = (c) => (c.fresh ? 1 : c.tauMax);
-      const least = cells.reduce((a, c) => a + c.own / give(c), 0);
+      const least = cells.reduce((a, c) => a + ownNow(c) / give(c), 0);
       let want;
       if (sumOwn + sumInner <= room) want = cells.map((c, k) => own[k] + inner[k]);
       else if (least + sumInner <= room) {
         const f = (room - sumInner - least) / (sumOwn - least);
-        want = cells.map((c, k) => c.own / give(c) + (own[k] - c.own / give(c)) * f + inner[k]);
+        want = cells.map((c, k) => own[k] / give(c) + (own[k] - own[k] / give(c)) * f + inner[k]);
       } else {
         const g = room / (least + sumInner);
-        want = cells.map((c, k) => (c.own / give(c) + inner[k]) * g);
+        want = cells.map((c, k) => (own[k] / give(c) + inner[k]) * g);
       }
-      const { cells: shapes } = partialTransport(cells.map((c) => c.site), want, domain);
+      const solved = partialTransport(cells.map((c) => c.site), want, domain, { weights: cells.map((c) => c.psi), iterations: done ? 300 : 10 });
+      const shapes = solved.cells;
+      cells.forEach((c, k) => { c.psi = solved.weights[k]; });
       cells.forEach((c, k) => {
         const outer = shapes[k];
         // A channel of bare size between cells, wider for bigger cells, with rounded corners.
@@ -1153,19 +1168,21 @@ export class Marble {
         c.laid = shape(c);
         placed.push(c);
         const kids = c.kids.filter((x) => !x.gone);
-        if (!kids.length) { c.a0 = Math.min(c.tauMax, Math.max(1, c.own / polygonArea(pts))) * polygonArea(pts); return; }
+        if (!kids.length) { c.a0 = Math.min(c.tauMax, Math.max(1, ownNow(c) / polygonArea(pts))) * polygonArea(pts); return; }
         // Children inside, leaving the parent's own ink as a rim no thinner than its cap allows.
         const inside = erode(pts, op.seam);
         const area = polygonArea(pts);
-        const kidRoom = Math.max(0, area - c.own / c.tauMax);
+        const kidRoom = Math.max(0, area - ownNow(c) / c.tauMax);
         layout(kids, inside, kidRoom);
         const kidArea = kids.filter((x) => !x.gone).reduce((a, x) => a + polygonArea(Array.from(x.xy.subarray(0, x.n * 2))), 0);
-        const tau = Math.max(1, Math.min(c.tauMax, c.own / Math.max(1e-9, area - kidArea)));
+        const tau = Math.max(1, Math.min(c.tauMax, ownNow(c) / Math.max(1e-9, area - kidArea)));
         c.a0 = tau * area;
       });
     };
+    for (const c of op.cellsSeen ?? []) delete c.gone; // re-decided every tick
     layout(top, [-W / 2, -H / 2, W / 2, -H / 2, W / 2, H / 2, -W / 2, H / 2]);
-    for (const c of placed) delete c.fresh;
+    op.cellsSeen = placed.slice();
+    if (done) for (const c of placed) delete c.fresh;
     // The laid-out cells replace their old outlines, parents before their children so children
     // draw on top; everything else keeps its place.
     const keep = this.polys.filter((p) => !placed.includes(p) && !(p.cell && p.laid && p.gone));
@@ -1174,7 +1191,7 @@ export class Marble {
     for (const c of top) add(c);
     this.polys = [...keep, ...ordered];
     this.dirty = true;
-    return true;
+    return done;
   }
 
   // Pulls a cell's edge in by half a seam, once it has stopped spreading, so the bath shows between

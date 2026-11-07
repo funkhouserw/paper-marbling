@@ -51,9 +51,22 @@ export function polygonArea(poly) {
 // Damped Newton on the diagonal (after Kitagawa, Mérigot & Thibert 2019): ∂|Cᵢ|/∂ψᵢ is
 // Σ (wall length)/(2|xᵢ − xⱼ|) over shared walls plus (arc length)/(2√ψᵢ) where the disc bounds it,
 // so each weight moves by (Aᵢ − |Cᵢ|) over that.
-export function partialTransport(sites, targets, domain, { iterations = 300, tolerance = 0.01 } = {}) {
+// weights, if given, warm-start the solve, as when re-solving a throw tick by tick.
+export function partialTransport(sites, targets, domain, { iterations = 300, tolerance = 0.01, weights } = {}) {
   const n = sites.length;
-  const psi = targets.map((A) => A / Math.PI);
+  const psi = weights && weights.length === n ? weights.map((w, i) => (w > 0 ? w : targets[i] / Math.PI)) : targets.map((A) => A / Math.PI);
+  // Sites bucketed on a grid as wide as the biggest disc, so each cell is clipped only by those
+  // whose discs could reach it. Rebuilt each round, since the discs change.
+  let grid = null, gridSize = 1;
+  const bucket = () => {
+    gridSize = 2 * Math.sqrt(Math.max(...psi, 1e-9)) + 1e-6;
+    grid = new Map();
+    sites.forEach(([x, y], j) => {
+      const key = `${Math.floor(x / gridSize)},${Math.floor(y / gridSize)}`;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(j);
+    });
+  };
   const DOMAIN = -1, DISC = -2;
   let cells = [];
   let error = Infinity;
@@ -61,14 +74,21 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     let cell = { pts: domain, tags: domain.map(() => DOMAIN).slice(0, domain.length / 2) };
     const [xi, yi] = sites[i];
     const ri = Math.sqrt(Math.max(psi[i], 1e-9));
-    for (let j = 0; j < n && cell.pts.length >= 6; j++) {
-      if (j === i) continue;
+    const gx = Math.floor(xi / gridSize), gy = Math.floor(yi / gridSize);
+    const near = [];
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const j of grid.get(`${gx + a},${gy + b}`) ?? []) near.push(j);
+    for (const j of near) {
+      if (j === i || cell.pts.length < 6) continue;
       const [xj, yj] = sites[j];
       // Discs that don't overlap can't share a wall inside either.
       if ((xj - xi) ** 2 + (yj - yi) ** 2 > (ri + Math.sqrt(Math.max(psi[j], 0))) ** 2) continue;
       // |x − xi|² − ψi ≤ |x − xj|² − ψj  ⇔  2(xj − xi)·x ≤ |xj|² − |xi|² − ψj + ψi
       cell = clip(cell, 2 * (xj - xi), 2 * (yj - yi), xj * xj + yj * yj - xi * xi - yi * yi - psi[j] + psi[i], j);
     }
+    // A packed cell that lies wholly inside its disc needs no clipping by it.
+    let far = 0;
+    for (let k = 0; k < cell.pts.length; k += 2) far = Math.max(far, (cell.pts[k] - xi) ** 2 + (cell.pts[k + 1] - yi) ** 2);
+    if (far <= (ri * APOTHEM) ** 2) return cell;
     for (let s = 0; s < DISC_SIDES && cell.pts.length >= 6; s++) {
       const t = ((s + 0.5) * 2 * Math.PI) / DISC_SIDES;
       const a = Math.cos(t), b = Math.sin(t);
@@ -82,6 +102,7 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
   let lastPsi = psi.slice();
   let lastStep = null;
   for (let it = 0; it < iterations; it++) {
+    bucket();
     const all = sites.map((_, i) => cellOf(i));
     let misfit = 0;
     for (let i = 0; i < n; i++) {
@@ -112,12 +133,18 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
         if (tag === DISC) h += len / (2 * Math.sqrt(Math.max(psi[i], 1e-9)));
         else h += len / (2 * Math.hypot(sites[tag][0] - sites[i][0], sites[tag][1] - sites[i][1]));
       }
-      // An empty cell has no slope to go by: grow it as if it were a lone disc.
-      step.push(h > 0 ? (targets[i] - a) / h : (targets[i] - a) / Math.PI);
+      step.push(h > 0 ? (targets[i] - a) / h : 0);
     }
     if (error < tolerance) break;
     lastStep = step;
     for (let i = 0; i < n; i++) psi[i] = Math.max(1e-6, psi[i] + damping * step[i]);
+    // An empty cell has no slope to go by: it grows gently every round, as if a lone disc, and
+    // that growth is kept even when the rest of a round is undone, so it can't stall.
+    for (let i = 0; i < n; i++) {
+      if (all[i].pts.length >= 6 && polygonArea(all[i].pts) > 0) continue;
+      psi[i] += targets[i] / (2 * Math.PI);
+      lastPsi[i] = psi[i];
+    }
   }
   return { cells, weights: psi, error };
 }
