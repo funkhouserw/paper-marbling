@@ -175,6 +175,40 @@ export function Phone({ tank, local = false, landscape = false }) {
       window.addEventListener('pointercancel', up);
     },
   });
+  // The tool strip grows in place to show all of the tool's settings: drag its handle up (it follows
+  // the finger) or tap it, and drag or tap again to fold it back. expand is the extra height in px.
+  const [expand, setExpand] = useState(0);
+  const [stretching, setStretching] = useState(false);
+  const openHeight = () => Math.round(window.innerHeight * 0.5);
+  const stripDrag = {
+    onPointerDown: (e) => {
+      const from = e.clientY;
+      const base = expand;
+      let last = base;
+      let moved = false;
+      const move = (m) => {
+        const h = Math.max(0, Math.min(openHeight() + 60, base + (from - m.clientY)));
+        if (Math.abs(h - base) > 6) moved = true;
+        if (!moved) return;
+        last = h;
+        setStretching(true);
+        setExpand(h);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        setStretching(false);
+        if (!moved) return;
+        dragged.current = performance.now();
+        setExpand(base ? (last < openHeight() - 60 ? 0 : openHeight()) : (last > 60 ? openHeight() : 0));
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    },
+  };
+  const toggleStrip = () => { if (performance.now() - dragged.current > 300) setExpand((h) => (h ? 0 : openHeight())); };
   // A tap opens it too, but not the click that ends a drag.
   const tapOpen = (name) => () => { if (performance.now() - dragged.current > 300) setSheet(name); };
   const def = toolDef(state.tool);
@@ -214,7 +248,7 @@ export function Phone({ tank, local = false, landscape = false }) {
 
       {/* Thumb strip */}
       <div className={cx('shrink-0 border-ink-700 bg-ink-900', landscape ? 'flex w-72 flex-col border-l' : 'border-t')}>
-        {!landscape && <Handle tone="tool" label={`All ${def.label} settings`} onOpen={tapOpen('more')} drag={dragOpen('more')} />}
+        {!landscape && <Handle tone="tool" label={expand ? `Fewer ${def.label} settings` : `All ${def.label} settings`} onOpen={toggleStrip} drag={stripDrag} />}
         {def.color && (
           <div className="no-scrollbar flex items-center gap-3 overflow-x-auto px-4 pt-3">
             <Swatches palette={palette} ink={state.ink} size="lg" onPick={(ink) => set({ ink })} />
@@ -225,12 +259,21 @@ export function Phone({ tank, local = false, landscape = false }) {
           <span className="font-medium">{def.label}</span>
           {def.whole && <Button primary className="ml-1 h-8" onClick={applyTool}><Play size={12} /> {def.label}</Button>}
           <span className="flex-1" />
-          <button type="button" onClick={() => setSheet('more')} className="text-xs text-gilt-soft underline-offset-2 hover:underline">
-            All settings
+          <button type="button" onClick={landscape ? () => setSheet('more') : toggleStrip} className="text-xs text-gilt-soft underline-offset-2 hover:underline">
+            {expand && !landscape ? 'Fewer settings' : 'All settings'}
           </button>
         </div>
+        {/* All the tool's settings, when the strip has been pulled up */}
+        {!landscape && expand > 0 && (
+          <div
+            className="scroll-thin overflow-y-auto px-4 py-3"
+            style={{ height: expand, transition: stretching ? 'none' : 'height 0.22s ease-out' }}
+          >
+            <ToolSettings tank={{ ...tank, state: { ...state, view: 'advanced' } }} layout="column" />
+          </div>
+        )}
         {/* Settings: swipe sideways for more */}
-        <div className={cx('no-scrollbar flex gap-5 px-4 py-3', landscape ? 'flex-col gap-3 overflow-y-auto' : 'snap-x snap-mandatory scroll-px-4 overflow-x-auto')}>
+        <div className={cx('no-scrollbar flex gap-5 px-4 py-3', !landscape && expand > 0 && 'hidden', landscape ? 'flex-col gap-3 overflow-y-auto' : 'snap-x snap-mandatory scroll-px-4 overflow-x-auto')}>
           {params.map((p) => (
             <ParamSlider
               key={p.key} tool={state.tool} p={p} value={values[p.key]}
