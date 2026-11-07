@@ -67,3 +67,16 @@ test('evaporation closes the holes partway', () => {
   const closed = holeArea(2);
   assert.ok(closed < open * 0.8, `${closed} vs ${open}`);
 });
+
+test('clear cuts through every layer of ink at its point, down to the bath', () => {
+  for (const Engine of [Marble]) {
+    const m = new Engine({ width: 600, height: 420, seed: 1 });
+    m.drop({ quantity: 3, color: '#1a2a66' });
+    m.drop({ quantity: 1, color: '#d8b84a', at: 0 });
+    m.runUntilIdle();
+    assert.equal(m.shapesAt(0, 0).length, 2, 'two layers over the middle');
+    m.drop({ quantity: 0.3, spreading: 1, color: 'clear' });
+    m.runUntilIdle();
+    assert.equal(m.shapesAt(0, 0).length, 0, 'bare bath');
+  }
+});
