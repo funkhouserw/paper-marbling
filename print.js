@@ -6,6 +6,8 @@
 // its area when moved. A drop that spread to 4 times its plain area is a quarter as thick.
 // Rims and mottling are artistic touches, not physics, and each one can be turned off.
 
+import { thickness as squeezed } from './engine.js';
+
 export const PRINT_DEFAULTS = {
   width: 3000, // pixels
   smooth: 2, // samples per pixel across
@@ -278,7 +280,8 @@ export async function renderPrint(marble, options = {}, onProgress = () => {}) {
     const root = poly.from ?? poly;
     const seen = (seenOf.get(root) ?? 0) / (scale * scale);
     const plain = plainOf.get(root);
-    const thickness = plain && seen > 0 ? Math.min(4, plain / seen) : 1;
+    // And how squeezed its film is (τ, set when later ink pushed it back), as the screen shows it.
+    const thickness = (plain && seen > 0 ? Math.min(4, plain / seen) : 1) * squeezed(poly);
     // Strength 1 is the colour as chosen, which is how it looks at plain thickness.
     const strength = (1 - o.paleness) + o.paleness * Math.sqrt(thickness);
     // How much each channel absorbs, from what a layer at plain thickness does to the paper.
