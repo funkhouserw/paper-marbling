@@ -215,6 +215,20 @@ export function useTank() {
       setUi({ ink: 'clear' });
       return;
     }
+    if (i === 'white') {
+      c.setInk('#ffffff', 1);
+      c.shimmer = 0;
+      setUi({ ink: 'white' });
+      return;
+    }
+    if (i === 'tint') {
+      // The last palette colour picked, see-through.
+      const base = c.inks[typeof latestUi.current.ink === 'number' ? latestUi.current.ink : 0] ?? c.inks[0];
+      c.setInk(base.color.slice(0, 7), 0.35);
+      c.shimmer = 0;
+      setUi({ ink: 'tint' });
+      return;
+    }
     if (i && typeof i === 'object' && i.custom) {
       // Any colour, from the + swatch: the next drop's ink, without changing the palette.
       c.setInk(i.custom, c.inkAlpha());

@@ -357,6 +357,56 @@ export function Button({ children, primary, className, ...rest }) {
 }
 
 // The palette's inks. Shimmering inks get a sheen so metallic reads at a glance.
+// Three kinds of "clear" a marbler throws to open holes and veins: gall water (no colour: a real
+// hole showing the bath), white paint (opaque), and a translucent tint of the current colour. How far
+// each opens is the gall's job (the tool's Gall setting, or the bath's), not the swatch's.
+const CLEARS = [
+  ['clear', 'Gall water', 'No colour: cuts real holes showing the bath'],
+  ['white', 'White', 'Opaque white paint'],
+  ['tint', 'Translucent tint', 'The current colour, see-through; give it more gall to open over other ink'],
+];
+
+function ClearSwatch({ s, ink, bath, onPick }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef(null);
+  const menu = useRef(null);
+  const pos = usePlace(button, open, { width: 236 });
+  useDismiss(open, setOpen, [button, menu]);
+  const kind = CLEARS.find(([k]) => k === ink);
+  return (
+    <>
+      <button
+        ref={button}
+        type="button" role="radio" aria-checked={Boolean(kind)} aria-haspopup="menu" aria-expanded={open}
+        aria-label={kind ? `Clear: ${kind[1]}` : 'Clear (gall water, white or a translucent tint)'}
+        title={kind ? `Clear: ${kind[1]}. Click for the other kinds` : 'Clear: gall water, white, or a translucent tint'}
+        onClick={() => setOpen((o) => !o)}
+        className={cx(
+          s, 'relative overflow-hidden rounded-full border border-dashed transition-transform focus-visible:outline-2 focus-visible:outline-gilt',
+          kind ? 'scale-110 border-ink-100 ring-2 ring-gilt' : 'border-ink-400 hover:scale-105',
+        )}
+        style={{ background: ink === 'white' ? '#ffffff' : bath }}
+      >
+        <span className="absolute inset-0 grid place-items-center text-[9px] font-semibold text-ink-900/60">{ink === 'tint' ? 'T' : ink === 'white' ? 'W' : 'C'}</span>
+      </button>
+      {open && pos && (
+        <div ref={menu} role="menu" style={pos} className="z-50 overflow-auto rounded-lg border border-ink-600 bg-ink-900 p-1 shadow-xl">
+          {CLEARS.map(([k, label, note]) => (
+            <button
+              key={k} type="button" role="menuitemradio" aria-checked={ink === k}
+              onClick={() => { onPick(k); setOpen(false); }}
+              className={cx('flex w-full flex-col items-start rounded-md px-2.5 py-1.5 text-left hover:bg-ink-800', ink === k && 'bg-ink-800')}
+            >
+              <span className="text-xs text-ink-100">{label}</span>
+              <span className="text-[11px] leading-snug text-ink-400">{note}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 // custom is the next drop's colour, for the + swatch, which picks any colour outside the palette.
 export function Swatches({ palette, ink, onPick, custom, size = 'md' }) {
   const s = size === 'lg' ? 'size-9' : 'size-6';
@@ -385,22 +435,7 @@ export function Swatches({ palette, ink, onPick, custom, size = 'md' }) {
           )}
         </button>
       ))}
-      {/* Clear (gall water): no colour of its own. Inside ink it cuts a real hole, showing the bath (or
-          nothing, in a transparent export); thrown last, it squeezes the colours into veins. */}
-      {palette.bath && (
-        <button
-          type="button" role="radio" aria-checked={ink === 'clear'}
-          aria-label="Clear (gall water): cuts real holes" title="Clear (gall water): cuts real holes; thrown last, it squeezes the colours into veins"
-          onClick={() => onPick('clear')}
-          className={cx(
-            s, 'relative overflow-hidden rounded-full border border-dashed transition-transform focus-visible:outline-2 focus-visible:outline-gilt',
-            ink === 'clear' ? 'scale-110 border-ink-100 ring-2 ring-gilt' : 'border-ink-400 hover:scale-105',
-          )}
-          style={{ background: palette.bath }}
-        >
-          <span className="absolute inset-0 grid place-items-center text-[9px] font-semibold text-ink-900/60">C</span>
-        </button>
-      )}
+      {palette.bath && <ClearSwatch s={s} ink={ink} bath={palette.bath} onPick={onPick} />}
       {/* Any colour: the system colour picker, over a + swatch that shows the colour once chosen. */}
       <label
         title="Any colour: pick one outside the palette for the next drops"
