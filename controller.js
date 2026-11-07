@@ -223,6 +223,9 @@ export class TankController {
     this.owed = 0;
     this.stepMs = 0;            // smoothed time for one tick
     this.autoSnapshots = false; // ticks got too slow, so low framerate is on until the tank settles
+
+    // The first tank is the chosen simulator's, with its id, so undo back to the start finds it.
+    this.newTank();
   }
 
   // ---- Telling the interface ------------------------------------------------
