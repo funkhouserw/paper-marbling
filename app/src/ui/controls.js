@@ -34,40 +34,9 @@ export const ICONS = {
 export const iconFor = (id) => ICONS[id] ?? Sparkles;
 export { Snowflake as FreezeIcon };
 
-// The settings Simple view shows for each tool. Everything else waits in Advanced.
-// A first draft, to be argued over.
-export const SIMPLE = {
-  drop: ['quantity', 'count'],
-  spray: ['n', 'radius'],
-  fillDots: ['count', 'max'],
-  paint: ['width', 'taper'],
-  stripes: ['count', 'wobble'],
-  text: ['size'],
-  rake: ['teeth', 'spacing', 'speed'],
-  fullRake: ['angle', 'teeth', 'speed'],
-  hearts: ['pull', 'speed'],
-  stylus: ['speed', 'D'],
-  jiggle: ['amplitude', 'period'],
-  wriggle: ['degrees', 'period'],
-  stir: ['rings', 'degrees'],
-  vortex: ['circulation', 'duration'],
-  air: ['speed', 'scale'],
-  erase: ['radius'],
-};
-// Choices Simple view keeps, because without them a tool can't do its main job.
-export const SIMPLE_CHOICES = {
-  spray: ['sprayColors'], stir: ['direction'], vortex: ['direction'], wriggle: ['direction'],
-  rake: ['waveShape'], fullRake: ['waveShape'],
-};
-
-// A tool without a SIMPLE entry shows its first two settings in Simple view.
-export function shownParams(id, view) {
-  const def = toolDef(id);
-  if (view !== 'simple') return def.params;
-  return SIMPLE[id] ? def.params.filter((p) => SIMPLE[id].includes(p.key)) : def.params.slice(0, 2);
-}
-export const shownChoices = (id, view) => (view === 'simple'
-  ? toolDef(id).choices.filter((c) => SIMPLE_CHOICES[id]?.includes(c.key))
-  : toolDef(id).choices);
+// Every brush shows all of its settings, in Simple view too. (The view argument stays so a
+// tool could hide some again later.)
+export const shownParams = (id, _view) => toolDef(id).params;
+export const shownChoices = (id, _view) => toolDef(id).choices;
 
 export const SPEEDS = ['0.5', '1', '2', '5'];

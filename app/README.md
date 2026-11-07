@@ -34,4 +34,4 @@ A preview drawn over the tank while you use it (as rake, full rake, hearts and t
 
 Until step 5 is done, a new tool still shows up, under More with a sparkle icon, and `npm test` asks for a proper place.
 
-**Where Simple view draws the line.** `SIMPLE` and `SIMPLE_CHOICES` in `controls.js` list the settings each tool shows in Simple; a tool not listed shows its first two.
+**Simple view** shows every brush setting. It hides advanced panel sections and controls, marked `view: 'advanced'` in `features.js`.

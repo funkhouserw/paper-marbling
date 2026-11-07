@@ -72,15 +72,15 @@ export const SECTIONS = [
     ],
   },
   {
-    id: 'tank', label: 'Tank', icon: 'square', desktop: 'panel', phone: 'menu', view: 'advanced',
+    id: 'tank', label: 'Tank', icon: 'square', desktop: 'panel', phone: 'menu', view: 'simple',
     controls: [
       { id: 'simulator', kind: 'simulator', label: 'Simulator', info: 'simulator' },
-      { id: 'tankSize', kind: 'tankSize', label: 'Size (mm)', info: 'tankSize', replaces: ['tankW', 'tankH', 'applyTank'] },
-      { id: 'walls', kind: 'toggle', label: 'Hard edges', info: 'walls', value: false, when: 'walls' },
-      { id: 'toolsWait', kind: 'toggle', label: 'Tools wait for ink to settle', info: 'toolsWait', value: true },
-      { id: 'queueMode', kind: 'choice', label: 'While paused, add', info: 'queueMode', value: 'together', options: { together: 'All at once', order: 'In order', settled: 'Each after the last settles' } },
-      { id: 'queueGap', kind: 'number', label: 'Gap (s)', value: 0.5, min: 0, max: 30, step: 0.1, showIf: { queueMode: 'order' }, replaces: ['queueGapLabel'] },
-      { id: 'lowFramerate', kind: 'toggle', label: 'Low framerate', info: 'lowFramerate', value: false },
+      { id: 'tankSize', kind: 'tankSize', label: 'Size (mm)', info: 'tankSize', replaces: ['tankW', 'tankH', 'applyTank'], view: 'advanced' },
+      { id: 'walls', kind: 'toggle', label: 'Hard edges', info: 'walls', value: false, when: 'walls', view: 'advanced' },
+      { id: 'toolsWait', kind: 'toggle', label: 'Tools wait for ink to settle', info: 'toolsWait', value: true, view: 'advanced' },
+      { id: 'queueMode', kind: 'choice', label: 'While paused, add', info: 'queueMode', value: 'together', options: { together: 'All at once', order: 'In order', settled: 'Each after the last settles' }, view: 'advanced' },
+      { id: 'queueGap', kind: 'number', label: 'Gap (s)', value: 0.5, min: 0, max: 30, step: 0.1, showIf: { queueMode: 'order' }, replaces: ['queueGapLabel'], view: 'advanced' },
+      { id: 'lowFramerate', kind: 'toggle', label: 'Low framerate', info: 'lowFramerate', value: false, view: 'advanced' },
     ],
   },
   {

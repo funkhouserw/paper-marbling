@@ -112,6 +112,5 @@ Steps 2–7 are done, and most of 8 and 9.
 ## Open questions
 - Should a phone start on a portrait tank? A 1000 × 700 tank leaves half a phone screen empty.
 - Should Simple use Wake (fast) underneath on phones?
-- Are the 2–3 settings Simple shows for each tool the right ones? They're `SIMPLE` in `app/src/ui/controls.js`.
 - What's the creature's name and look? It's a teal ink drop with eyes for now.
 - When to switch: make `/new/` the main page, keep the old one at a side address for a while, or replace it outright.
