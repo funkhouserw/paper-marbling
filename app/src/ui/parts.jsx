@@ -332,7 +332,7 @@ export function ScriptBody({ tank, onRun, onCapture }) {
   );
 }
 
-// Carra Jean, the assistant, as a small ink drop, named after carrageen, the seaweed that thickens a
+// Carra Jean, the assistant, as a small ink drop with big lashed eyes, named after carrageen, the seaweed that thickens a
 // marbling bath. It wobbles gently, and keeps still for "reduce motion".
 export function InkDrop({ size = 40, color = '#2a6f66', shine = '#43b3a0' }) {
   return (
@@ -343,13 +343,17 @@ export function InkDrop({ size = 40, color = '#2a6f66', shine = '#43b3a0' }) {
           <stop offset="1" stopColor={color} />
         </radialGradient>
       </defs>
-      <path d="M20 3 C 27 13, 34 19, 34 26 a 14 14 0 0 1 -28 0 C 6 19, 13 13, 20 3 Z" fill="url(#drop-body)" />
-      <ellipse cx="15.5" cy="25" rx="2" ry="2.6" fill="#0e0f11" />
-      <ellipse cx="24.5" cy="25" rx="2" ry="2.6" fill="#0e0f11" />
-      <circle cx="16.2" cy="24.1" r="0.7" fill="#fff" />
-      <circle cx="25.2" cy="24.1" r="0.7" fill="#fff" />
-      <path d="M17.5 30.5 q 2.5 2 5 0" stroke="#0e0f11" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-      <ellipse cx="13" cy="17" rx="2.4" ry="1.2" fill="#fff" opacity="0.35" transform="rotate(-35 13 17)" />
+      <path d="M20 2.5 C 26 12, 35 18.5, 35 26.5 a 15 13.5 0 0 1 -30 0 C 5 18.5, 14 12, 20 2.5 Z" fill="url(#drop-body)" />
+      <ellipse cx="11.5" cy="15.5" rx="2.6" ry="1.2" fill="#fff" opacity="0.35" transform="rotate(-40 11.5 15.5)" />
+      {/* Big eyes, each with two sparkles and two lashes */}
+      <ellipse cx="14.8" cy="25.6" rx="2.5" ry="3.1" fill="#0e0f11" />
+      <ellipse cx="25.2" cy="25.6" rx="2.5" ry="3.1" fill="#0e0f11" />
+      <circle cx="15.7" cy="24.4" r="0.95" fill="#fff" />
+      <circle cx="14.2" cy="26.9" r="0.45" fill="#fff" />
+      <circle cx="26.1" cy="24.4" r="0.95" fill="#fff" />
+      <circle cx="24.6" cy="26.9" r="0.45" fill="#fff" />
+      <path d="M12.55 24 l-1.4 -0.7 M13.1 23.1 l-1 -1.1 M27.45 24 l1.4 -0.7 M26.9 23.1 l1 -1.1" stroke="#0e0f11" strokeWidth="0.8" strokeLinecap="round" />
+      <path d="M18.4 30.7 q 1.6 1.3 3.2 0" stroke="#0e0f11" strokeWidth="1.1" fill="none" strokeLinecap="round" />
     </svg>
   );
 }
