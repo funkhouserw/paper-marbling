@@ -15,7 +15,7 @@ import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
 import { wrapX, wrapY, doubled, closedDirection, latticeShifts, pushApartTiled, swirlTiled } from './tile.js';
 import { cutDisc } from './erase.js';
-import { SEAM, seamed, mergedPoints } from './seam.js';
+import { SEAM, SEAM_SHARE as BARE_SHARE, seamed, mergedPoints, bareSeam } from './seam.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
@@ -296,6 +296,7 @@ export class Marble {
     this.separateOn = true; // Keep cells separate: fronts that meet keep a hairline seam
     this.ribbonCutOn = true; // ribbons thinner than THINNEST are cut while tools move ink
     this.seam = SEAM;
+    this.seamShare = BARE_SHARE; // where cells face bare bath, the seam is this share of √area, at least seam
     this.tileOn = false;
     this.tileOffset = null;
     this.tileOffsetWanted = null;
@@ -337,6 +338,7 @@ export class Marble {
     if (!('separateOn' in state)) {
       this.separateOn = false;
       this.seam = SEAM;
+      this.seamShare = BARE_SHARE;
       this.log.unshift({ fn: 'separate', args: { on: false, at: 0 } });
     }
     return this;
@@ -462,11 +464,14 @@ export class Marble {
   // between them, even of one colour, while a drop landing inside a drop of its own colour merges
   // into it. seam is the seam's width in mm (null for the default). Off, touching drops of one
   // colour join, as they did before. Each simulator shows it its own way; see seamSupported.
-  separate({ on = true, seam = null, at } = {}) {
+  // share widens the seam where a cell faces bare bath to that share of √area (photo 26's channels);
+  // 0 keeps it seam wide everywhere.
+  separate({ on = true, seam = null, share = null, at } = {}) {
     const args = { on };
     if (seam !== null && seam !== undefined) args.seam = seam;
+    if (share !== null && share !== undefined) args.share = share;
     if (at !== undefined) args.at = at;
-    return this._schedule('separate', args, { kind: 'separate', on, seam: seam ?? SEAM });
+    return this._schedule('separate', args, { kind: 'separate', on, seam: seam ?? SEAM, share: share ?? BARE_SHARE });
   }
 
   // The thin-ink cut, on by default: while a tool moves ink, ribbons stretched thinner than half a
@@ -549,7 +554,7 @@ export class Marble {
     const now = (o) => (o.kind === 'tile' || o.kind === 'freeze' || o.kind === 'separate' || o.kind === 'ribbonCut') && o.at <= this.time;
     for (const op of this.pending.filter(now)) {
       if (op.kind === 'tile') this._applyTile(op);
-      else if (op.kind === 'separate') { this.separateOn = op.on; this.seam = op.seam; this.dirty = true; }
+      else if (op.kind === 'separate') { this.separateOn = op.on; this.seam = op.seam; this.seamShare = op.share ?? BARE_SHARE; this.dirty = true; }
       else if (op.kind === 'ribbonCut') this.ribbonCutOn = op.on;
       else this._applyFreeze(op);
     }
@@ -2850,6 +2855,7 @@ export class Marble {
       if (op.kind === 'separate') {
         this.separateOn = op.on;
         this.seam = op.seam;
+        this.seamShare = op.share ?? BARE_SHARE;
         this.dirty = true;
         continue;
       }
@@ -3086,7 +3092,7 @@ export class Marble {
       do {
         const { n } = this.polys[p];
         // With Keep cells separate, every loop is drawn half a seam into its ink (a hole's outward).
-        const xy = half ? seamed(this.polys[p].xy, n, half, p === first, merged[p]) : this.polys[p].xy;
+        const xy = half ? seamed(this.polys[p].xy, n, half, p === first, merged[p], group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
         // Points closer than a third of a pixel can't change the picture.
         const skip = (0.33 / pxPerMm) ** 2;
         for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
@@ -3150,7 +3156,7 @@ export class Marble {
       let d = '';
       do {
         const { n } = this.polys[p];
-        const xy = half ? seamed(this.polys[p].xy, n, half, p === first, merged[p]) : this.polys[p].xy;
+        const xy = half ? seamed(this.polys[p].xy, n, half, p === first, merged[p], group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
         for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
           const pts = [];
           for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);

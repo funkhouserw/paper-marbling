@@ -2,7 +2,7 @@
 // arrive whole and are thinned first to what the screen can show. See wakefast.js.
 import { thin, underpaintWidth } from './thin.js';
 import { latticeShifts } from './tile.js';
-import { seamed, mergedPoints } from './seam.js';
+import { seamed, mergedPoints, bareSeam } from './seam.js';
 
 const translucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
 let canvas = null;
@@ -27,7 +27,7 @@ function trace(ctx, points, sx, sy) {
 
 self.onmessage = ({ data: m }) => {
   const start = performance.now();
-  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join, seam = 0 } = m;
+  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join, seam = 0, share = 0 } = m;
   if (!canvas || canvas.width !== width || canvas.height !== height) canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -46,7 +46,7 @@ self.onmessage = ({ data: m }) => {
     let points = whole[k];
     if (half) {
       const first = !p.group || polys[k - 1]?.group !== p.group;
-      points = seamed(points, points.length / 2, half, first, merged[k]);
+      points = seamed(points, points.length / 2, half, first, merged[k], p.group ? half : bareSeam(points, points.length / 2, seam, share) / 2);
     }
     kept += points.length / 2;
     return points;

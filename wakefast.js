@@ -142,7 +142,7 @@ export class WakeFast extends Wake {
     w.postMessage({
       width: ctx.canvas.width, height: ctx.canvas.height, px: pxPerMm, W: this.width, H: this.height, bath: this.bath ?? 'transparent',
       tile: this.tileOn, offset: this.tileOffset, closeGaps: this.closeGaps, polys, xy, total,
-      seam: this.seamsDrawn ? this.seam : 0,
+      seam: this.seamsDrawn ? this.seam : 0, share: this.seamShare ?? 0,
       tolPx: this.busy ? WHILE_MOVING_PX : AT_REST_PX, join: this.busy ? 'bevel' : 'round',
     }, [xy.buffer]);
     return true;

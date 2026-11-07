@@ -4,13 +4,18 @@
 // merged. The ink itself isn't moved; only its drawing. No DOM.
 
 export const SEAM = 0.6; // mm, the default width of the seam between two cells
+// Where cells face bare bath the channel is wider for bigger cells: this share of √area, at least
+// SEAM (photo 26's channels are 5-15 mm between cells of 10-30 cm). 0 keeps every seam SEAM wide.
+export const SEAM_SHARE = 0.03;
 
 // The outline (flat x, y pairs, n points) moved d inward at every point, along the bisector of its two
 // edges. inward false moves it outward instead (for a hole, whose ink lies outside it). Sharp corners
 // move at most 2d, so a spike thins rather than shooting off.
-// keep, if given, marks points that stay where they are (1): those inside another drop of the same
-// colour, which has merged with this one, so no seam runs through the merged ink.
-export function seamed(xy, n, d, inward = true, keep = null) {
+// keep, if given, marks each point: 1, inside another drop of the same colour, which has merged with
+// this one, so it stays where it is and no seam runs through the merged ink; 2, inside a drop of
+// another colour, moved d (a hairline of that colour shows round it); 0, facing bare bath, moved
+// bare (at least d), so channels between cells can be wider for bigger cells.
+export function seamed(xy, n, d, inward = true, keep = null, bare = d) {
   const out = new Float64Array(n * 2);
   if (n < 3 || !(d > 0)) { out.set(xy.subarray(0, n * 2)); return out; }
   let twice = 0;
@@ -26,14 +31,14 @@ export function seamed(xy, n, d, inward = true, keep = null) {
     // Left normals of the two edges, averaged: the bisector.
     let nx = -ey - fy, ny = ex + fx;
     const len = Math.hypot(nx, ny);
-    let k = d;
+    const want = !keep ? bare : keep[i] === 1 ? 0 : keep[i] === 2 ? d : bare;
+    let k = want;
     if (len > 1e-9) {
       nx /= len; ny /= len;
-      // So that each edge moves d, the corner moves d / cos(half its turn), at most 2d.
+      // So that each edge moves its distance, the corner moves it / cos(half its turn), at most 2x.
       const cos = nx * -ey + ny * ex;
-      k = d / Math.max(0.5, cos);
+      k = want / Math.max(0.5, cos);
     } else { nx = -ey; ny = ex; }
-    if (keep && keep[i]) k = 0;
     out[i * 2] = xy[i * 2] + side * nx * k;
     out[i * 2 + 1] = xy[i * 2 + 1] + side * ny * k;
   }
@@ -58,24 +63,34 @@ const inside = (xy, n, x, y) => {
   return w;
 };
 
-// For outlines [{ xy, n, color, group }], which points of each lie inside another outline of the same
-// colour (not a hole loop): an array of Uint8Array marks, or null where none do.
+// For outlines [{ xy, n, color, group }], where each point lies: 1 inside another outline of the same
+// colour, 2 inside one of another colour, 0 neither (see seamed). An array of Uint8Array marks per
+// outline (null for a hole loop).
 export function mergedPoints(outlines) {
   const boxes = outlines.map((o) => box(o.xy, o.n));
   return outlines.map((o, a) => {
     if (o.group) return null;
     const b = boxes[a];
-    let marks = null;
+    const marks = new Uint8Array(o.n);
     for (let c = 0; c < outlines.length; c++) {
       const q = outlines[c], e = boxes[c];
-      if (c === a || q.group || q.color !== o.color || e[0] > b[2] || e[2] < b[0] || e[1] > b[3] || e[3] < b[1]) continue;
+      if (c === a || q.group || e[0] > b[2] || e[2] < b[0] || e[1] > b[3] || e[3] < b[1]) continue;
+      const same = q.color === o.color;
       for (let i = 0; i < o.n; i++) {
-        if (marks?.[i]) continue;
+        if (marks[i] === 1 || (marks[i] === 2 && !same)) continue;
         const x = o.xy[i * 2], y = o.xy[i * 2 + 1];
         if (x < e[0] || x > e[2] || y < e[1] || y > e[3]) continue;
-        if (inside(q.xy, q.n, x, y)) (marks ??= new Uint8Array(o.n))[i] = 1;
+        if (inside(q.xy, q.n, x, y)) marks[i] = same ? 1 : 2;
       }
     }
     return marks;
   });
+}
+
+// The seam where a cell faces bare bath: share of the square root of its area, at least seam.
+export function bareSeam(xy, n, seam, share) {
+  if (!(share > 0)) return seam;
+  let twice = 0;
+  for (let i = 0, k = n - 1; i < n; k = i++) twice += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+  return Math.max(seam, share * Math.sqrt(Math.abs(twice) / 2));
 }
