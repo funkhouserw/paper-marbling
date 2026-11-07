@@ -1147,8 +1147,11 @@ export class Marble {
       if (!p.cell || !p.laid || !this.polys.includes(p)) return false;
       const now = shape(p);
       const was = p.laid;
-      return Math.abs(now.area - was.area) < 0.01 * was.area && Math.hypot(now.x - was.x, now.y - was.y) < 0.5
-        && Math.abs(now.perimeter - was.perimeter) < 0.01 * was.perimeter;
+      // Loose enough for the small drift a neighbour's landing or the bath gives (under a mm, or 2%
+      // of area); a combed cell moves many millimetres and stretches its perimeter far more. Tighter,
+      // drops landing in drifted cells fell back to ordinary drops, whose push un-laid more cells.
+      return Math.abs(now.area - was.area) < 0.03 * was.area && Math.hypot(now.x - was.x, now.y - was.y) < Math.max(2, 0.05 * Math.sqrt(was.area))
+        && Math.abs(now.perimeter - was.perimeter) < 0.03 * was.perimeter;
     };
     // The first tick sorts the drops into the tree; every tick after re-solves it as they grow.
     if (!op.top) {
