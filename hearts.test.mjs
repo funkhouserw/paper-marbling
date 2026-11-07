@@ -257,3 +257,27 @@ test('a Heart drop landing while drops still grow leaves them their full size', 
   const [withHeart, withDrop] = [run(true), run(false)];
   withHeart.forEach((a, i) => assert.ok(Math.abs(a - withDrop[i]) < 0.01 * withDrop[i], `${a} vs ${withDrop[i]}`));
 });
+
+test('a bending heart pushes the ink round it aside instead of overlapping it, and that ink keeps its area', () => {
+  const m = new Marble({ width: W, height: H, seed: 1, viscosity: 1000 });
+  m.drop({ x: 0, y: 40, quantity: 0.2, dispersion: Infinity, color: '#111111' });
+  m.drop({ x: 0, y: -15, quantity: 0.15, dispersion: Infinity, spreading: 1, color: '#777777' }); // close enough that the point would land on it
+  m.runUntilIdle();
+  const heart = m.polys.find((p) => p.color === '#111111');
+  const below = m.polys.find((p) => p.color === '#777777');
+  const was = area(below);
+  m.hearts({ variation: 0 });
+  m.runUntilIdle();
+  assert.ok(roundness(heart) < 0.85, 'the top drop became a heart');
+  assert.ok(Math.abs(area(below) - was) < 0.01 * was, `the drop below keeps its area: ${area(below)} vs ${was}`);
+  // The heart's point, its lowest vertex, is not inside the drop below.
+  let tip = 0;
+  for (let i = 1; i < heart.n; i++) if (heart.xy[i * 2 + 1] < heart.xy[tip * 2 + 1]) tip = i;
+  const [x, y] = [heart.xy[tip * 2], heart.xy[tip * 2 + 1]];
+  let inside = false;
+  for (let i = 0, k = below.n - 1; i < below.n; k = i++) {
+    const [xi, yi, xk, yk] = [below.xy[i * 2], below.xy[i * 2 + 1], below.xy[k * 2], below.xy[k * 2 + 1]];
+    if ((yi > y) !== (yk > y) && x < ((xk - xi) * (y - yi)) / (yk - yi) + xi) inside = !inside;
+  }
+  assert.equal(inside, false, 'the point pushed into the drop rather than over it');
+});

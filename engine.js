@@ -166,6 +166,7 @@ export function maxRadius(quantity, film) {
 }
 
 const HEART_LAND = 0.6; // seconds a Heart drop takes to land and push the ink round it aside
+const PUSH_RAYS = 720; // directions a bending heart's push is worked out in
 const ROUND_ENOUGH = 0.95; // Heart strike bends only loops at least this round: 4πA/P², 1 for a circle
 
 // How far a ray from (cx, cy) along unit (dx, dy) runs before leaving an outline: its farthest
@@ -741,12 +742,49 @@ export class Marble {
   }
 
   _advanceHeartBend(op, dt) {
-    const [, p] = this._ramp(op, dt);
-    for (const { poly, from, to, n } of op.bends) {
+    const [p0, p] = this._ramp(op, dt);
+    // Ink beyond each heart makes room for it first, ray by ray. Along a ray r² grows by the same
+    // amount everywhere past the old loop, which keeps every area. The hearts are drawn after.
+    for (const { field, pushes } of op.bends) {
+      if (!pushes || p <= p0) continue;
+      const { x: cx, y: cy, reach, push } = field;
+      const dp = p - p0;
+      const move = (x, y, out) => {
+        const dx = x - cx;
+        const dy = y - cy;
+        const r2 = dx * dx + dy * dy;
+        let t = Math.atan2(dy, dx);
+        if (t < 0) t += 2 * Math.PI;
+        const f = (t / (2 * Math.PI)) * PUSH_RAYS;
+        const k = Math.floor(f) % PUSH_RAYS;
+        const w = f - Math.floor(f);
+        const r0 = reach[k] * (1 - w) + reach[(k + 1) % PUSH_RAYS] * w;
+        const e = push[k] * (1 - w) + push[(k + 1) % PUSH_RAYS] * w;
+        if (e <= 0 || r2 <= r0 * r0 * 0.98) { out[0] = x; out[1] = y; return; }
+        const a = Math.sqrt(1 + (e * dp) / r2);
+        out[0] = cx + dx * a;
+        out[1] = cy + dy * a;
+      };
+      this._map(move);
+      // Other hearts still bending move whole, with their middles.
+      const out = [0, 0];
+      for (const other of op.bends) {
+        if (!other.pushes || other.field === field) continue;
+        move(other.field.x, other.field.y, out);
+        other.field.x = out[0];
+        other.field.y = out[1];
+      }
+    }
+    for (const { poly, from, to, n, field } of op.bends) {
       if (poly.frozen) continue;
       // A fresh outline each tick, so refining or thinning in between can't throw the points out of step.
       const xy = new Float64Array(n * 4);
-      for (let i = 0; i < n * 2; i++) xy[i] = from[i] + (to[i] - from[i]) * p;
+      const sx = field.x - field.cx;
+      const sy = field.y - field.cy;
+      for (let i = 0; i < n * 2; i += 2) {
+        xy[i] = from[i] + (to[i] - from[i]) * p + sx;
+        xy[i + 1] = from[i + 1] + (to[i + 1] - from[i + 1]) * p + sy;
+      }
       poly.xy = xy;
       poly.n = n;
     }
@@ -1045,6 +1083,21 @@ export class Marble {
     for (const body of this.roundBodies({ min, max })) {
       // One set of proportions for the whole body, so its rings stay nested.
       const bodySeed = Math.floor(random() * 2 ** 31);
+      // How much further out the heart reaches than the old outer loop, ray by ray, as a difference
+      // of squared radii: what the ink beyond it is pushed by, so it makes room as a drop's growth does.
+      const outer = body.loops[0];
+      const outerHeart = heartOutline({ x: body.cx, y: body.cy, area: outer.area, angle: angle + 90, variation, random: seeded(bodySeed) });
+      const reach = new Float64Array(PUSH_RAYS);
+      const push = new Float64Array(PUSH_RAYS);
+      for (let k = 0; k < PUSH_RAYS; k++) {
+        const t = (2 * Math.PI * k) / PUSH_RAYS;
+        const r0 = rayReach(outer.poly, body.cx, body.cy, Math.cos(t), Math.sin(t));
+        const r1 = rayReach(outerHeart, body.cx, body.cy, Math.cos(t), Math.sin(t));
+        reach[k] = r0;
+        push[k] = Math.max(0, r1 * r1 - r0 * r0);
+      }
+      // x, y is where the body's middle has been pushed to by other hearts as they bend.
+      const field = { cx: body.cx, cy: body.cy, x: body.cx, y: body.cy, reach, push };
       for (const { poly, area } of body.loops) {
         const heart = heartOutline({ x: body.cx, y: body.cy, area, angle: angle + 90, variation, random: seeded(bodySeed) });
         const from = new Float64Array(heart.n * 4);
@@ -1056,7 +1109,7 @@ export class Marble {
           from[i * 2] = body.cx + (dx / len) * r;
           from[i * 2 + 1] = body.cy + (dy / len) * r;
         }
-        bends.push({ poly, from, to: heart.xy, n: heart.n });
+        bends.push({ poly, from, to: heart.xy, n: heart.n, field, pushes: poly === outer.poly });
       }
     }
     return bends;
