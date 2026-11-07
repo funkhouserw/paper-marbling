@@ -1230,7 +1230,9 @@ export class Marble {
       // gallier colour spread further, up to the bath's Strongest spread.
       const g = d.gall ?? op.gall ?? this._bathGall(color);
       const gallier = g === undefined ? 1 : gallSpread(g, this.gallMost) / gallSpread(1);
-      const spreading = Math.min(d.spreading ?? op.spreading, (this.cellSpreadMax ?? Infinity) * gallier);
+      // A broom throw's spreading is the bare ask; a drop's own already carries its gall.
+      const asked = d.spreading ?? op.spreading * gallier;
+      const spreading = Math.min(asked, (this.cellSpreadMax ?? Infinity) * gallier);
       const area = plain(d.quantity) * spreading;
       const under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
       if (under && laid(under) && under.color === color) { under.own += area; continue; }
@@ -1374,7 +1376,13 @@ export class Marble {
         const inside = round >= op.seam ? grow(core, round - op.seam) : erode(core, op.seam - round);
         const area = polygonArea(pts);
         // Children fill what the parent's own share leaves (never squeezing it past its cap).
-        const kidRoom = Math.max(0, area - Math.max(c.share, ownNow(c) / c.tauMax));
+        // New ink spreads in full and squeezes the older: the children may take everything but what
+        // the parent's own ink needs at its cap (fresh ink doesn't give), whatever share the layout
+        // above left it. The rim is what they don't take, and its thickness follows.
+        const least = ownNow(c) / (c.fresh ? 1 : c.tauMax);
+        const kidRoom = Math.max(0, area - least);
+        const kidsWant = kids.reduce((sum, k) => sum + total(k), 0);
+        c.share = Math.max(least, area - Math.min(kidRoom, kidsWant));
         // Children with no new ink inside a parent that hasn't moved come out as they did last
         // tick: reuse that, instead of re-solving every nest on the tank each tick of every throw.
         const was = c.nest;
