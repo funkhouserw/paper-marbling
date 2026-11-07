@@ -4,7 +4,7 @@
 
 ![Teal, copper and cream ink curling into wave shapes](docs/images/teal-copper-swirls.jpg)
 
-**Demo:** coming soon · **[How it works](how-it-works.html)** · **[Roadmap](ROADMAP.md)** · **[Sources](BIBLIOGRAPHY.md)**
+**Demo:** [marbler.corporateshill.com](https://marbler.corporateshill.com) · **[How it works](how-it-works.html)** · **[Roadmap](ROADMAP.md)** · **[Sources](BIBLIOGRAPHY.md)**
 
 | | | |
 |---|---|---|

@@ -8,7 +8,6 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page"
   },
-  // Ilse picks the hostname (for example marbler.corporateshill.com), then this becomes:
-  // "routes": [{ "pattern": "<hostname>", "custom_domain": true }],
+  "routes": [{ "pattern": "marbler.corporateshill.com", "custom_domain": true }],
   "workers_dev": false
 }
