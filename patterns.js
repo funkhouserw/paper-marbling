@@ -100,7 +100,7 @@ export const PATTERNS = [
     id: 'chevron', family: 'combed', names: { en: 'Chevron, Feather' }, status: 'unverifiable',
     summary: 'Combs drawn in opposing directions, giving V shapes or feathering. Practitioners use the names; no historical definition was found.',
     sources: [], image: { title: 'Combed marbled paper, 1828 (a stand-in only)', url: commons('Combed_marbled_paper.jpg'), licence: 'Public domain' },
-    example: 'Chevrons',
+    example: 'Chevron feather', alsoExample: 'Chevrons',
   },
   {
     id: 'french-curl', family: 'combed', names: { en: 'French Curl, Snail' }, status: 'verified',

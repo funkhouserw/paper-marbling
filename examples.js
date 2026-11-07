@@ -505,6 +505,20 @@ settle();
 fullRake({ angle: 225, teeth: 14, offset: 3.5, speed: 22, D: 0.8 });
 settle();
 `,
+  'Chevron feather': `// Chevron (feather), after a combed sheet of 1828: fine horizontal bands raked up and down between
+// each other's lines into broad chevrons, then combed up with a fine comb so every band breaks into
+// small arches that ride the chevrons.
+viscosity({ value: 1000 });
+bath({ color: '#e9e2d0' });
+stripes({ angle: 0, count: 60, colors: ['#2a2420', '#8a6a3a', '#d8c8a0', '#5a4a3a', '#b89060', '#7a2e24'], variation: 0.4, slivers: 0.3 });
+settle();
+fullRake({ angle: 90, teeth: 4, speed: 26, D: 1 });
+settle();
+fullRake({ angle: 270, teeth: 4, offset: 12.5, speed: 26, D: 1 });
+settle();
+fullRake({ angle: 90, teeth: 64, speed: 26, D: 0.5 });
+settle();
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -525,5 +539,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic',
 };
