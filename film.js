@@ -36,6 +36,11 @@ const NEARLY_ZERO = 1e-9; // keeps the solver well behaved where k would be exac
 // Painted under every drop, so a gap thinner than twice this shows ink instead of the bath.
 // Gaps stop closing at about one cell. This also grows edges facing real water by this much.
 const CLOSE_GAPS = 3.5; // mm
+// The compression limit. A film's cap on thickness is its own spreading (poly.tauMax), or this.
+const FILM_TAU_MAX = 4;
+// A drop stops feeding where the film it landed in pushes back this hard: -ln(1 - s) = 3 at s = 0.95,
+// so it stops just short of the film's cap.
+const SQUEEZE_DRIVE = 3;
 
 const polygonArea = ({ xy, n }) => {
   let sum = 0;
@@ -378,10 +383,24 @@ export class Film extends Marble {
     const floor = op.open > 0 ? Math.max(op.plain, op.limit * Math.min(1, op.open)) : op.plain;
     const toPlain = Math.max(0, floor - op.area) * rate;
     const toLimit = Math.max(0, op.limit - op.area) * rate * op.head;
-    op.feed = Math.max(toPlain, toLimit) / dt;
+    // The compression limit: a drop landing in a film squeezes it, and the film pushes back the
+    // harder the more it's squeezed, without bound as it nears its cap (a Langmuir-type pressure,
+    // Π = -ln(1 - s), with s how far it is from rest to the cap). The drop feeds only while its own
+    // push beats that, so the film it landed in keeps a dark rim instead of being squeezed away.
+    op.under ??= this.shapeAt(op.x, op.y)?.[0] ?? false;
+    let give = 1;
+    const under = op.under;
+    if (under && under.a0 && this.polys.includes(under)) {
+      under.inkArea = this._inkArea(under);
+      const tau = under.a0 / Math.max(1e-9, under.inkArea);
+      const s = Math.max(0, Math.min(0.999, (tau - 1) / (Math.max(1.01, under.tauMax ?? FILM_TAU_MAX) - 1)));
+      give = Math.max(0, 1 - -Math.log(1 - s) / SQUEEZE_DRIVE);
+    }
+    op.feed = (Math.max(toPlain, toLimit) * give) / dt;
+    if (give === 0) op.squeezedOut = true;
     this.growth.push(op);
     const small = GROWTH_DONE * op.plain;
-    const reachedPlain = floor - op.area < small;
+    const reachedPlain = floor - op.area < small || op.squeezedOut;
     const spreadDone = toLimit < small * rate || op.elapsed > op.growTime * SPREAD_TIME_LIMIT;
     return (reachedPlain && spreadDone) || op.elapsed > op.growTime * FEED_TIME_LIMIT;
   }
