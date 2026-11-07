@@ -104,7 +104,7 @@ export function Control({ c: placed, tank, run }) {
       return <Toggle label={label} checked={Boolean(s[c.id])} info={info} onChange={set} />;
     }
     case 'choice': return <Choice label={c.label} value={s[c.id]} options={c.options} info={info} onChange={set} />;
-    case 'number': return <NumberField label={c.label} value={s[c.id]} min={c.min} max={c.max} step={c.step} info={info} onChange={set} />;
+    case 'number': return <NumberField label={c.label} value={s[c.id]} min={c.min} max={c.max} step={c.step} info={info} placeholder={c.placeholder} onChange={set} />;
     case 'action': {
       const a = action(c.action);
       return <Button primary={c.primary} className="self-start" onClick={() => run(a.id)}>{a.label}</Button>;

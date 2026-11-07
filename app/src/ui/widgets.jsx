@@ -167,13 +167,15 @@ export function Slider({ label, shortLabel, value, min, max, step, onChange, inf
 // A typed number, kept here while it's typed and handed over once, on Enter or leaving the box,
 // as the old page's fields did. The spinner's arrows hand it over straight away. An empty box or
 // something that isn't a number puts the last value back.
-export function NumberField({ label, value, min, max, step, onChange, info }) {
+// placeholder shows the automatic value when the field is empty; such a field can be cleared back to it.
+export function NumberField({ label, value, min, max, step, onChange, info, placeholder }) {
   const id = useId();
   const [text, setText] = useState(null);
   const commit = (raw) => {
     setText(null);
     const n = Number(raw);
-    if (String(raw).trim() === '' || !Number.isFinite(n) || n === Number(value)) return;
+    if (String(raw).trim() === '') { if (placeholder !== undefined && value !== '') onChange(''); return; }
+    if (!Number.isFinite(n) || n === Number(value)) return;
     onChange(n);
   };
   return (
@@ -181,7 +183,7 @@ export function NumberField({ label, value, min, max, step, onChange, info }) {
       <label htmlFor={id}>{label}</label>
       <InfoTip text={info} label={label} />
       <input
-        id={id} type="number" min={min} max={max} step={step}
+        id={id} type="number" min={min} max={max} step={step} placeholder={placeholder}
         value={text ?? value}
         onChange={(e) => {
           // Typing says what kind of input it was; the spinner arrows don't.
