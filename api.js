@@ -18,7 +18,7 @@ export const COMMANDS = [
     X, Y,
     ['quantity', 'number', 1.5, 'amount of ink, as % of the tank area at plain size', 'q'],
     ['dispersion', 'number', 0.8, 'growth speed, 1/s'],
-    ['spreading', 'number', 4, 'how many times its plain size the ink can stretch over water; higher also pushes other ink harder, like adding surfactant'],
+    ['spreading', 'number', 4, 'how many times its plain area a drop can grow: alone on clear water it reaches this on every simulator, but in the outline films a drop landing in ink stops at its plain size, so for drops stacked on ink 1 looks the same everywhere; higher also pushes other ink harder, like adding surfactant'],
     COLOR('#1f4e79'), SHIMMER, AT,
   ] },
   { name: 'drops', group: 'Ink', summary: 'Random scatter of drops in a box centred on x, y.', params: [

@@ -7,7 +7,8 @@ const spots = [[16, 25.7], [44, 72.9], [73, 24.3], [93, 74.3], [7, 80]];
 inOrder({ gap: 0.4 });
 for (const [x, y] of spots) {
   for (let i = 0; i < 8; i++) {
-    drop({ x, y, quantity: 3.1, dispersion: 2, color: inks[i % inks.length] });
+    // Each later drop lands in ink, so it keeps its plain size (spreading 1) on any simulator.
+    drop({ x, y, quantity: 3.1, dispersion: 2, spreading: i ? 1 : 4, color: inks[i % inks.length] });
   }
 }
 allAtOnce();
@@ -33,7 +34,7 @@ for (let r = 0; r < 4; r++) {
   for (let c = 0; c < 6; c++) {
     const x = 10 + c * 16 + (r % 2) * 8;
     const y = 86.4 - r * 24.3;
-    drop({ x, y, quantity: 1.9, dispersion: 2.5, color: inks[4] });
+    drop({ x, y, quantity: 1.9, dispersion: 2.5, spreading: 1, color: inks[4] }); // lands in ink
   }
 }
 settle();
@@ -41,7 +42,7 @@ for (let r = 0; r < 4; r++) {
   for (let c = 0; c < 6; c++) {
     const x = 10 + c * 16 + (r % 2) * 8;
     const y = 86.4 - r * 24.3;
-    drop({ x, y, quantity: 0.6, dispersion: 2.5, color: inks[3] });
+    drop({ x, y, quantity: 0.6, dispersion: 2.5, spreading: 1, color: inks[3] });
   }
 }
 settle();
@@ -68,17 +69,18 @@ fullRake({ angle: 0, teeth: 16, speed: 26, D: 0.6, waveAmp: 2.2, waveLength: 9 }
   'Gilded stone': `// A thick scatter of dark inks, then fine gold spatter over the top.
 viscosity({ value: 1000 });
 const dark = palette('Dark Academia').inks;
-drops({ n: 90, quantity: 1.4, spread: 0.6, stagger: 2.5, dispersion: 1.4, colors: dark.slice(0, 5) });
+drops({ n: 90, quantity: 1.4, spread: 0.6, stagger: 2.5, dispersion: 1.4, spreading: 2, colors: dark.slice(0, 5) }); // crowded, so 2 is as far as they get
 settle();
 wait(0.5);
-drops({ n: 70, quantity: 0.07, spread: 0.7, stagger: 2, dispersion: 2, colors: [dark[5]] });
+drops({ n: 70, quantity: 0.07, spread: 0.7, stagger: 2, dispersion: 2, spreading: 1, colors: [dark[5]] }); // lands on ink
 `,
   'Oxblood whirl': `// Rings poured in order at the centre, then stirred in opposite directions.
 viscosity({ value: 1000 });
 const inks = palette('Oxblood & Gilt').inks;
 inOrder({ gap: 0.35 });
 for (let i = 0; i < 18; i++) {
-  drop({ x: 50, y: 50, quantity: 12.9, dispersion: 2.5, color: inks[i % inks.length] });
+  // Each later drop lands in ink, so it keeps its plain size (spreading 1) on any simulator.
+  drop({ x: 50, y: 50, quantity: 12.9, dispersion: 2.5, spreading: i ? 1 : 4, color: inks[i % inks.length] });
 }
 allAtOnce();
 settle();
