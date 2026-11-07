@@ -188,7 +188,7 @@ export const TOOLS = {
     params: {
       angle: ['Angle (°)', 0, 0, 360, 1],
       teeth: ['Teeth', 12, 1, 80, 1],
-      offset: ['Slide sideways', 0, 0, 20, 0.1],
+      offset: ['Offset', 0, 0, 20, 0.1],
       speed: ['Speed', 20, 1, 80, 1],
       D: ['Tooth thickness', 0.8, 0.3, 3, 0.1, FAR_DRAG],
       width: ['Tine width', 0, 0, 8, 0.1],

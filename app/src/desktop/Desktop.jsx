@@ -2,7 +2,7 @@
 // tool's settings under them, a tool rail on the left, panels on the right, transport below.
 // Menus, panels and the tank's right-click menu are all drawn from features.js.
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Code, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, Pause, Play, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronRight, Code, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, Pause, Play, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
 import { FREEZE_INFO_KEY, FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
 import { ACTIONS, FIXED, MENU_ORDER, SECTIONS } from '../ui/features.js';
 import { Button, IconButton, InfoTip, Swatches, cx } from '../ui/widgets.jsx';
@@ -45,7 +45,7 @@ function useDismiss(open, close) {
   return ref;
 }
 
-export function MenuBar({ tank, commands, narrow, panelsOpen, onPanels }) {
+export function MenuBar({ tank, commands, panelsOpen, onPanels }) {
   const { state } = tank;
   const [open, setOpen] = useState(null);
   const ref = useDismiss(open !== null, () => setOpen(null));
@@ -95,9 +95,7 @@ export function MenuBar({ tank, commands, narrow, panelsOpen, onPanels }) {
       >
         Find a command <span className="font-mono">⌘K</span>
       </button>
-      {narrow && (
-        <IconButton size="sm" label="Panels" active={panelsOpen} onClick={onPanels} className="mr-1"><PanelRight size={15} /></IconButton>
-      )}
+      <IconButton size="sm" label={panelsOpen ? 'Hide the panels' : 'Show the panels'} active={panelsOpen} onClick={onPanels} className="mr-1"><PanelRight size={15} /></IconButton>
       {state.view === 'advanced' && (
         <Button onClick={() => commands.run('toggleScript')} className={state.drawer ? 'border-gilt' : ''}>
           <Code size={13} /> Script
@@ -176,7 +174,7 @@ export function ToolRail({ tank, local }) {
 }
 
 // The right-hand panels: every section features.js places there, each one collapsible.
-export function Panels({ tank, commands, local, floating }) {
+export function Panels({ tank, commands, local, floating, onHide }) {
   const { state } = tank;
   const [shut, setShut] = useState(() => new Set(['history', 'detail', 'export']));
   const toggle = (id) => setShut((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -188,6 +186,11 @@ export function Panels({ tank, commands, local, floating }) {
         floating && 'absolute inset-y-0 right-0 z-30 shadow-2xl',
       )}
     >
+      {onHide && (
+        <div className="flex justify-end border-b border-ink-700 px-1.5 py-1">
+          <IconButton size="sm" label="Hide the panels" onClick={onHide}><PanelRightClose size={15} /></IconButton>
+        </div>
+      )}
       {sectionsFor('panel', 'desktop', state, local).map((section) => {
         const Icon = SECTION_ICONS[section.icon];
         const open = !shut.has(section.id);
@@ -399,14 +402,21 @@ export function Desktop({ tank, local = true }) {
   const { commands, openMenu, overlays } = useOverlays(tank, local);
   const narrow = !useMedia(ROOMY);
   const [panelsOpen, setPanelsOpen] = useState(false);
+  // On a wide screen the panels can be tucked away to give the tank the room; the choice is kept.
+  const [hidden, setHidden] = useState(() => localStorage.getItem('marbler.panelsHidden') === '1');
+  const hide = (on) => { setHidden(on); localStorage.setItem('marbler.panelsHidden', on ? '1' : '0'); };
   const drawer = state.drawer && state.view === 'advanced';
   // Panels sit beside the tank when there's room. On narrower screens, or beside the script drawer,
   // they fold behind a button and open over the tank, so they're always one click away.
   const folded = narrow || drawer;
-  const panels = <Panels tank={tank} commands={commands} local={local} floating={folded} />;
+  const panels = <Panels tank={tank} commands={commands} local={local} floating={folded} onHide={folded ? undefined : () => hide(true)} />;
   return (
     <div className="flex h-full min-h-[600px] flex-col overflow-hidden bg-ink-950">
-      <MenuBar tank={tank} commands={commands} narrow={folded} panelsOpen={panelsOpen} onPanels={() => setPanelsOpen((o) => !o)} />
+      <MenuBar
+        tank={tank} commands={commands}
+        panelsOpen={folded ? panelsOpen : !hidden}
+        onPanels={() => (folded ? setPanelsOpen((o) => !o) : hide(!hidden))}
+      />
       <OptionsBar tank={tank} />
       <div className="relative flex min-h-0 flex-1">
         <ToolRail tank={tank} local={local} />
@@ -416,7 +426,12 @@ export function Desktop({ tank, local = true }) {
           {folded && panelsOpen && panels}
         </main>
         {drawer && <ScriptDrawer tank={tank} commands={commands} />}
-        {!folded && panels}
+        {!folded && !hidden && panels}
+        {!folded && hidden && (
+          <div className="flex w-10 shrink-0 flex-col items-center border-l border-ink-700 bg-ink-900 py-1.5">
+            <IconButton size="sm" label="Show the panels" onClick={() => hide(false)}><PanelRightOpen size={15} /></IconButton>
+          </div>
+        )}
       </div>
       <TransportBar tank={tank} commands={commands} />
       {overlays}
