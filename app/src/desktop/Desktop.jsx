@@ -320,8 +320,8 @@ function Viewer({ tank }) {
   });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6" onPointerDown={(e) => e.target === e.currentTarget && close()}>
-      <div role="dialog" aria-label="Print" className="flex max-h-full max-w-full flex-col gap-3 rounded-xl border border-ink-600 bg-ink-900 p-3 shadow-2xl">
-        <img src={viewer.url} alt="The print" className="min-h-0 max-w-[80vw] flex-1 rounded object-contain" style={{ maxHeight: '75vh' }} />
+      <div role="dialog" aria-label={viewer.title ?? 'The print'} className="flex max-h-full max-w-full flex-col gap-3 rounded-xl border border-ink-600 bg-ink-900 p-3 shadow-2xl">
+        <img src={viewer.url} alt={viewer.title ?? 'The print'} className="min-h-0 max-w-[80vw] flex-1 rounded object-contain" style={{ maxHeight: '75vh' }} />
         <div className="flex gap-2">
           <Button primary onClick={() => tank.dispatch({ type: 'savePull', blob: viewer.blob, date: viewer.date })}>Save PNG</Button>
           {viewer.id != null && <Button onClick={() => tank.dispatch({ type: 'deletePull', id: viewer.id })}>Delete</Button>}

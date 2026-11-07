@@ -278,10 +278,10 @@ export function useTank() {
     }
   }, [c, pickInk, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openViewer = (blob, id, date) => {
+  const openViewer = (blob, id, date, title = 'The print') => {
     const was = latestUi.current.viewer;
     if (was) URL.revokeObjectURL(was.url);
-    setUi({ viewer: { blob, id, date, url: URL.createObjectURL(blob) } });
+    setUi({ viewer: { blob, id, date, title, url: URL.createObjectURL(blob) } });
   };
   const closeViewer = () => {
     const was = latestUi.current.viewer;
@@ -342,7 +342,8 @@ export function useTank() {
     switch (id) {
       case 'finish': c.finish(); return true;
       case 'seeRepeat':
-        view.current?.tilePreview().then((blob) => window.open(URL.createObjectURL(blob), '_blank'));
+        // In the same pop-up viewer as prints, as the classic page does.
+        view.current?.tilePreview().then((blob) => openViewer(blob, null, Date.now(), 'Four copies of the tank, side by side'));
         return true;
       case 'freezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'freeze'); return true;
       case 'unfreezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'unfreeze'); return true;
