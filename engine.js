@@ -267,6 +267,7 @@ function seeded(seed) {
 // Thin ribbons. Stretching makes ink ever longer and thinner, and past a certain width it can't be
 // seen but still costs points, so every outline simulator cuts ribbons narrower than THINNEST.
 const THINNEST = 0.5; // mm
+const REACH_SHARE = 0.5; // a comb tine's pull reaches at most this share of the gap to its neighbour
 const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
 const CUT_EVERY = 15; // ticks
 const MIN_CUT = 8; // points
@@ -1469,11 +1470,15 @@ export class Marble {
 
   // A rake: `teeth` tines `spacing` mm apart (or explicit `offsets`), moving along
   // from -> to (or a `path`). waveAmp/waveLength make it weave as it travels.
+  // reach: how far each tine's pull may reach, as a share of the gap between neighbouring tines.
+  // 0.5 (the default) keeps tines from reaching through each other and moving the sheet as one
+  // paddle; more lets a fine or wavy comb drag further (column grounds, Peacock's fans).
   rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
-         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, at } = {}) {
+         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach = REACH_SHARE, at } = {}) {
     const points = path ?? [from, to];
     const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
     const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength, waveShape, width };
+    if (reach !== REACH_SHARE) args.reach = reach;
     if (at !== undefined) args.at = at;
 
     const segs = [];
@@ -1499,7 +1504,7 @@ export class Marble {
       const sorted = [...offs].sort((a, b) => a - b);
       let gap = Infinity;
       for (let k = 1; k < sorted.length; k++) gap = Math.min(gap, sorted[k] - sorted[k - 1]);
-      if (gap > 0) op.L = Math.max(0.25, Math.min(op.L, gap / 2));
+      if (gap > 0) op.L = Math.max(0.25, Math.min(op.L, gap * Math.max(0.05, reach)));
     }
     return this._schedule('rake', args, op, total / speed, true);
   }
@@ -1845,7 +1850,7 @@ export class Marble {
 
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
-  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, at } = {}) {
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach = REACH_SHARE, at } = {}) {
     // How far the teeth start and end past the tank's edges. On a repeating tank anything past one
     // edge is raked again at the other, so there it defaults to none.
     overhang ??= (this.tileWanted ?? this.tileOn) ? 0 : 20;
@@ -1866,7 +1871,7 @@ export class Marble {
     const offsets = Array.from({ length: teeth }, (_, i) => wrap((i + 0.5) * spacing + offset) - across / 2);
     return this.rake({
       from: [-c * along, -s * along], to: [c * along, s * along],
-      offsets, speed, D, waveAmp, waveLength, waveShape, width, at,
+      offsets, speed, D, waveAmp, waveLength, waveShape, width, reach, at,
     });
   }
 
