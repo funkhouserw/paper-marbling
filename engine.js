@@ -999,6 +999,55 @@ export class Marble {
     return true;
   }
 
+  // A broom-straw throw: many drops of one colour at once, of very different sizes (log-normal,
+  // spread is σ), spreading a long way. Each keeps its own cell: where two meet, a seam of bare bath
+  // `seam` mm wide stays between them, as in stone and vein marbling, instead of the colour joining.
+  broom({ n = 60, x = 0, y = 0, w = this.width, h = this.height, size = 0.15, spread = 1, spreading = 25, dispersion = 1.5, gall, seam = 1.5, color = '#1f4e79', shimmer = 0, at } = {}) {
+    if (typeof color === 'object') ({ color, shimmer = 0 } = color);
+    const args = { n, x, y, w, h, size, spread, spreading, dispersion, seam, color, shimmer };
+    if (gall !== undefined && gall !== null) args.gall = gall;
+    if (at !== undefined) args.at = at;
+    const start = at ?? this._now;
+    const log = this.log;
+    this.log = [];
+    const gauss = () => Math.sqrt(-2 * Math.log(1 - this.random())) * Math.cos(2 * Math.PI * this.random());
+    const ops = [];
+    for (let i = 0; i < n; i++) {
+      const op = this.drop({
+        x: x + (this.random() - 0.5) * w,
+        y: y + (this.random() - 0.5) * h,
+        quantity: size * Math.exp(spread * gauss()),
+        dispersion, spreading, gall, color, shimmer,
+        at: this.orderGap !== null && at === undefined ? undefined : start + this.random() * 0.3,
+      });
+      op.cell = seam;
+      ops.push(op);
+    }
+    this.log = log;
+    this.log.push({ fn: 'broom', args });
+    return ops;
+  }
+
+  // Pulls a cell's edge in by half a seam, once it has stopped spreading, so the bath shows between
+  // it and its neighbours. Each point moves along the outline's inward normal there.
+  _insetCell(poly, seam) {
+    const { xy, n } = poly;
+    if (n < 3 || !seam) return;
+    let twice = 0;
+    for (let i = 0, k = n - 1; i < n; k = i++) twice += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+    const inward = twice > 0 ? 1 : -1; // counter-clockwise outlines have the inside to the left
+    const d = seam / 2;
+    const out = new Float64Array(xy.length);
+    for (let i = 0; i < n; i++) {
+      const a = (i + n - 1) % n, b = (i + 1) % n;
+      const tx = xy[b * 2] - xy[a * 2], ty = xy[b * 2 + 1] - xy[a * 2 + 1];
+      const len = Math.hypot(tx, ty) || 1;
+      out[i * 2] = xy[i * 2] - (ty / len) * d * inward;
+      out[i * 2 + 1] = xy[i * 2 + 1] + (tx / len) * d * inward;
+    }
+    poly.xy = out;
+  }
+
   // n drops scattered in a w x h box, each with a random start within `stagger` seconds.
   drops({ n = 20, x = 0, y = 0, w = this.width, h = this.height, quantity = 0.5, spread = 0.3,
           dispersion = 0.8, spreading = 4, gall, colors = ['#1f4e79'], stagger = 0, at } = {}) {
@@ -1800,6 +1849,7 @@ export class Marble {
       }
       op.poly = { xy, n, color: op.color, shimmer: op.shimmer };
       if (op.pressure !== undefined) op.poly.gall = op.pressure;
+      if (op.cell) op.poly.cell = true;
       this.polys.push(op.poly);
       if (op.cut) this._joinCut(op);
     }
@@ -2451,6 +2501,7 @@ export class Marble {
       if (op.kind === 'drop') {
         const done = this._advanceDrop(op, dt);
         if (op.stormont && !op.stormont.thrown && op.poly && done) this._throwHoles(op); // once it has spread, so no solid core is left
+        if (done && op.cell && op.poly) this._insetCell(op.poly, op.cell);
         return !done;
       }
       if (op.kind === 'stormont') return !this._advanceStormont(op);
@@ -2632,7 +2683,7 @@ export class Marble {
       ctx.fill(group ? 'evenodd' : 'nonzero');
       // A hairline closes the sliver of water between near-touching drops, so drops of
       // one colour join. See-through ink would show it as a darker edge, so it's skipped.
-      if (!group && !isTranslucent(color)) {
+      if (!group && !this.polys[p].cell && !isTranslucent(color)) {
         ctx.lineWidth = 1.2 / pxPerMm;
         ctx.lineJoin = 'round';
         ctx.strokeStyle = color;
@@ -2666,7 +2717,7 @@ export class Marble {
     const { width: w, height: h } = this;
     const paths = [];
     for (let p = 0; p < this.polys.length; p++) {
-      const { group, color } = this.polys[p];
+      const { group, color, cell } = this.polys[p];
       let d = '';
       do {
         const { xy, n } = this.polys[p];
@@ -2677,7 +2728,7 @@ export class Marble {
         }
       } while (group && this.polys[p + 1]?.group === group && ++p);
       const extra = group ? ' fill-rule="evenodd"'
-        : isTranslucent(color) ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
+        : isTranslucent(color) || cell ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
       paths.push(`<path fill="${color}"${extra} d="${d}"/>`);
     }
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-w / 2} ${-h / 2} ${w} ${h}" width="${w}mm" height="${h}mm">`
