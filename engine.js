@@ -1128,6 +1128,8 @@ export class Marble {
   // thinner than its cap, so it darkens (τ). A drop on combed or ordinary ink falls back to a drop.
   _landBroom(op) {
     const plain = (q) => Math.PI * maxRadius(q, this.film) ** 2;
+    // Keep cells separate off: cells of a throw share walls with no seam or channel between them.
+    const apart = this.separateOn !== false;
     // Still as laid out? Refining and thinning points keep a cell's area, middle and perimeter;
     // combing moves the middle or stretches the perimeter.
     const shape = (p) => {
@@ -1157,19 +1159,22 @@ export class Marble {
     const log = this.log;
     const live = this._live;
     for (const d of op.drops) {
-      const area = plain(d.quantity) * op.spreading;
+      // Each drop its own colour and spread (a Cells batch can mix them); a broom throw's are all one.
+      const color = d.color ?? op.color, shimmer = d.shimmer ?? op.shimmer, spreading = d.spreading ?? op.spreading;
+      const area = plain(d.quantity) * spreading;
       const under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
-      if (under && laid(under) && under.color === op.color) { under.own += area; continue; }
+      if (under && laid(under) && under.color === color) { under.own += area; continue; }
       if (under && !laid(under)) {
         // Lands on ink the layout can't hold: an ordinary drop, unlogged.
         this.log = [];
         this._live = true;
-        this.drop({ x: d.x, y: d.y, quantity: d.quantity, spreading: op.spreading, color: op.color, shimmer: op.shimmer, at: this.time });
+        // (Marked so the Cells simulator lets it grow as a drop instead of laying it out again.)
+        this.drop({ x: d.x, y: d.y, quantity: d.quantity, spreading, color, shimmer, at: this.time }).cellBatched = false;
         this.log = log;
         this._live = live;
         continue;
       }
-      const cell = { xy: new Float64Array(0), n: 0, color: op.color, shimmer: op.shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(op.spreading, BROOM_TAU_MAX), parentCell: under, fresh: true };
+      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, BROOM_TAU_MAX), parentCell: under, fresh: true };
       if (under) {
         // Where it landed in its parent, relative to the parent's centre and size, so it moves
         // with the parent when the parent is laid out again.
@@ -1227,7 +1232,7 @@ export class Marble {
       cells.forEach((c, k) => { c.share = share[k]; });
       // Each cell is drawn eroded by half its channel, so it asks the solve for that much more:
       // its drawn area is then what it was allotted, and the ink between cells is what's left.
-      const gapOf = (a) => Math.max(op.seam, (nested ? 0 : SEAM_SHARE) * Math.sqrt(a));
+      const gapOf = (a) => (apart ? Math.max(op.seam, (nested ? 0 : SEAM_SHARE) * Math.sqrt(a)) : 0);
       let ask = want.map((a) => a + 1.1 * 2 * Math.sqrt(Math.PI * a) * (gapOf(a) / 2));
       // Never more than the domain holds, or the transport has no solution.
       const askSum = ask.reduce((a, b) => a + b, 0);
@@ -1250,7 +1255,7 @@ export class Marble {
         const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;
         // Inside a parent, the gap between siblings is the parent's own ink, squeezed into a net as
         // thin as its share allows: a hairline seam, the rest of its ink lying as the rim.
-        const gap = nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
+        const gap = !apart ? 0 : nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
         const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
         const pts = outer.length >= 6 ? grow(erode(outer, gap / 2 + round), round) : [];
         if (pts.length < 6) { c.gone = true; return; }
