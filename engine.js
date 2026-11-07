@@ -32,6 +32,13 @@ const MAX_DETAIL = 4;
 // faces water, up to its quantity times its spreading. Fully surrounded by ink, it only
 // gets this share of that, which is all it has to push the ink around it outward.
 const AGAINST_INK_SHARE = 0.25;
+// Ox gall. An ink's spreading pressure rises with its gall and levels off: Π(g) = g / (g + GALL_HALF).
+// On clear water it spreads to 1 + (GALL_MOST - 1)·Π(g) times its plain area, so gall 1 is the
+// default spreading of 4. A drop opens only if its pressure beats the ink it lands on.
+const GALL_HALF = 1;
+const GALL_MOST = 7;
+export const gallPressure = (g) => g / (g + GALL_HALF);
+const gallSpread = (g) => 1 + (GALL_MOST - 1) * gallPressure(g);
 const NO_WATER_LEFT = 0.03; // the share of a drop's edge facing water below which it rests
 // A full tank never quite runs out of water, so spreading also ends after this many times
 // a drop's growth time. Without it, drops keep pushing each other and settle() never ends.
@@ -561,6 +568,36 @@ export class Marble {
     return this;
   }
 
+  // Gall for the whole bath, as a marbler adds a little more with each colour: every drop that
+  // doesn't set its own gall gets start + step·k, where k counts the colours thrown before its own
+  // since the tank was cleared. With gall in play, a drop opens only over weaker ink; otherwise it
+  // stays a dot. on: false goes back to every drop opening as before.
+  setGall({ on = true, start = 1, step = 0.15 } = {}) {
+    this.gallBath = { on, start, step };
+    this.log.push({ fn: 'setGall', args: { on, start, step } });
+    return this;
+  }
+
+  // The bath's gall for a drop of this colour, or undefined with bath gall off.
+  _bathGall(color) {
+    if (!this.gallBath?.on) return undefined;
+    this.gallColours ??= [];
+    let k = this.gallColours.indexOf(color);
+    if (k < 0) k = this.gallColours.push(color) - 1;
+    return this.gallBath.start + this.gallBath.step * k;
+  }
+
+  // Whether a drop opens, decided as it lands: its gall's pressure against the ink under it.
+  // open is the share of the difference, 0 or less meaning it stays a dot at its plain size.
+  _openDrop(op) {
+    op.pressure = gallPressure(op.gall);
+    const under = this.shapeAt(op.x, op.y);
+    // Ink from before gall was in play counts as having the default.
+    const film = under ? Math.max(...under.map((p) => p.gall ?? gallPressure(this.gallBath?.start ?? 1))) : 0;
+    op.open = (op.pressure - film) / op.pressure;
+    if (op.open <= 0) op.spreading = 1;
+  }
+
   // Tunes the bath's flow. Only Wake has one, but every simulator keeps the setting.
   setFlow({ cell = 7, friction = 0.25, coast = 25, push = 1 } = {}) {
     this.flowTuning = {
@@ -578,7 +615,7 @@ export class Marble {
   // Fills the surface with dots of varying size, largest holes first. See fill.js. Sizes are
   // what the dots end up as, so drops are smaller on simulators where ink spreads. Dots go around
   // ink already there or on its way, unless `over` asks for them on top.
-  fillDots({ count = 150, min = 8, max = 60, gap = 3, margin = 0, tightness = 0.6, colors = ['#1f4e79'], rings = 1, dispersion = 0.8, shimmer = 0, over = false, at } = {}) {
+  fillDots({ count = 150, min = 8, max = 60, gap = 3, margin = 0, tightness = 0.6, colors = ['#1f4e79'], rings = 1, dispersion = 0.8, shimmer = 0, over = false, gall, at } = {}) {
     const tiled = (this.tileWanted ?? this.tileOn) === true;
     const offset = tiled ? this.tileOffsetWanted ?? this.tileOffset : null;
     const dots = colourDots(planDots({
@@ -591,7 +628,7 @@ export class Marble {
         const quantity = ((Math.PI * dot.r * dot.r) / growth / rings) * this.film / 1000;
         // Only the first layer can have a set time. Later ones wait for the last to settle, since
         // two inks spreading from one spot at once push each other into halves, not rings.
-        this.drop({ x: dot.x, y: dot.y, quantity, dispersion, color: c, shimmer: typeof c === 'object' ? c.shimmer : shimmer, at: ring ? undefined : at });
+        this.drop({ x: dot.x, y: dot.y, quantity, dispersion, gall, color: c, shimmer: typeof c === 'object' ? c.shimmer : shimmer, at: ring ? undefined : at });
       }
       if (ring < rings - 1) this.settle();
     }
@@ -652,7 +689,7 @@ export class Marble {
 
   // A spray of many fine dots, most of them tiny, thickest in the middle like a real spray.
   // min and max are the radii the dots end up at.
-  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, at } = {}) {
+  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, gall, at } = {}) {
     const start = at ?? this._now;
     const growth = this.spreadFactor;
     for (let i = 0; i < n; i++) {
@@ -664,6 +701,7 @@ export class Marble {
         y: y + reach * Math.sin(angle),
         quantity: ((Math.PI * r * r) / growth) * this.film / 1000,
         dispersion,
+        gall,
         color: colors[Math.floor(this.random() * colors.length)],
         at: this.orderGap !== null && at === undefined ? undefined : start + this.random() * stagger,
       });
@@ -683,16 +721,22 @@ export class Marble {
   // quantity: mL. dispersion: spreading rate (1/s), larger is faster. spreading: how many
   // times its plain size the ink can stretch over water, like adding surfactant to a paint.
   // shimmer (0..1) makes the ink metallic.
-  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, color = '#1f4e79', shimmer = 0, at } = {}) {
+  // gall: its ox gall; left out, the bath's (see setGall), or none, which opens as always.
+  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, gall, color = '#1f4e79', shimmer = 0, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
     const args = { x, y, quantity, dispersion, spreading, color, shimmer };
+    if (gall !== undefined && gall !== null) args.gall = gall;
     if (at !== undefined) args.at = at;
+    const g = gall ?? this._bathGall(color);
     const maxArea = maxRadius(quantity, this.film) ** 2;
     const growTime = dispersion === Infinity ? 0 : -Math.log(GROWTH_DONE) / dispersion;
     const op = {
       kind: 'drop', x, y, color, shimmer, quantity, dispersion, maxArea, growTime, grown: 0, elapsed: 0, poly: null,
       exposure: 1, owed: 0, spreading,
+      gall: g,
     };
+    // More gall, further spread; gall 1 is the default spreading.
+    if (g !== undefined) op.spreading = spreading * gallSpread(g) / gallSpread(1);
     return this._schedule('drop', args, op);
   }
 
@@ -795,7 +839,7 @@ export class Marble {
 
   // n drops scattered in a w x h box, each with a random start within `stagger` seconds.
   drops({ n = 20, x = 0, y = 0, w = this.width, h = this.height, quantity = 0.5, spread = 0.3,
-          dispersion = 0.8, spreading = 4, colors = ['#1f4e79'], stagger = 0, at } = {}) {
+          dispersion = 0.8, spreading = 4, gall, colors = ['#1f4e79'], stagger = 0, at } = {}) {
     const start = at ?? this._now;
     for (let i = 0; i < n; i++) {
       this.drop({
@@ -804,6 +848,7 @@ export class Marble {
         quantity: quantity * (1 + (this.random() * 2 - 1) * spread),
         dispersion,
         spreading,
+        gall,
         color: colors[i % colors.length],
         at: this.orderGap !== null && at === undefined ? undefined : start + this.random() * stagger,
       });
@@ -1543,7 +1588,8 @@ export class Marble {
       this._updateExposure(op, this._grid);
     }
     const limit = op.maxArea * op.spreading;
-    const floor = limit * AGAINST_INK_SHARE;
+    // Against ink a drop gets a share of its spread: with gall, its pressure's margin over the ink.
+    const floor = op.open === undefined ? limit * AGAINST_INK_SHARE : Math.max(op.maxArea, limit * Math.min(1, op.open));
     const rate = 1 - Math.exp(-op.dispersion * dt);
     // A drop always reaches its floor; past that, only the edge facing water draws it on.
     const da = Math.max(floor - op.grown, (limit - op.grown) * op.exposure, 0) * rate;
@@ -1591,6 +1637,7 @@ export class Marble {
         xy[i * 2 + 1] = op.y + r * Math.sin((i / n) * 2 * Math.PI);
       }
       op.poly = { xy, n, color: op.color, shimmer: op.shimmer };
+      if (op.pressure !== undefined) op.poly.gall = op.pressure;
       this.polys.push(op.poly);
     }
     this.landing = [];
@@ -2227,6 +2274,7 @@ export class Marble {
       }
       if (op.kind === 'drop') {
         op.at = this.time;
+        if (op.gall !== undefined) this._openDrop(op);
         this.sources.push(op);
       }
       this.active.push(op);

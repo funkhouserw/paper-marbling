@@ -372,13 +372,16 @@ export class Film extends Marble {
     op.head ??= 1;
     op.area ??= 0;
     const rate = op.dispersion === Infinity ? 1 : 1 - Math.exp(-op.dispersion * dt);
-    // A drop always reaches its plain size. Past that, only an edge facing water draws it on.
-    const toPlain = Math.max(0, op.plain - op.area) * rate;
+    // A drop always reaches its plain size; with gall, the share of its spread its pressure beats
+    // the ink under it by, so a stronger colour pushes the last into veins. Past that, only an
+    // edge facing water draws it on.
+    const floor = op.open > 0 ? Math.max(op.plain, op.limit * Math.min(1, op.open)) : op.plain;
+    const toPlain = Math.max(0, floor - op.area) * rate;
     const toLimit = Math.max(0, op.limit - op.area) * rate * op.head;
     op.feed = Math.max(toPlain, toLimit) / dt;
     this.growth.push(op);
     const small = GROWTH_DONE * op.plain;
-    const reachedPlain = op.plain - op.area < small;
+    const reachedPlain = floor - op.area < small;
     const spreadDone = toLimit < small * rate || op.elapsed > op.growTime * SPREAD_TIME_LIMIT;
     return (reachedPlain && spreadDone) || op.elapsed > op.growTime * FEED_TIME_LIMIT;
   }
@@ -606,6 +609,7 @@ export class Film extends Marble {
           xy[i * 2 + 1] = op.y + r * Math.sin((i / n) * 2 * Math.PI);
         }
         op.poly = { xy, n, color: op.color, shimmer: op.shimmer };
+        if (op.pressure !== undefined) op.poly.gall = op.pressure;
         this.polys.push(op.poly);
       }
       if (op.poly) op.area = polygonArea(op.poly);

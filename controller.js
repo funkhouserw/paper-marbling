@@ -53,6 +53,10 @@ export const SETTINGS = {
   // Starts as the palette's bath; see usePalette().
   bath: { kind: 'colour', label: 'Base colour', info: 'baseColour', default: '#f4efe2' },
   walls: { kind: 'toggle', label: 'Hard edges', info: 'walls', default: false, when: 'walls' },
+  // Ox gall for the bath: each new colour gets gallStart + gallStep·k. See Marble.setGall.
+  gall: { kind: 'toggle', label: 'Ox gall', info: 'gall', default: false },
+  gallStart: { kind: 'number', label: 'First colour', info: 'gallStart', default: '1', min: 0, max: 10, step: 0.05 },
+  gallStep: { kind: 'number', label: 'More per colour', info: 'gallStep', default: '0.15', min: 0, max: 3, step: 0.05 },
   tile: { kind: 'toggle', label: 'Repeating', info: 'tile', default: false, when: 'tile' },
   tileOffset: {
     kind: 'choice', label: 'Offset', info: 'tileOffset', default: '', when: 'tileOffset',
@@ -856,6 +860,7 @@ export class TankController {
     this.queueEnd = 0;
     if (model.spreading) m.openWater({ on: true, at: 0 });
     if (s.walls) m.walls({ on: true, at: 0 });
+    if (s.gall) m.setGall(this.gallValues()); // a new tank starts counting colours again
     this.syncTile(); // the tick may not have caught up yet, on the first tank after a reload
     if (s.tile && this.capabilities().tile && (!model.repeatsAtFirst || this.tileOffset())) m.tile({ on: true, offset: this.tileOffset(), at: 0 });
     if (!s.tile && model.repeatsAtFirst) m.tile({ on: false, at: 0 });
@@ -946,6 +951,18 @@ export class TankController {
   }
 
   // After settings.walls changes.
+  // After gall, gallStart or gallStep change. Takes effect for drops from here on.
+  commitGall() {
+    const m = this.marble;
+    this.act(() => m.setGall(this.gallValues()), 'Ox gall');
+  }
+
+  gallValues() {
+    const s = this.settings;
+    const num = (v, d) => (Number.isFinite(Number(v)) && v !== '' ? Number(v) : d);
+    return { on: Boolean(s.gall), start: num(s.gallStart, 1), step: num(s.gallStep, 0.15) };
+  }
+
   commitWalls() {
     const m = this.marble;
     this.act(() => m.live(() => m.walls({ on: this.settings.walls, at: m.time })));
