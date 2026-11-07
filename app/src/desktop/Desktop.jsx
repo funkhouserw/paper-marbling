@@ -178,7 +178,7 @@ export function ToolRail({ tank, local }) {
 // The right-hand panels: every section features.js places there, each one collapsible.
 export function Panels({ tank, commands, local, floating }) {
   const { state } = tank;
-  const [shut, setShut] = useState(() => new Set(['detail', 'export']));
+  const [shut, setShut] = useState(() => new Set(['history', 'detail', 'export']));
   const toggle = (id) => setShut((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   return (
     <aside
