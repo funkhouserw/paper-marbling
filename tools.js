@@ -81,7 +81,7 @@ export const TOOLS = {
       quantity: ['Colour per flick', 2.5, 0.5, 100, 0.5],
       scatter: ['Reach', 25, 2, 80, 0.5],
       variation: ['Size spread', 0.9, 0, 2, 0.05],
-      spreading: ['How far it spreads', 25, 1, 50, 1],
+      spreading: ['How far it spreads', 12, 1, 50, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }],
     },
   },
