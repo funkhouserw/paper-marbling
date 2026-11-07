@@ -230,11 +230,25 @@ test('a full rake across a half-drop tank moves every tine at once, one tile-wid
     assert.ok(ops.length >= 4, `${offset} ${angle}: ${ops.length} tines`);
     for (const o of ops) {
       assert.equal(o.at, ops[0].at, `${offset} ${angle}: tines start together`);
-      assert.ok(Math.abs(o.total - (size + 40)) < 1e-6, `${offset} ${angle}: each crosses the tile once`);
+      assert.ok(Math.abs(o.total - size) < 1e-6, `${offset} ${angle}: each crosses the tile once, with no overhang`);
     }
     // Evenly spaced across the tile.
     const across = ops.map((o) => (angle % 180 ? o.segs[0].ax : o.segs[0].ay)).sort((a, b) => a - b);
     const gaps = across.slice(1).map((v, i) => v - across[i]);
     for (const g of gaps) assert.ok(Math.abs(g - gaps[0]) < 2, `${offset} ${angle}: even spacing ${gaps}`);
   }
+});
+
+test('a full rake overhangs the edges by 2 cm on a plain tank, by nothing on a repeating one, or as asked', () => {
+  const lengthOf = (tile, overhang, offset = '') => {
+    const m = new Marble({ width: 1000, height: 700, seed: 1 });
+    if (tile) { m.tile({ on: true, offset, at: 0 }); m.step(); }
+    const op = m.fullRake({ angle: 0, teeth: 4, overhang });
+    return (op.together ?? [op])[0].total;
+  };
+  assert.equal(lengthOf(false), 1040);
+  assert.equal(lengthOf(true), 1000);
+  assert.equal(lengthOf(true, 20), 1040);
+  assert.equal(lengthOf(true, undefined, 'halfDrop'), 1000);
+  assert.equal(lengthOf(true, 20, 'halfDrop'), 1040);
 });

@@ -390,7 +390,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     const { tool, stroke, marble } = c;
     if (tool !== 'fullRake' && tool !== 'rake') return null;
     // Rake has no line until it's dragged, so until then it shows one straight across, at the pointer.
-    const along = marble.width / 2 + 20;
+    const along = marble.width / 2 + ((marble.tileWanted ?? marble.tileOn) ? 0 : 20); // as Full rake's overhang
     const y = view.hover ? view.hover[1] : 0;
     const line = tool === 'rake' ? (stroke?.length > 1 ? stroke : [[-along, y], [along, y]]) : null;
     const key = JSON.stringify([tool, c.values[tool], line, marble.width, marble.height, marble.tileWanted ?? marble.tileOn, marble.tileOffsetWanted ?? marble.tileOffset]);

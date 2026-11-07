@@ -842,7 +842,7 @@ export class Marble {
   // tines' copies are already inside, in the middle of the page, and come back in on new rows. So here
   // each tooth starts where its path crosses a seam, and travels one lap, ending where it began. Teeth
   // run as far apart as they would on a tank that doesn't repeat.
-  _fullRakeLaps(lap, { teeth, offset, speed, D, waveAmp, waveLength, waveShape, width, at }) {
+  _fullRakeLaps(lap, { teeth, offset, speed, D, waveAmp, waveLength, waveShape, width, overhang = 0, at }) {
     const { width: W, height: H } = this;
     const off = this.tileOffsetWanted ?? this.tileOffset;
     const c = lap.x / lap.length;
@@ -879,8 +879,8 @@ export class Marble {
         for (let p = 0; p < parts; p++) {
           const x = from[0] + c * size * p;
           const y = from[1] + s * size * p;
-          const start = [wrapX(x, y, W, H, off) - c * 20, wrapY(x, y, W, H, off) - s * 20];
-          const end = [start[0] + c * (size + 40), start[1] + s * (size + 40)];
+          const start = [wrapX(x, y, W, H, off) - c * overhang, wrapY(x, y, W, H, off) - s * overhang];
+          const end = [start[0] + c * (size + 2 * overhang), start[1] + s * (size + 2 * overhang)];
           ops.push(this.rake({ from: start, to: end, offsets: [0], speed, D, waveAmp, waveLength, waveShape, width, at: ops.length ? firstAt : at }));
         }
         continue;
@@ -967,17 +967,20 @@ export class Marble {
 
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
-  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, at } = {}) {
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, at } = {}) {
+    // How far the teeth start and end past the tank's edges. On a repeating tank anything past one
+    // edge is raked again at the other, so there it defaults to none.
+    overhang ??= (this.tileWanted ?? this.tileOn) ? 0 : 20;
     // On a repeating tank a slanted rake goes round in laps. See _fullRakeLaps.
     if (this.tileWanted ?? this.tileOn) {
       const lap = closedDirection(angle, this.width, this.height, this.tileOffsetWanted ?? this.tileOffset);
       const clean = Math.abs(lap.y) < 1e-9 ? lap.length === this.width : Math.abs(lap.x) < 1e-9 && lap.length === this.height;
-      if (!clean) return this._fullRakeLaps(lap, { teeth, offset, speed, D, waveAmp, waveLength, waveShape, width, at });
+      if (!clean) return this._fullRakeLaps(lap, { teeth, offset, speed, D, waveAmp, waveLength, waveShape, width, overhang, at });
       angle = lap.angle;
     }
     const c = Math.cos(angle * DEG);
     const s = Math.sin(angle * DEG);
-    const along = (Math.abs(c) * this.width + Math.abs(s) * this.height) / 2 + 20;
+    const along = (Math.abs(c) * this.width + Math.abs(s) * this.height) / 2 + overhang;
     const across = Math.abs(s) * this.width + Math.abs(c) * this.height;
     const spacing = across / teeth;
     // Teeth that slide off one edge come back in on the other, so the page stays covered.
