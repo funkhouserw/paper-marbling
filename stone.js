@@ -152,3 +152,31 @@ export const ccw = (poly) => {
   for (let i = n - 1; i >= 0; i--) out.push(poly[i * 2], poly[i * 2 + 1]);
   return out;
 };
+
+// A convex polygon (counter-clockwise) grown outward by r with round corners: its Minkowski sum
+// with a disc. Eroding by d + r and then growing by r rounds every corner to radius r, as fronts
+// that meet still curve where three cells come together (McNair et al.'s δ^½ corners).
+export function grow(poly, r, perCorner = 6) {
+  const n = poly.length / 2;
+  if (n < 3 || r <= 0) return poly;
+  const out = [];
+  const normal = (i) => {
+    const k = (i + 1) % n;
+    const ex = poly[k * 2] - poly[i * 2], ey = poly[k * 2 + 1] - poly[i * 2 + 1];
+    const len = Math.hypot(ex, ey) || 1;
+    return [ey / len, -ex / len];
+  };
+  for (let i = 0; i < n; i++) {
+    const [ax, ay] = normal((i + n - 1) % n);
+    const [bx, by] = normal(i);
+    let a0 = Math.atan2(ay, ax);
+    let a1 = Math.atan2(by, bx);
+    while (a1 < a0) a1 += 2 * Math.PI;
+    if (a1 - a0 > Math.PI) a1 = a0; // a reflex turn from rounding error: no arc
+    for (let s = 0; s <= perCorner; s++) {
+      const t = a0 + ((a1 - a0) * s) / perCorner;
+      out.push(poly[i * 2] + r * Math.cos(t), poly[i * 2 + 1] + r * Math.sin(t));
+    }
+  }
+  return out;
+}
