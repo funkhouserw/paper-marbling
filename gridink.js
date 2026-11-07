@@ -78,6 +78,9 @@ export const parseColor = (css) => {
 };
 
 export class GridInk extends Marble {
+  // Keep cells separate isn't drawn here yet: this simulator ignores the setting for now.
+  get seamSupported() { return false; }
+
   constructor(options = {}) {
     super(options);
     this.gridCell = options.gridCell ?? CELL;

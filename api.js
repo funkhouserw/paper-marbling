@@ -240,6 +240,11 @@ export const COMMANDS = [
   { name: 'walls', group: 'Tank', summary: 'Hard edges: ink stays inside the tank and flattens against the walls.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },
+  { name: 'separate', group: 'Tank', summary: 'Keep cells separate (on by default): two drops whose spreading fronts meet keep a hairline seam between them, even of one colour, while a drop that lands inside a drop of its own colour merges into it. Off, touching drops of one colour join. Each simulator shows it in its own way.', params: [
+    ['on', 'boolean', true, ''],
+    ['seam', 'number', null, 'width of the seam in mm; null for the default, 0.6'],
+    AT,
+  ] },
   { name: 'tile', group: 'Tank', summary: 'Makes the tank a tile that repeats in both directions: what leaves one edge comes back in at the other, and exports join seamlessly. Only simulators that support it allow this.', params: [
     ['on', 'boolean', true, ''],
     ['offset', 'string', null, "null for a straight repeat, 'brick' to shift each row of tiles by half a tile, or 'halfDrop' to shift each column. Not in Grid ink yet"],
