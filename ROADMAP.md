@@ -4,12 +4,13 @@ Where Marbler is heading. There are no dates, and the order can change.
 
 ## Working now
 
-Everything in [How it works](how-it-works.html): seven simulators, the full set of tools, repeating tanks (straight, brick and half-drop), scripts, prints and paper pulls.
+Everything in [How it works](how-it-works.html): eight simulators, the full set of tools (including the broom-straw flick and the drawn rake), Keep cells separate and rising ox gall for stone and vein marbling, repeating tanks (straight, brick and half-drop), scripts, prints and paper pulls, and a catalogue of traditional patterns with examples.
 
 ## Up next
 
-1. **A nicer interface.** Marbler has been a rough demo so far. Once the features, explanations and examples are in place, the interface gets a proper redesign, drawing on how Figma, Photoshop and Canva handle tools and panels. It'll be tried out on its own branch first.
-2. **Grid ink catches up.** Offset repeats, the eraser, freezing ink and Hearts.
+1. **Stone marbling that matches a real broom-straw sheet in every simulator.** Fronts that stop short of each other (the bare channels between first-colour cells), and later colours that reach a real sheet's cover.
+2. **More traditional patterns.** Tools for the ones that need them: a curl comb (French curl), a peacock or bouquet comb, a wide swirl (Şal), a resist or mask (Akkase, Yazılı), and rocking the paper as it's laid (Spanish).
+3. **Grid ink catches up.** Offset repeats, the eraser, freezing ink, Hearts and Keep cells separate.
 
 ## After that
 
@@ -41,6 +42,6 @@ Everything in [How it works](how-it-works.html): seven simulators, the full set 
 
 - Small dark nicks can appear on Wake's edges. The cause isn't known yet.
 - Long streaks can appear after raking spray dots. A fix is in, but it hasn't been confirmed.
-- Thin film leaves thin seams and ignores `dispersion`.
+- Thin film ignores `dispersion`.
 - On a busy tank, clicks can wait for the current tick to finish.
-- Spreading and Thin film don't repeat.
+- Spreading, Thin film and Cells don't repeat.

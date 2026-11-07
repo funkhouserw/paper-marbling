@@ -22,8 +22,10 @@ Then open http://127.0.0.1:8000. The original editor is kept, as it was, at http
 
 ## What it does
 
-- **Seven simulators:** from the original closed-form maths (Classic) to a moving bath (Wake) and a full fluid solve on the GPU (Grid ink). All of them take the same tools and scripts.
-- **Real marbling tools:** drops, spray, stripes, rakes, combs, stylus, stir, jiggle, vortex and air, plus an eraser, Hearts and freezing chosen ink in place.
+- **Eight simulators:** from the original closed-form maths (Classic) to a moving bath (Wake), cells packed by geometry (Cells) and a full fluid solve on the GPU (Grid ink). All of them take the same tools and scripts: a tool only decides where and how much ink lands, and the simulator decides how it then spreads, joins or keeps apart.
+- **Real marbling tools:** drops, heart drops, a broom-straw flick, spray, stripes, rakes (straight, drawn freehand, or across the whole tank), combs, stylus, stir, jiggle, vortex and air, plus an eraser, Heart strike and freezing chosen ink in place. Clear comes as gall water (real holes), white, or a translucent tint, and the + swatch takes any colour.
+- **Stone and vein marbling:** Keep cells separate leaves a hairline of bare bath where drops meet, even of one colour, as on real stone sheets; rising ox gall lets each colour open inside the last; squeezed ink darkens; and Cut hairline ink can be turned off to keep every combed thread.
+- **Traditional patterns:** names in English, Turkish, German and Japanese, checked definitions with sources, real sheets that are free to reuse, and a Make this example for many of them (stone, Stormont, Gloster, Shell, Antique spot, Italian vein, Get-gel, Nonpareil, Chevron, Ebru, Taraklı, Hatip).
 - **Seamless repeats:** make the tank a tile, straight, brick or half-drop, and exports join up.
 - **Prints:** PNG, SVG, a 3000 pixel print, and a simulated paper pull.
 - **Scripts:** every pattern can be a short script, your hand session can be copied into one, and a script can play on top of ink already in the tank.
@@ -37,6 +39,7 @@ Then open http://127.0.0.1:8000. The original editor is kept, as it was, at http
 | Wake | Film in a bath that keeps moving, so ink coasts and curls. |
 | Wake (fast) | The same as Wake, drawn in the background so busy tanks keep moving. |
 | Grid ink (beta) | Colour on a grid, moved by a full fluid solve (BiMocq²). Soft blends and long flows. |
+| Cells (beta) | Drops that land together are laid out as packed cells by partial optimal transport; each colour nests in the one it lands in and squeezes it. |
 
 [How it works](how-it-works.html) explains all of it in one place: the maths, every tool, and every script command. It's also linked from the app.
 
@@ -80,6 +83,9 @@ The editor is React, Tailwind and Vite, in `app/`: `npm run dev` there serves it
 |---|---|
 | `engine.js` | Classic and Spreading, the timeline, and everything the simulators share |
 | `film.js`, `thinfilm.js`, `wake.js`, `wakefast.js`, `drawworker.js` | The other outline simulators |
+| `cells.js`, `stone.js` | Cells, and the optimal-transport layout it uses |
+| `seam.js` | Keep cells separate: how each outline is drawn in by a seam |
+| `patterns.js`, `examples.js` | The traditional pattern catalogue and the example scripts |
 | `gridink.js`, `gridgl.js` | Grid ink, on the CPU and on the GPU |
 | `tile.js` | The maths of repeating tanks |
 | `models.js` | The list of simulators |
