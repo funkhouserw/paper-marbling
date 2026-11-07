@@ -9,7 +9,7 @@ export { cx };
 
 // Where a popover goes: under its anchor, or above when there's more room there, kept on screen.
 // Popovers render in a portal with fixed positions, so a scrolling panel or rail can't clip them.
-function usePlace(anchor, open, { width, align = 'start', gap = 4 } = {}) {
+export function usePlace(anchor, open, { width, align = 'start', gap = 4 } = {}) {
   const [pos, setPos] = useState(null);
   useLayoutEffect(() => {
     if (!open) { setPos(null); return undefined; }
@@ -36,7 +36,7 @@ function usePlace(anchor, open, { width, align = 'start', gap = 4 } = {}) {
 }
 
 // Closes a popover on a press outside both its anchor and itself, or on Escape.
-function useDismiss(open, setOpen, refs, onEscape) {
+export function useDismiss(open, setOpen, refs, onEscape) {
   useEffect(() => {
     if (!open) return undefined;
     const close = (e) => { if (!refs.some((r) => r.current?.contains(e.target))) setOpen(false); };

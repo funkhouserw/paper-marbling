@@ -10,7 +10,8 @@ import { dialToValue, valueToDial } from '../../../api.js';
 import { LiveTank } from '../tank/LiveTank.jsx';
 import tankImage from '../../../docs/images/teal-copper-swirls.jpg';
 import { EXAMPLES, FONTS, INFO, WEAVE_ICONS, shortLabel, shownChoices, shownParams, toolDef } from './controls.js';
-import { Button, Choice, IconButton, InfoTip, Slider, Swatches, Toggle, cx } from './widgets.jsx';
+import { Button, Choice, IconButton, InfoTip, Slider, Swatches, Toggle, cx, useDismiss, usePlace } from './widgets.jsx';
+import { createPortal } from 'react-dom';
 import { FAQ, search, wantsScript } from './faq.js';
 
 // The real tank when there is one, or the mockup's picture.
@@ -94,15 +95,11 @@ export function WeaveIcon({ shape, className }) {
 // Weave shape as pictures. In a row it's a button that opens the grid; in a column, the grid itself.
 export function WeavePicker({ label, value, options, onChange, info, inline }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const key = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('pointerdown', close);
-    document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key); };
-  }, [open]);
+  const button = useRef(null);
+  const pop = useRef(null);
+  // The grid opens in a portal, placed under the button, so a scrolling settings bar can't clip it.
+  useDismiss(open, setOpen, [button, pop], () => button.current?.focus());
+  const pos = usePlace(button, open, { width: 344 });
   const grid = (
     <div role="radiogroup" aria-label={label} className={cx('grid gap-1', inline ? 'grid-cols-4' : 'w-80 grid-cols-4')}>
       {Object.entries(options).map(([shape, text]) => (
@@ -120,17 +117,20 @@ export function WeavePicker({ label, value, options, onChange, info, inline }) {
     </div>
   );
   return (
-    <div ref={ref} className="relative flex flex-col gap-1">
+    <div className="relative flex flex-col gap-1">
       <div className="flex items-center gap-1 text-xs text-ink-300">{label}<InfoTip text={info} label={label} /></div>
       {inline ? grid : (
         <>
           <button
-            type="button" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+            ref={button} type="button" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}
             className="flex h-7 items-center gap-2 rounded-md border border-ink-600 bg-ink-800 px-2 text-xs text-ink-100 hover:bg-ink-700 focus-visible:outline-2 focus-visible:outline-gilt"
           >
             <WeaveIcon shape={value} className="h-4 w-9 text-gilt-soft" />{options[value]}<ChevronDown size={12} className="text-ink-400" />
           </button>
-          {open && <div className="absolute left-0 top-14 z-50 rounded-lg border border-ink-600 bg-ink-850 p-2 shadow-2xl">{grid}</div>}
+          {open && pos && createPortal(
+            <div ref={pop} style={pos} className="z-[60] overflow-y-auto rounded-lg border border-ink-600 bg-ink-850 p-2 shadow-2xl">{grid}</div>,
+            document.body,
+          )}
         </>
       )}
     </div>
