@@ -1098,6 +1098,7 @@ export class Marble {
     // The first tick sorts the drops into the tree; every tick after re-solves it as they grow.
     if (!op.top) {
     op.top = this.polys.filter((p) => laid(p) && !(p.parentCell && laid(p.parentCell)));
+    const laidBefore = op.top.length > 0;
     op.start = this.time;
     const top = op.top;
     const log = this.log;
@@ -1122,7 +1123,12 @@ export class Marble {
         const c0 = centreOf(Array.from(under.xy.subarray(0, under.n * 2)));
         cell.rel = { dx: d.x - c0.x, dy: d.y - c0.y, area: c0.area };
         under.kids.push(cell);
-      } else top.push(cell);
+      } else {
+        // A later colour landing on bare bath spreads as a disc until it meets ink, so its corners
+        // stay rounder than a first throw's packed cells.
+        if (laidBefore) cell.roundShare = NEST_ROUND_SHARE;
+        top.push(cell);
+      }
     }
     }
     const top = op.top;
@@ -1192,7 +1198,7 @@ export class Marble {
         // Inside a parent, the gap between siblings is the parent's own ink, squeezed into a net as
         // thin as its share allows: a hairline seam, the rest of its ink lying as the rim.
         const gap = nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
-        const round = (nested ? NEST_ROUND_SHARE : ROUND_SHARE) * size;
+        const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
         const pts = outer.length >= 6 ? grow(erode(outer, gap / 2 + round), round) : [];
         if (pts.length < 6) { c.gone = true; return; }
         const m = pts.length / 2;
