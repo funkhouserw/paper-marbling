@@ -328,6 +328,7 @@ export class TankController {
   // it, the new simulator takes the ink over and carries on, as one undo step. Grid ink can't
   // trade ink with the others, so a switch to or from it waits for a clear.
   commitSimulator() {
+    this.dropSwitchNotice();
     const m = this.marble;
     const from = m.simulatorId ?? this.viscositySimulator;
     this.syncViscosity();
@@ -347,6 +348,7 @@ export class TankController {
     if (!carries(m.constructor) || !carries(Engine)) {
       const name = (id) => MODELS.find((x) => x.id === id)?.label ?? id;
       this.notice(`${name(this.model().id)} can't take over ink from ${name(from)}. It starts when you clear the tank.`);
+      this.switchWaiting = true;
       return;
     }
     const before = m.log.length;
@@ -370,6 +372,14 @@ export class TankController {
     this.redoStates = [];
     this.emit('settings');
     this.emit('history');
+  }
+
+  // The "starts when you clear" notice goes once it's no longer true or no longer news: on a new
+  // tank, the next simulator change, or the next step made.
+  dropSwitchNotice() {
+    if (!this.switchWaiting) return;
+    this.switchWaiting = false;
+    this.notice('');
   }
 
   // Hands the tank to a new engine for simulator id, which carries on from exactly where the old
@@ -654,6 +664,7 @@ export class TankController {
     const state = m.saveState();
     fn();
     if (m.log.length > before) {
+      this.dropSwitchNotice();
       if (label) this.stepLabels.set(before, label);
       else this.stepLabels.delete(before);
       this.undoMarks.push(before);
@@ -830,6 +841,7 @@ export class TankController {
       seed: prev.seed,
       gridCell: Number(s.gridCell) || undefined,
     });
+    this.dropSwitchNotice();
     this.marble = m;
     m.simulatorId = model.id; // kept in saved states, so undo can find the engine again
     m.startViscosity = m.viscosity; // for putting the setting back when undo reaches the start

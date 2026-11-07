@@ -421,6 +421,13 @@ test('Grid ink can\'t take over outline ink, so it says so and waits for a clear
   switchTo(c, 'gridink');
   assert.equal(c.marble.constructor.name, 'Marble');
   assert.match(notices.at(-1), /starts when you clear the tank/);
+  c.press([30, 0]);
+  c.release();
+  assert.equal(notices.at(-1), '', 'a step made clears it');
+  switchTo(c, 'gridink');
+  c.clear();
+  assert.equal(notices.at(-1), '', 'clearing, which starts Grid ink, clears it');
+  assert.equal(c.marble.simulatorId, 'gridink');
 });
 
 test('the first tank is the chosen simulator, even before any clear, and undo finds it again', () => {
