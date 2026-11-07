@@ -191,6 +191,7 @@ export function maxRadius(quantity, film) {
 }
 
 const HEART_LAND = 0.6; // seconds a Heart drop takes to land and push the ink round it aside
+const TAU_MAX = 4; // the most a film can be squeezed: a monolayer collapses past a point (Π–A isotherm)
 const HOLES_CLOSE = 0.6; // share of a Stormont hole's area that evaporation closes
 const PUSH_RAYS = 720; // directions a bending heart's push is worked out in
 const ROUND_ENOUGH = 0.95; // Heart strike bends only loops at least this round: 4πA/P², 1 for a circle
@@ -209,6 +210,31 @@ function rayReach({ xy, n }, cx, cy, dx, dy) {
     if (t > best && u >= 0 && u <= 1) best = t;
   }
   return best;
+}
+
+// Thickness. A film's thickness τ is its area when it stopped spreading, A₀, over its area now:
+// combing is area-preserving and never changes it, but ink squeezed by later throws thickens (and
+// Film's give records that). It darkens ink through Jaffer's tint law, I' = 1 − (1 − I)^τ, and
+// spares squeezed seams from the ribbon cut, which looks at width × τ. Pieces keep their film's τ.
+const outlineArea = ({ xy, n }) => {
+  let s = 0;
+  for (let i = 0, k = n - 1; i < n; k = i++) s += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+  return Math.abs(s) / 2;
+};
+// τ is capped at the film's own spreading: squeezed back to its landing thickness but not past it.
+export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / (outlineArea(poly) || poly.a0))) : 1);
+const tintCache = new Map();
+export function squeezedColour(color, tau) {
+  if (tau <= 1.02 || !/^#[0-9a-f]{6}$/i.test(color)) return color;
+  const key = `${color}|${Math.round(tau * 20)}`;
+  let out = tintCache.get(key);
+  if (!out) {
+    const n = parseInt(color.slice(1), 16);
+    const t = Math.round(tau * 20) / 20;
+    out = `#${[n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(255 * (1 - (1 - v / 255) ** (1 / t))).toString(16).padStart(2, "0")).join("")}`;
+    tintCache.set(key, out);
+  }
+  return out;
 }
 
 // A repeatable random sequence from a seed, so a heart's variation replays exactly.
@@ -2521,6 +2547,10 @@ export class Marble {
         const done = this._advanceDrop(op, dt);
         if (op.stormont && !op.stormont.thrown && op.poly && done) this._throwHoles(op); // once it has spread, so no solid core is left
         if (done && op.cell && op.poly) this._insetCell(op.poly, op.cell);
+        if (done && op.poly && !op.poly.a0 && !op.poly.group) {
+          op.poly.a0 = outlineArea(op.poly);
+          op.poly.tauMax = Math.max(1, op.spreading ?? TAU_MAX);
+        }
         return !done;
       }
       if (op.kind === 'stormont') return !this._advanceStormont(op);
@@ -2571,6 +2601,7 @@ export class Marble {
 
   _cutOutline(poly, cell, key) {
     const { xy, n } = poly;
+    const tau = thickness(poly);
     const buckets = new Map();
     for (let i = 0; i < n; i++) {
       const k = key(xy[i * 2], xy[i * 2 + 1]);
@@ -2627,7 +2658,7 @@ export class Marble {
       const j = closest(i);
       if (j < 0) { i++; continue; }
       const [area, length] = areaLength(i, j);
-      if (area / length >= THINNEST) {
+      if ((area / length) * tau >= THINNEST) {
         // A big piece behind a thin neck stands alone, unless it would take almost the whole outline.
         if (j - i < n - MIN_PIECE && j - i >= MIN_PIECE) extra.push(piece(i + 1, j));
         else { i++; continue; }
@@ -2643,6 +2674,8 @@ export class Marble {
     });
     poly.xy = cleaned;
     poly.n = kept.length;
+    // Pieces and what's left keep the film's thickness.
+    if (poly.a0) for (const p of [poly, ...extra]) p.a0 = outlineArea(p) * tau;
     return [poly, ...extra];
   }
 
@@ -2677,7 +2710,8 @@ export class Marble {
     ctx.setTransform(pxPerMm, 0, 0, -pxPerMm, (this.width / 2) * pxPerMm, (this.height / 2) * pxPerMm);
     this._beforeInk(ctx);
     for (let p = 0; p < this.polys.length; p++) {
-      const { group, color, shimmer } = this.polys[p];
+      const { group, shimmer } = this.polys[p];
+      const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
       ctx.beginPath();
       // Loops of one printed shape share a path, so inner loops become holes.
       do {
@@ -2736,7 +2770,8 @@ export class Marble {
     const { width: w, height: h } = this;
     const paths = [];
     for (let p = 0; p < this.polys.length; p++) {
-      const { group, color, cell } = this.polys[p];
+      const { group, cell } = this.polys[p];
+      const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
       let d = '';
       do {
         const { xy, n } = this.polys[p];
