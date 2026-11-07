@@ -3027,6 +3027,7 @@ export class Marble {
     ctx.setTransform(pxPerMm, 0, 0, -pxPerMm, (this.width / 2) * pxPerMm, (this.height / 2) * pxPerMm);
     this._beforeInk(ctx);
     const half = this.seamsDrawn ? this.seam / 2 : 0;
+    const boxes = half ? this._outlineBoxes() : null;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, shimmer } = this.polys[p];
       const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
@@ -3064,9 +3065,58 @@ export class Marble {
         ctx.strokeStyle = color;
         ctx.stroke();
       }
+      // Two drops of one colour that overlap have merged (a drop landing in its own colour joins
+      // it), so no seam shows where they overlap: the overlap is filled whole. Drops that only
+      // touch don't overlap, and keep their seam.
+      if (half && !group) {
+        for (const q of this._sameColourUnder(p, boxes)) {
+          ctx.save();
+          ctx.beginPath();
+          this._tracePoly(ctx, this.polys[q]);
+          ctx.clip();
+          ctx.beginPath();
+          this._tracePoly(ctx, this.polys[p]);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.restore();
+        }
+      }
       if (shimmer > 0) this._drawShimmer(ctx, group ? 'evenodd' : 'nonzero', shimmer);
     }
     ctx.restore();
+  }
+
+  // Each outline's bounding box, for finding which might overlap.
+  _outlineBoxes() {
+    return this.polys.map(({ xy, n }) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const x = xy[i * 2], y = xy[i * 2 + 1];
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+      return [x0, y0, x1, y1];
+    });
+  }
+
+  // The earlier outlines of the same colour whose boxes overlap outline p's: those it may overlap.
+  _sameColourUnder(p, boxes) {
+    const me = this.polys[p], b = boxes[p], out = [];
+    for (let q = 0; q < p; q++) {
+      const o = this.polys[q], c = boxes[q];
+      if (o.group || o.color !== me.color || c[0] > b[2] || c[2] < b[0] || c[1] > b[3] || c[3] < b[1]) continue;
+      out.push(q);
+    }
+    return out;
+  }
+
+  // An outline, whole, at every place it shows.
+  _tracePoly(ctx, poly) {
+    const { xy, n } = poly;
+    for (const [sx, sy] of this.tileShifts([poly])) {
+      ctx.moveTo(xy[0] + sx, xy[1] + sy);
+      for (let i = 1; i < n; i++) ctx.lineTo(xy[i * 2] + sx, xy[i * 2 + 1] + sy);
+      ctx.closePath();
+    }
   }
 
   // Paints metallic texture over the current path. Raising sheenPhase slides the
@@ -3092,6 +3142,18 @@ export class Marble {
     const { width: w, height: h } = this;
     const paths = [];
     const half = this.seamsDrawn ? this.seam / 2 : 0;
+    const boxes = half ? this._outlineBoxes() : null;
+    const clipped = new Set();
+    const whole = (q) => {
+      const { xy, n } = this.polys[q];
+      let d = '';
+      for (const [sx, sy] of this.tileShifts([this.polys[q]])) {
+        const pts = [];
+        for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
+        d += `M${pts.join('L')}Z`;
+      }
+      return d;
+    };
     for (let p = 0; p < this.polys.length; p++) {
       const { group, cell } = this.polys[p];
       const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
@@ -3109,6 +3171,13 @@ export class Marble {
       const extra = group ? ' fill-rule="evenodd"'
         : isTranslucent(color) || cell || half ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
       paths.push(`<path fill="${color}"${extra} d="${d}"/>`);
+      // Overlaps with earlier drops of the same colour, filled whole (see draw).
+      if (half && !group) {
+        for (const q of this._sameColourUnder(p, boxes)) {
+          if (!clipped.has(q)) { clipped.add(q); paths.push(`<clipPath id="same${q}"><path d="${whole(q)}"/></clipPath>`); }
+          paths.push(`<path fill="${color}" clip-path="url(#same${q})" d="${whole(p)}"/>`);
+        }
+      }
     }
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-w / 2} ${-h / 2} ${w} ${h}" width="${w}mm" height="${h}mm">`
       + `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="${this.bath}"/>${this._svgBeforeInk()}${paths.join('')}</svg>`;
