@@ -104,7 +104,11 @@ export class ThinFilm extends Marble {
     // spreads it from there.
     r = Math.max(r, Math.sqrt(Math.min(claim, SMALL_CLAIM * CELL * CELL) / Math.PI));
     if (!weight) return r;
-    const each = claim / (weight * CELL * CELL);
+    let each = claim / (weight * CELL * CELL);
+    // A drop that landed at its whole claim has nowhere further to spread: its ink lies at c = 1, no
+    // pressure, so the grid doesn't push it on into a square (the grid's flow isn't round at a cell
+    // or two across).
+    if (claim <= SMALL_CLAIM * CELL * CELL) each = Math.min(each, 1);
     for (const [q, w] of cells) this.h[q] += each * w;
     return r;
   }

@@ -87,4 +87,13 @@ test('a small drop lands about as large as in Classic, not as a tiny dot (#11)',
   };
   const classic = radius(Marble), thin = radius(ThinFilm);
   assert.ok(thin > 0.8 * classic, `Thin film ${thin.toFixed(2)} mm vs Classic ${classic.toFixed(2)} mm`);
+  // And round, not pushed on into a square by the coarse grid.
+  const m = new ThinFilm({ width: 200, height: 140, seed: 1 });
+  m.drop({ x: 3.3, y: -1.7, quantity: 0.002, color: '#123456', at: 0 });
+  for (let t = 0; t < 2000 && m.busy; t++) m.step();
+  const p = m.polys[0];
+  let cx = 0, cy = 0; for (let i = 0; i < p.n; i++) { cx += p.xy[i * 2]; cy += p.xy[i * 2 + 1]; }
+  cx /= p.n; cy /= p.n;
+  const r = Array.from({ length: p.n }, (_, i) => Math.hypot(p.xy[i * 2] - cx, p.xy[i * 2 + 1] - cy));
+  assert.ok(Math.max(...r) < 1.1 * Math.min(...r), `round: radius ${Math.min(...r).toFixed(2)} to ${Math.max(...r).toFixed(2)} mm`);
 });
