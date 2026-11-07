@@ -84,6 +84,18 @@ const START = {
   paletteName: '',
 };
 
+// Everything about how the editor was set up, kept in this browser so a reload picks up where you
+// left off: the tool and every brush setting, the palette and chosen ink, Simple or Advanced, the
+// panels' settings and the paper tint. The ink in the tank isn't kept here; Save state does that.
+const KEPT_KEY = 'marbler.editor';
+function readKept() {
+  try {
+    const k = JSON.parse(localStorage.getItem(KEPT_KEY) ?? 'null');
+    return k && typeof k === 'object' ? k : null;
+  } catch { return null; }
+}
+const pick = (from, allowed) => Object.fromEntries(Object.entries(from ?? {}).filter(([k]) => k in allowed));
+
 function uiReducer(s, a) {
   return { ...s, ...a };
 }
@@ -92,18 +104,70 @@ export function useTank() {
   const controller = useMemo(() => {
     // The new interface starts on Wake, as the plan decided, unless a simulator was chosen before.
     const kept = storedSettings(localStorage);
-    // A phone held upright starts on an upright tank, so it fills the screen.
-    const upright = !matchMedia('(min-width: 760px) and (min-height: 600px)').matches
+    const last = readKept();
+    const lastSettings = pick(last?.settings, SETTINGS);
+    // A phone held upright starts on an upright tank, so it fills the screen, unless a size was kept.
+    const upright = !lastSettings.tankW && !matchMedia('(min-width: 760px) and (min-height: 600px)').matches
       && matchMedia('(orientation: portrait)').matches;
     const size = upright ? { tankW: '700', tankH: '1000' } : {};
-    const c = new TankController({ settings: { simulator: 'wake', ...kept, ...size }, trace: textContours });
-    if (upright) c.clear();
+    const c = new TankController({ settings: { simulator: 'wake', ...lastSettings, ...kept, ...size }, trace: textContours });
+    if (last) {
+      // Brush settings, only for tools and settings that still exist.
+      for (const [tool, values] of Object.entries(last.values ?? {})) {
+        if (c.values[tool]) Object.assign(c.values[tool], pick(values, c.values[tool]));
+      }
+      if (last.tool && c.values[last.tool]) c.setTool(last.tool);
+      if (last.palette) {
+        try { c.usePalette(last.palette); } catch { /* a palette that's since been deleted */ }
+        // The palette brings its own base colour; the one last chosen wins.
+        if (lastSettings.bath) { c.settings.bath = lastSettings.bath; c.commitBath(); }
+      }
+      const ink = c.inks[last.ink];
+      if (ink) { c.setInk(ink.color, c.inkAlpha()); c.shimmer = ink.shimmer; }
+    }
+    if (upright || last) c.clear();
     c.setPointLimit(c.pointLimit());
     return c;
   }, []);
   const c = controller;
-  const [ui, setUi] = useReducer(uiReducer, START);
+  const [ui, setUi] = useReducer(uiReducer, START, (start) => {
+    const last = readKept();
+    if (!last) return start;
+    return {
+      ...start,
+      ...(['simple', 'advanced'].includes(last.view) && { view: last.view }),
+      ...(typeof last.palette === 'string' && { palette: last.palette }),
+      ...(Number.isInteger(last.ink) && c.inks[last.ink] && { ink: last.ink }),
+      ...(typeof last.tint === 'string' && { tint: last.tint }),
+      page: { ...start.page, ...pick(last.page, start.page) },
+    };
+  });
   const [version, bump] = useReducer((n) => n + 1, 0);
+
+  // Keep the setup: at most once a second while things change (the tank changes many times a
+  // second while it runs), and again whenever the page is hidden or closed.
+  const keep = useRef(null);
+  keep.current = () => {
+    try {
+      localStorage.setItem(KEPT_KEY, JSON.stringify({
+        settings: c.settings, values: c.values, tool: c.tool,
+        palette: ui.palette, ink: ui.ink, view: ui.view, page: ui.page, tint: ui.tint,
+      }));
+    } catch { /* storage full or blocked: nothing to keep */ }
+  };
+  const lastKept = useRef(0);
+  useEffect(() => {
+    const wait = 1000 - (performance.now() - lastKept.current);
+    const t = setTimeout(() => { lastKept.current = performance.now(); keep.current(); }, Math.max(0, wait));
+    return () => clearTimeout(t);
+  }, [c, version, ui.palette, ui.ink, ui.view, ui.page, ui.tint]);
+  useEffect(() => {
+    const now = () => keep.current();
+    const hidden = () => { if (document.visibilityState === 'hidden') now(); };
+    window.addEventListener('pagehide', now);
+    document.addEventListener('visibilitychange', hidden);
+    return () => { window.removeEventListener('pagehide', now); document.removeEventListener('visibilitychange', hidden); };
+  }, []);
 
   // Redraw on anything the controller says changed. Time and shape counts change every frame,
   // so they're read a few times a second instead.
