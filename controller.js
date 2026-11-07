@@ -344,7 +344,7 @@ export class TankController {
     this.syncTile();
     const Engine = this.engine();
     const same = m instanceof Engine && m.constructor === Engine;
-    if (!same && !m.polys.length && !m.active.length && !m.log.some((e) => !['openWater', 'walls', 'tile'].includes(e.fn))) {
+    if (!same && !m.polys.length && !m.active.length && !m.log.some((e) => !['openWater', 'walls', 'tile', 'separate'].includes(e.fn))) {
       this.newTank();
       this.resetHistory();
       return;

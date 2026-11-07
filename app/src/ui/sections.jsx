@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { ACTIONS, SECTIONS } from './features.js';
 import { SETTINGS } from '../../../controller.js';
+import { MODELS } from '../../../models.js';
+import { Marble } from '../../../engine.js';
 import { TINTS as PAPER_TINTS } from '../../../paper.js';
 import { INFO, PALETTES, SIMULATORS } from './controls.js';
 import { Button, Choice, InfoTip, NumberField, Slider, Swatches, Toggle, cx } from './widgets.jsx';
@@ -15,11 +17,18 @@ export const SECTION_ICONS = {
 };
 export const ACTION_ICONS = { undo: Undo2, redo: Redo2, trash: Trash2, play: Play, pause: Pause, finish: FastForward, printer: Printer };
 
+const seamsShown = (simulator) => {
+  const model = MODELS.find((m) => m.id === simulator);
+  return Boolean(model && (model.engine ?? Marble).prototype.seamSupported);
+};
 export const action = (id) => ACTIONS.find((a) => a.id === id);
 // What the mock tank can do, shaped like TankController.capabilities().
 export function capabilities(simulator) {
   const film = ['film', 'wake', 'wakefast'].includes(simulator);
   return {
+    // Whether this simulator draws Keep cells separate's seams yet (asks the engine, so it follows
+    // each simulator as it gains them).
+    seams: seamsShown(simulator),
     erase: simulator !== 'gridink',
     hearts: simulator !== 'gridink',
     freeze: simulator !== 'gridink',
@@ -89,7 +98,11 @@ export function Control({ c: placed, tank, run }) {
   switch (c.kind) {
     case 'slider': return <Slider label={c.label} value={s[c.id]} min={c.min} max={c.max} step={c.step} info={info} onChange={set} />;
     case 'viscosity': return <ViscositySlider c={c} value={s.visc} info={info} onChange={set} />;
-    case 'toggle': return <Toggle label={c.label} checked={Boolean(s[c.id])} info={info} onChange={set} />;
+    case 'toggle': {
+      // A setting every simulator keeps, though not every one draws it yet: say so rather than hide it.
+      const label = c.id === 'separate' && !capabilities(s.simulator).seams ? `${c.label} (not drawn in this simulator yet)` : c.label;
+      return <Toggle label={label} checked={Boolean(s[c.id])} info={info} onChange={set} />;
+    }
     case 'choice': return <Choice label={c.label} value={s[c.id]} options={c.options} info={info} onChange={set} />;
     case 'number': return <NumberField label={c.label} value={s[c.id]} min={c.min} max={c.max} step={c.step} info={info} onChange={set} />;
     case 'action': {
