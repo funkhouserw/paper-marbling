@@ -1176,7 +1176,8 @@ export class Marble {
     const live = this._live;
     for (const d of op.drops) {
       // Each drop its own colour and spread (a Cells batch can mix them); a broom throw's are all one.
-      const color = d.color ?? op.color, shimmer = d.shimmer ?? op.shimmer, spreading = d.spreading ?? op.spreading;
+      const color = d.color ?? op.color, shimmer = d.shimmer ?? op.shimmer;
+      const spreading = Math.min(d.spreading ?? op.spreading, this.cellSpreadMax ?? Infinity);
       const area = plain(d.quantity) * spreading;
       const under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
       if (under && laid(under) && under.color === color) { under.own += area; continue; }
@@ -1190,7 +1191,7 @@ export class Marble {
         this._live = live;
         continue;
       }
-      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, BROOM_TAU_MAX), parentCell: under, fresh: true };
+      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: under, fresh: true };
       if (under) {
         // Where it landed in its parent, relative to the parent's centre and size, so it moves
         // with the parent when the parent is laid out again.
