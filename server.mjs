@@ -7,7 +7,7 @@
 // the browser. Options, from the same places:
 //   PORT (8000), MARBLE_MODEL (gpt-6-luna), MARBLE_EFFORT (medium), OPENAI_BASE_URL (https://api.openai.com/v1)
 import { createServer } from 'node:http';
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { access, appendFile, mkdir, readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderReference } from './api.js';
@@ -15,6 +15,7 @@ import { PALETTES, validPalette, cleanPalette, isBuiltInPalette, MAX_INKS } from
 import { renderSliders } from './tools.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
+const exists = (file) => access(file).then(() => true, () => false);
 // Real environment variables win over the file, which lives outside this repo.
 try {
   process.loadEnvFile(join(ROOT, '..', '.env.local'));
@@ -319,15 +320,26 @@ export const server = createServer(async (req, res) => {
       await appendFile(join(PROFILE_DIR, 'marbler-profile.jsonl'), `${line}\n`);
       return json(res, 200, { ok: true });
     }
-    // The new interface, once built with `npm run build` in app/, is at /new/. Its files ask for
-    // each other by relative paths, so /new needs its slash.
-    if (url.pathname === '/new') {
-      res.writeHead(301, { Location: '/new/' });
+    // The editor is the new interface, built with `npm run build` in app/, at /. The original page
+    // is kept, unchanged, at /classic/. Both ask for files by relative paths, so each needs its
+    // slash. Old links to /new/ go to /.
+    if (url.pathname === '/new' || url.pathname.startsWith('/new/')) {
+      res.writeHead(301, { Location: '/' });
       return res.end();
     }
-    const path = url.pathname === '/' ? '/index.html'
-      : url.pathname === '/new/' ? '/app/dist/index.html'
-        : url.pathname.startsWith('/new/') ? `/app/dist/${url.pathname.slice('/new/'.length)}` : url.pathname;
+    if (url.pathname === '/classic') {
+      res.writeHead(301, { Location: '/classic/' });
+      return res.end();
+    }
+    if (url.pathname === '/' && !(await exists(join(ROOT, 'app/dist/index.html')))) {
+      res.writeHead(503, { 'Content-Type': 'text/html' });
+      return res.end('<p>The editor isn\'t built yet. Run <code>npm install</code> and <code>npm run build</code> in <code>app/</code>, then reload. The classic editor is at <a href="/classic/">/classic/</a>.</p>');
+    }
+    // The built editor's own files (index.html, assets/) come from app/dist; the rest
+    // (the classic page, How it works, the shared modules) from the repo.
+    const built = url.pathname === '/' ? '/app/dist/index.html' : `/app/dist${url.pathname}`;
+    const path = url.pathname === '/classic/' ? '/classic/index.html'
+      : url.pathname !== '/' && url.pathname.split('/')[1] !== 'assets' ? url.pathname : built;
     const rel = normalize(decodeURIComponent(path));
     const file = join(ROOT, rel);
     const name = rel.split(sep).pop();

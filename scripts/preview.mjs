@@ -10,11 +10,11 @@ const dist = join(root, 'dist');
 const PORT = Number(process.env.PORT) || 8100;
 const { headers: rules } = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
 const headers = Object.fromEntries(rules[0].headers.map(({ key, value }) => [key, value]));
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.jpg': 'image/jpeg' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
 createServer(async (req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-  const file = join(dist, normalize(path === '/' ? '/index.html' : path));
+  const file = join(dist, normalize(path.endsWith('/') ? `${path}index.html` : path));
   try {
     if (!file.startsWith(dist)) throw new Error('outside dist');
     const body = await readFile(file);

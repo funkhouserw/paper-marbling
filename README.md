@@ -13,11 +13,12 @@
 
 ## Try it
 
-You only need [Node](https://nodejs.org). There's nothing to install.
+You need [Node](https://nodejs.org). Build the editor once, then start the local server:
 
+    cd app && npm install && npm run build && cd ..
     node server.mjs
 
-Then open http://127.0.0.1:8000.
+Then open http://127.0.0.1:8000. The original editor is kept, as it was, at http://127.0.0.1:8000/classic/; it needs no build.
 
 ## What it does
 
@@ -64,15 +65,16 @@ The key stays in that local server and never reaches the browser. It's worth usi
 ## Host your own demo
 
     npm install
+    (cd app && npm install)
     npm run build
 
-This writes a static site to `dist/`, with the assistant and timing recorder left out, and any static host can serve it. `vercel.json` sets this up for Vercel, along with security headers. `npm run preview` serves the build locally with those same headers.
+This writes a static site to `dist/`: the editor at the top, the classic editor in `classic/`, and How it works. The assistant's script writing and the timing recorder are left out, and any static host can serve it. `vercel.json` sets this up for Vercel, along with security headers. `npm run preview` serves the build locally with those same headers.
 
 ## Develop
 
     node --test *.test.mjs
 
-There's no build step for development: `node server.mjs` serves the files as they are. Where to look:
+The editor is React, Tailwind and Vite, in `app/`: `npm run dev` there serves it with live reloading, `npm test` checks that nothing from the classic page was left behind, and `npm run storybook` shows every part on its own. `app/README.md` explains how to add a tool, setting, menu action or panel. The simulators and the classic page need no build: `node server.mjs` serves them as they are. Where to look:
 
 | Files | What's there |
 |---|---|
@@ -83,7 +85,9 @@ There's no build step for development: `node server.mjs` serves the files as the
 | `models.js` | The list of simulators |
 | `api.js` | Every script command. The assistant's instructions and the reference on the How it works page are generated from it |
 | `tools.js`, `info.js` | The sidebar tools and the text behind each (i) |
-| `ui.js` | The page itself |
+| `controller.js`, `tankview.js`, `pageactions.js` | The tank's controller, its view, and page actions (saves, prints, exports), shared by both editors |
+| `app/` | The editor |
+| `classic/` | The original editor, kept as it was |
 | `server.mjs` | The local server and the assistant |
 
 ## License

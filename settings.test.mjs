@@ -5,8 +5,8 @@ import { readFile } from 'node:fs/promises';
 import { SETTINGS, DEFAULT_SETTINGS, DETAIL_PRESETS, storedSettings, storeSetting, TankController } from './controller.js';
 import { INFO } from './info.js';
 
-const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
-const ui = await readFile(new URL('./ui.js', import.meta.url), 'utf8');
+const html = await readFile(new URL('./classic/index.html', import.meta.url), 'utf8');
+const ui = await readFile(new URL('./classic/ui.js', import.meta.url), 'utf8');
 
 // The opening tag of an element, by id.
 function tag(id) {

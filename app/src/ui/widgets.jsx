@@ -282,7 +282,7 @@ export function Choice({ label, value, options, onChange, info, hideLabel = fals
               aria-selected={i === at}
               onPointerMove={() => setActive(i)}
               onClick={() => pick(i)}
-              className={cx('flex cursor-pointer items-center gap-2 px-2.5 py-1.5', i === active ? 'bg-ink-700 text-ink-100' : 'text-ink-100')}
+              className={cx('flex cursor-pointer items-center gap-2 px-2.5 py-1.5 [@media(pointer:coarse)]:py-2.5', i === active ? 'bg-ink-700 text-ink-100' : 'text-ink-100')}
             >
               <Check size={12} className={cx('shrink-0', i === at ? 'text-gilt' : 'invisible')} />
               <span className="min-w-0">{v}</span>

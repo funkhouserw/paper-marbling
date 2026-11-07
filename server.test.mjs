@@ -162,12 +162,21 @@ test('serves the app but not the server source, dotfiles or parent paths', async
   assert.equal((await fetch(`${base}/%2e%2e/%2e%2e/etc/passwd`)).status, 404);
 });
 
-test('the new interface is at /new/, and can\'t reach outside its build', async () => {
-  const bare = await fetch(`${base}/new`, { redirect: 'manual' });
+test('the editor is at /, the classic page at /classic/, and old /new/ links go to /', async () => {
+  const old = await fetch(`${base}/new/`, { redirect: 'manual' });
+  assert.equal(old.status, 301);
+  assert.equal(old.headers.get('location'), '/');
+  const bare = await fetch(`${base}/classic`, { redirect: 'manual' });
   assert.equal(bare.status, 301);
-  assert.equal(bare.headers.get('location'), '/new/');
-  assert.equal((await fetch(`${base}/new/%2e%2e/%2e%2e/%2e%2e/server.mjs`)).status, 404);
-  assert.equal((await fetch(`${base}/new/%2e%2e/%2e%2e/.git/config`)).status, 404);
+  assert.equal(bare.headers.get('location'), '/classic/');
+  const classic = await fetch(`${base}/classic/`);
+  assert.equal(classic.status, 200);
+  assert.match(await classic.text(), /<script type="module" src="ui.js">/);
+  assert.equal((await fetch(`${base}/classic/ui.js`)).status, 200);
+  // / is the built editor, or a note saying how to build it.
+  assert.ok([200, 503].includes((await fetch(`${base}/`)).status));
+  assert.equal((await fetch(`${base}/assets/%2e%2e/%2e%2e/%2e%2e/server.mjs`)).status, 404);
+  assert.equal((await fetch(`${base}/assets/%2e%2e/%2e%2e/.git/config`)).status, 404);
 });
 
 const inks = [{ color: '#112233', shimmer: 0.5 }];

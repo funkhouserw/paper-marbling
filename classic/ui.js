@@ -1,20 +1,20 @@
-import { maxRadius, WEAVE_SHAPES } from './engine.js';
-import { toMm, dialToValue, valueToDial } from './api.js';
-import { TOOLS, isDial } from './tools.js';
-import { MODELS } from './models.js';
-import { makeProfiler } from './profile.js';
-import { isBuiltInPalette, MAX_INKS } from './palettes.js';
-import { addInfo, infoIcon } from './info.js';
-import { FONTS, textContours } from './text.js';
-import { TINTS } from './paper.js';
+import { maxRadius, WEAVE_SHAPES } from '../engine.js';
+import { toMm, dialToValue, valueToDial } from '../api.js';
+import { TOOLS, isDial } from '../tools.js';
+import { MODELS } from '../models.js';
+import { makeProfiler } from '../profile.js';
+import { isBuiltInPalette, MAX_INKS } from '../palettes.js';
+import { addInfo, infoIcon } from '../info.js';
+import { FONTS, textContours } from '../text.js';
+import { TINTS } from '../paper.js';
 import {
   download, stamp, pngBlob, svgBlob, printBlob, pullOptions, keepPull, listPulls, deletePull, listSaves, deleteSave,
   saveTank, restoreTank, myScripts, saveScript, findScript, paletteChoices, savePalette, deletePalette,
   applyPaletteActions, askAssistant,
-} from './pageactions.js';
-import { TankController, DEFAULT_SETTINGS, FLOW_FIELDS, START_PALETTE, STANDARD_LIMIT, parseHex } from './controller.js';
-import { EXAMPLES, EXAMPLE_SIMULATOR } from './examples.js';
-import { mountTank } from './tankview.js';
+} from '../pageactions.js';
+import { TankController, DEFAULT_SETTINGS, FLOW_FIELDS, START_PALETTE, STANDARD_LIMIT, parseHex } from '../controller.js';
+import { EXAMPLES, EXAMPLE_SIMULATOR } from '../examples.js';
+import { mountTank } from '../tankview.js';
 
 const $ = (id) => document.getElementById(id);
 

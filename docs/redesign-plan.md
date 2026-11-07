@@ -96,21 +96,21 @@ These are unmeasured so far, so they get checked first.
 9. **Check against the old interface.** Every control still has a home, and all tests pass. **Then Ilse decides whether to merge.**
 
 ## Where it stands
-Steps 2–7 are done, and most of 8 and 9.
-- **Running it:** `npm run dev` in `app/` (port 8020 by default), or `npm run build` in `app/` and then `node server.mjs`, which serves it at `/new/` beside the old page. `?mock` shows the picture-only mockup, and `npm run storybook` shows every layout.
-- **The tank:** `controller.js` holds the tank logic, `tankview.js` draws it with all the old previews, and `pageactions.js` handles pulls, exports, saves, my scripts, palettes and the assistant. The old page uses the same three files, and a 49-step browser session shows it unchanged.
-- **Nothing left behind:** `app/coverage.test.mjs` fails if any old element id, info.js explanation, tools.js tool or controller setting has no home in the new interface.
-- **Adding things:** `app/README.md` says what a new setting, action, panel or tool takes. Tools are table-driven in `tools.js`, so a new brush needs no controller code, and it shows up in the interface on its own.
-- **Extras beyond the old page:** a right-click (long-press) tank menu, ⌘K to find any command, shortcuts listed in the menus, pictures for the weave shapes, panels that fold away on narrower screens, and an in-browser FAQ for the ink drop on the demo.
-- **Still to do:** two-finger pan and zoom and a two-finger tap for undo on phones (tankview's touch handling is being added); a full browser comparison against the old page (review 2); a real-phone speed check (step 1).
+Steps 2–9 are done, apart from a speed check on a real phone (step 1). The new editor is ready for Ilse's review before it goes into main.
+- **Running it:** `npm run build` in `app/`, then `node server.mjs`: the editor is at `/` and the original page, kept as it was, at `/classic/` (old `/new/` links go to `/`). `npm run dev` in `app/` serves it with live reloading; `?mock` shows the picture-only mockup, and `npm run storybook` every layout. `npm run build` at the top builds the public site into `dist/`, with both editors.
+- **The tank:** `controller.js` holds the tank logic, `tankview.js` draws it with all the old previews, and `pageactions.js` handles pulls, exports, saves, my scripts, palettes and the assistant. Both editors use the same three files.
+- **Nothing left behind:** `app/coverage.test.mjs` fails if any element id or (i) explanation of the classic page, tools.js tool or controller setting has no home in the new editor. Reviews with marble-driver ran 40 and then 49 identical steps on both pages, with only intended differences.
+- **Adding things:** `app/README.md` says what a new setting, action, panel or tool takes. Tools are table-driven in `tools.js`, so a new brush needs no controller code and shows up on its own.
+- **Beyond the old page:** a right-click (long-press) tank menu, ⌘K to find any command, shortcuts in the menus, pictures for the weave shapes, custom dropdowns, a tool rail that widens to show names, panels that fold away on narrower screens, a Palettes window, pinch, pan and two-finger-tap undo on phones, a portrait tank on upright phones, switching simulator without clearing, and Carra Jean: a full FAQ searched in the browser, and script writing when run locally.
 
 ## Decided along the way
 - CodeMirror for the script editor, JavaScript rather than TypeScript, and lucide icons.
-- The built interface is served by `node server.mjs` at `/new/`; `app/dist` isn't committed.
-- Wake is the new interface's default simulator unless one was chosen before.
-- Simple view keeps spray's colours, stir, vortex and wriggle direction, and the weave shape, because the tools need them.
+- The new editor is the main page at `/`; the original is archived at `/classic/` so the public repo keeps it. `app/dist` isn't committed.
+- Wake is the default simulator unless one was chosen before.
+- Simple view shows every brush setting; Advanced adds the script editor, palette editing, Freeze and the finer panels.
+- Base colour and Simulator are in Simple view. Paper colour stays separate from Base colour.
+- Switching simulator with ink in the tank hands the ink over (not Grid ink, which waits for a clear), and Wake's thin-ribbon cut now runs in every outline simulator.
 
 ## Open questions
-- Should a phone start on a portrait tank? A 1000 × 700 tank leaves half a phone screen empty.
 - Should Simple use Wake (fast) underneath on phones?
-- When to switch: make `/new/` the main page, keep the old one at a side address for a while, or replace it outright.
+- Which drop size should the simulators share? Classic and Grid drops are about half as wide as the rest; marble-driver has the measurements and is holding the change.

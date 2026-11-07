@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { SECTIONS, ACTIONS, FIXED, TOOL_GROUPS, infoKeysUsed, oldIdsCovered } from './src/ui/features.js';
 
-const page = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const page = await readFile(new URL('../classic/index.html', import.meta.url), 'utf8');
 import { TOOLS, INFO } from './src/ui/live.js';
 
 const controls = { tools: TOOLS, info: INFO };

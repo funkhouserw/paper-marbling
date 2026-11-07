@@ -14,7 +14,7 @@ test('every tool and sidebar control has an explanation', () => {
 });
 
 test('every (i) in the page points at an explanation', () => {
-  const keys = [...readFileSync(new URL('./index.html', import.meta.url), 'utf8').matchAll(/data-info="([^"]+)"/g)].map((m) => m[1]);
+  const keys = [...readFileSync(new URL('./classic/index.html', import.meta.url), 'utf8').matchAll(/data-info="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(keys.length > 15);
   for (const key of keys) assert.ok(INFO[key], key);
 });

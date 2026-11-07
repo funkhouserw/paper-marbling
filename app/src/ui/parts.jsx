@@ -378,7 +378,8 @@ export function CreatureChat({ onClose, tank, local }) {
   const scripting = mode === 'script';
   const chat = scripting ? tank.state.chat : answers;
   const busy = scripting && tank.state.chatBusy;
-  useEffect(() => { log.current?.scrollTo(0, log.current.scrollHeight); }, [chat.length, busy, mode]);
+  // Follow the conversation to its newest line; an empty chat starts at the top of its questions.
+  useEffect(() => { log.current?.scrollTo(0, chat.length || busy ? log.current.scrollHeight : 0); }, [chat.length, busy, mode]);
   const Speech = typeof window !== 'undefined' && window.webkitSpeechRecognition;
 
   const toScript = async (q) => {
