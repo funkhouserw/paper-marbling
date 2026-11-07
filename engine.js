@@ -1475,12 +1475,15 @@ export class Marble {
   // reach: how far each tine's pull may reach, as a share of the gap between neighbouring tines.
   // 0.5 (the default) keeps tines from reaching through each other and moving the sheet as one
   // paddle; more lets a fine or wavy comb drag further (column grounds, Peacock's fans).
+  // ease: seconds the comb takes to come up to speed at the start and to slow to a stop at the end
+  // (0, the default, starts and stops at full speed). It covers the same path, ease seconds longer.
   rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
-         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach = REACH_SHARE, at } = {}) {
+         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach = REACH_SHARE, ease = 0, at } = {}) {
     const points = path ?? [from, to];
     const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
     const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength, waveShape, width };
     if (reach !== REACH_SHARE) args.reach = reach;
+    if (ease > 0) args.ease = ease;
     if (at !== undefined) args.at = at;
 
     const segs = [];
@@ -1508,7 +1511,10 @@ export class Marble {
       for (let k = 1; k < sorted.length; k++) gap = Math.min(gap, sorted[k] - sorted[k - 1]);
       if (gap > 0) op.L = Math.max(0.25, Math.min(op.L, gap * Math.max(0.05, reach)));
     }
-    return this._schedule('rake', args, op, total / speed, true);
+    // Too short a stroke to reach full speed eases over all of it.
+    op.ease = Math.max(0, Math.min(ease, total / speed));
+    op.elapsed = 0;
+    return this._schedule('rake', args, op, total / speed + op.ease, true);
   }
 
   // A single tine dragged along a path.
@@ -1852,7 +1858,7 @@ export class Marble {
 
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
-  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach = REACH_SHARE, at } = {}) {
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach = REACH_SHARE, ease = 0, at } = {}) {
     // How far the teeth start and end past the tank's edges. On a repeating tank anything past one
     // edge is raked again at the other, so there it defaults to none.
     overhang ??= (this.tileWanted ?? this.tileOn) ? 0 : 20;
@@ -1873,7 +1879,7 @@ export class Marble {
     const offsets = Array.from({ length: teeth }, (_, i) => wrap((i + 0.5) * spacing + offset) - across / 2);
     return this.rake({
       from: [-c * along, -s * along], to: [c * along, s * along],
-      offsets, speed, D, waveAmp, waveLength, waveShape, width, reach, at,
+      offsets, speed, D, waveAmp, waveLength, waveShape, width, reach, ease, at,
     });
   }
 
@@ -2372,8 +2378,26 @@ export class Marble {
     ];
   }
 
+  // How far an easing comb has gone after t seconds: its speed rises smoothly (smoothstep) over the
+  // first ease seconds and falls the same way over the last, so it covers its path in total/speed +
+  // ease seconds. A ramp covers speed x ease / 2.
+  _easedDistance(op, t) {
+    const { total, speed, ease: e } = op;
+    const T = total / speed + e;
+    const ramp = (u) => u * u * u - (u * u * u * u) / 2; // ∫₀ᵘ (3x² − 2x³) dx
+    if (t <= 0) return 0;
+    if (t >= T) return total;
+    if (t < e) return speed * e * ramp(t / e);
+    if (t > T - e) return total - speed * e * ramp((T - t) / e);
+    return (speed * e) / 2 + speed * (t - e);
+  }
+
   _advanceRake(op, dt) {
-    const next = Math.min(op.dist + op.speed * dt, op.total);
+    let next;
+    if (op.ease > 0) {
+      op.elapsed = (op.elapsed ?? 0) + dt;
+      next = Math.min(this._easedDistance(op, op.elapsed), op.total);
+    } else next = Math.min(op.dist + op.speed * dt, op.total);
     // A weave is a curve, so it needs short straight pieces however fast the rake goes.
     const pieces = op.waveAmp ? Math.max(1, Math.ceil(((next - op.dist) * WEAVE_POINTS) / op.waveLength)) : 1;
     for (let k = 0; k < pieces; k++) {
