@@ -2,7 +2,7 @@
 // through live.js, so every tool and setting has a place here.
 import {
   Droplet, SprayCan, Grip, Type, Brush, Rows3, Heart, PenTool, Waves, Activity, RefreshCw,
-  Tornado, Wind, Eraser, Snowflake, Columns3, Sparkles,
+  Tornado, Wind, Eraser, Snowflake, Columns3, Sparkles, Spline,
 } from 'lucide-react';
 import { createElement as h } from 'react';
 import { TOOL_GROUPS } from './features.js';
@@ -49,7 +49,7 @@ function HeartDropIcon({ size = 24, ...rest }) {
 
 export const ICONS = {
   drop: Droplet, heartDrop: HeartDropIcon, spray: SprayCan, fillDots: Grip, paint: Brush, stripes: Rows3, text: Type,
-  rake: Columns3, fullRake: FullRakeIcon, hearts: Heart, stylus: PenTool,
+  rake: Columns3, drawnRake: Spline, fullRake: FullRakeIcon, hearts: Heart, stylus: PenTool,
   jiggle: Waves, wriggle: Activity, stir: RefreshCw, vortex: Tornado, air: Wind,
   erase: Eraser,
 };

@@ -221,6 +221,22 @@ export const TOOLS = {
       overhang: ['Overhang', null, 0, 6, 0.1, undefined, { advanced: true, auto: 'Auto' }],
     },
   },
+  // A whole rake dragged freehand. Its teeth stay in the line set by the first direction you move
+  // (the engine's rake keeps one heading along a path), so curving the stroke fans every tine the
+  // same way: drag east, then curve south, for feather plumes.
+  drawnRake: {
+    input: 'stroke',
+    waits: true,
+    act: (t) => t.place((at) => t.m.rake({ path: t.path, ...t.v, at })),
+    hint: 'Draw freely: the whole rake follows your stroke, its teeth keeping the line your first movement set.',
+    params: {
+      teeth: ['Teeth', 8, 1, 80, 1],
+      spacing: ['Space between teeth', 3, 0.5, 20, 0.1],
+      speed: ['Speed', 15, 1, 80, 1],
+      D: ['Tooth thickness', 1, 0.3, 3, 0.1, FAR_DRAG],
+      width: ['Tine width', 0, 0, 8, 0.1],
+    },
+  },
   stylus: {
     input: 'stroke',
     waits: true,
