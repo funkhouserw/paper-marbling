@@ -2,7 +2,7 @@
 // tool's settings under them, a tool rail on the left, panels on the right, transport below.
 // Menus, panels and the tank's right-click menu are all drawn from features.js.
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Code, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, Pause, Play, Printer, Redo2, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronRight, Code, Copy, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, Pause, Play, Printer, Redo2, Share2, Trash2, Undo2, X } from 'lucide-react';
 import { FREEZE_INFO_KEY, FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
 import { ACTIONS, FIXED, MENU_ORDER, SECTIONS } from '../ui/features.js';
 import { Button, IconButton, InfoTip, Swatches, cx } from '../ui/widgets.jsx';
@@ -334,6 +334,29 @@ export function Creature({ tank, local }) {
 }
 
 // A pulled print or finished print, large, with Save and (for kept pulls) Delete.
+// Share through the device's own share sheet (Messages, Photos, mail and so on) where the browser
+// can share files, as phones and Safari can; otherwise copy the picture, where it can do that.
+const canShareFiles = () => {
+  try { return Boolean(navigator.canShare?.({ files: [new File([new Blob()], 'x.png', { type: 'image/png' })] })); } catch { return false; }
+};
+function ShareButton({ blob, title }) {
+  const [said, setSaid] = useState(null);
+  const file = () => new File([blob], `marbler-${Date.now()}.png`, { type: 'image/png' });
+  if (canShareFiles()) {
+    return (
+      <Button primary onClick={() => navigator.share({ files: [file()], title: 'Marbler', text: title && title !== 'The print' ? title : 'Made in Marbler' }).catch(() => {})}>
+        <Share2 size={12} /> Share
+      </Button>
+    );
+  }
+  if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') return null;
+  return (
+    <Button onClick={() => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(() => setSaid('Copied'), () => setSaid('Couldn\'t copy'))}>
+      <Copy size={12} /> {said ?? 'Copy image'}
+    </Button>
+  );
+}
+
 function Viewer({ tank }) {
   const { viewer } = tank.state;
   const close = () => tank.dispatch({ type: 'closeViewer' });
@@ -347,7 +370,8 @@ function Viewer({ tank }) {
       <div role="dialog" aria-label={viewer.title ?? 'The print'} className="flex max-h-full max-w-full flex-col gap-3 rounded-xl border border-ink-600 bg-ink-900 p-3 shadow-2xl">
         <img src={viewer.url} alt={viewer.title ?? 'The print'} className="min-h-0 max-w-[80vw] flex-1 rounded object-contain" style={{ maxHeight: '75vh' }} />
         <div className="flex gap-2">
-          <Button primary onClick={() => tank.dispatch({ type: 'savePull', blob: viewer.blob, date: viewer.date })}>Save PNG</Button>
+          <ShareButton blob={viewer.blob} title={viewer.title} />
+          <Button primary={!canShareFiles()} onClick={() => tank.dispatch({ type: 'savePull', blob: viewer.blob, date: viewer.date })}>Save PNG</Button>
           {viewer.id != null && <Button onClick={() => tank.dispatch({ type: 'deletePull', id: viewer.id })}>Delete</Button>}
           <span className="flex-1" />
           <Button onClick={close}>Close</Button>

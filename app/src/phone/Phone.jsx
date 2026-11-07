@@ -126,6 +126,9 @@ function MenuSheet({ tank, commands, local, onClose, onScript }) {
           })}
         </div>
         {section && <SectionBody section={section} tank={tank} run={commands.run} local={local} />}
+        <button type="button" onClick={() => commands.run('resetAll')} className="mt-4 self-start text-xs text-red-300/80 underline-offset-2 hover:underline">
+          Clear everything…
+        </button>
       </div>
     </Sheet>
   );

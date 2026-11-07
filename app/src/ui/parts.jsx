@@ -201,6 +201,8 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
   };
   return (
     <div className={cx(row ? 'grid grid-flow-col grid-rows-2 auto-cols-[10rem] items-start gap-x-5 gap-y-2' : 'flex flex-col gap-4')}>
+      {/* In a column the button comes first and last, so it's never a long scroll away. */}
+      {def.whole && !row && <Button primary onClick={applyTool} className="w-full"><Play size={12} /> {def.label}</Button>}
       {def.text && (
         <>
           <label className="flex flex-col gap-1 text-xs text-ink-300">

@@ -143,6 +143,7 @@ export const ACTIONS = [
   { id: 'undo', label: 'Undo', menu: 'Edit', shortcut: '⌘Z', context: true, icon: 'undo' },
   { id: 'redo', label: 'Redo', menu: 'Edit', shortcut: '⇧⌘Z', context: true, icon: 'redo' },
   { id: 'copySession', label: 'Copy session to script', menu: 'Edit', replaces: ['capture'] },
+  { id: 'resetAll', label: 'Clear everything…', menu: 'File' },
   { id: 'editPalettes', label: 'Edit palettes…', menu: 'Edit', view: 'advanced' },
   { id: 'savePalette', label: 'Save palette', menu: 'Edit', view: 'advanced' },
   { id: 'deletePalette', label: 'Delete palette', menu: 'Edit', view: 'advanced' },

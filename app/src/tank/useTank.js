@@ -149,7 +149,9 @@ export function useTank() {
   // Keep the setup: at most once a second while things change (the tank changes many times a
   // second while it runs), and again whenever the page is hidden or closed.
   const keep = useRef(null);
+  const resetting = useRef(false);
   keep.current = () => {
+    if (resetting.current) return;
     try {
       localStorage.setItem(KEPT_KEY, JSON.stringify({
         settings: c.settings, values: c.values, tool: c.tool,
@@ -418,6 +420,19 @@ export function useTank() {
       case 'freezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'freeze'); return true;
       case 'unfreezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'unfreeze'); return true;
       case 'unfreezeAll': c.unfreezeAll(); return true;
+      case 'resetAll': {
+        // Everything Marbler keeps in this browser: saved states, prints, my scripts, my palettes and
+        // every remembered setting. Asks first, then starts afresh.
+        if (!window.confirm('Clear everything Marbler keeps in this browser?\n\nSaved states, pulled prints, your scripts and palettes, and all remembered settings will be deleted. This can\'t be undone.')) return true;
+        resetting.current = true;
+        for (const key of Object.keys(localStorage)) if (key.startsWith('marbler')) localStorage.removeItem(key);
+        const gone = ['marbler', 'marbler-saves'].map((name) => new Promise((done) => {
+          const req = indexedDB.deleteDatabase(name);
+          req.onsuccess = req.onerror = req.onblocked = done;
+        }));
+        Promise.race([Promise.all(gone), new Promise((r) => setTimeout(r, 1500))]).then(() => location.reload());
+        return true;
+      }
       case 'saveState':
         saveTank(c, view.current, latestUi.current.script).then(({ error }) => { if (error) c.notice(error); else refresh(); });
         return true;
