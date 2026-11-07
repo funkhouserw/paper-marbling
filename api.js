@@ -35,7 +35,7 @@ export const COMMANDS = [
     ['seed', 'number', null, 'fixes the variation; left out, it is picked for you'],
     AT,
   ] },
-  { name: 'broom', group: 'Ink', summary: 'A broom-straw throw, as for stone and vein marbling: many drops of one colour land at once, of very different sizes, and spread a long way until they meet. It only places the drops; how they spread, join or keep apart is the simulator's (see separate()). Does not advance the timeline.', params: [
+  { name: 'broom', group: 'Ink', summary: 'A broom-straw throw, as for stone and vein marbling: many drops of one colour land at once, of very different sizes, and spread a long way until they meet. It only places the drops; how they spread, join or keep apart is up to the simulator (see separate()). Does not advance the timeline.', params: [
     ['n', 'number', 60, 'how many drops'], X, Y,
     ['w', 'number', 100, 'width of the area thrown over, % of width', 'w'],
     ['h', 'number', 100, 'height of the area thrown over, % of height', 'h'],
