@@ -299,8 +299,25 @@ for (let p = 0; p < passes; p++) {
   settle();
 }
 `,
+  'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
+// south. The teeth keep the north-south line the first eastward movement set, so every tine fans
+// the same way into plumes.
+viscosity({ value: 1000 });
+bath({ color: '#efe6d2' });
+const inks = ['#6b8f71', '#5a3d7a', '#e87a5d', '#c43a2b', '#7d93c4', '#f2b8a0'];
+stripes({ angle: 90, count: 36, colors: inks, variation: 0.3, slivers: 0.2 });
+settle();
+fullRake({ angle: 0, teeth: 24, speed: 20 });
+settle();
+for (const x0 of [8, 38, 68]) {
+  const path = [];
+  for (let k = 0; k <= 40; k++) { const t = k / 40; path.push([x0 + 22 * Math.sin(t * Math.PI / 2), 22 + 70 * (1 - Math.cos(t * Math.PI / 2))]); }
+  rake({ path, teeth: 18, spacing: 1.6, speed: 22, D: 1.5 });
+  settle();
+}
+`,
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film',
 };
