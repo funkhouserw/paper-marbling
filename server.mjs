@@ -7,7 +7,6 @@
 // the browser. Options, from the same places:
 //   PORT (8000), MARBLE_MODEL (gpt-6-luna), MARBLE_EFFORT (medium), OPENAI_BASE_URL (https://api.openai.com/v1)
 import { createServer } from 'node:http';
-import { labEnabled, labRoute } from './lab/routes.mjs';
 import { access, appendFile, mkdir, readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +31,8 @@ const MIME = {
   '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg',
 };
 const PROFILE_DIR = process.env.MARBLE_PROFILE_DIR || join(ROOT, '..', 'profiles');
+// The lab (roadmap F22) is Ilse's own and left out of the public repo, so it's optional here.
+const { labEnabled = false, labRoute = async () => false } = await import('./lab/routes.mjs').catch(() => ({}));
 const MAX_BODY = 1024 * 1024; // the browser sends the whole chat each time
 const MAX_ROUNDS = 12;
 
