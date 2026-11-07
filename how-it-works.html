@@ -51,6 +51,7 @@
   <h2>Simulators</h2>
   <p>A simulator is a set of rules for how ink behaves. They all take the same tools and scripts, though the same script can look quite different on each. New ones get added rather than replacing old ones, so you can compare them.</p>
   <div id="modelList"></div>
+  <p>Two tank settings apply in every simulator. <strong>Keep cells separate</strong> (on by default) leaves a hairline of bare bath where two drops spread into each other, even of one colour, as on real stone and vein sheets; a drop that lands inside one of its own colour still joins it. Each simulator draws it its own way, and Grid ink doesn't yet. <strong>Cut hairline ink</strong> (Advanced) trims ribbons stretched thinner than half a millimetre while tools move ink, which keeps long sessions fast; squeezed ink is never cut, and turning it off keeps every thread. Tools only decide where and how much ink lands; how it then spreads, joins or separates is always the simulator's.</p>
 </section>
 
 <section id="motions">
@@ -94,7 +95,7 @@
   <p><strong>Repeating</strong> joins the tank's edges so it behaves like the surface of a doughnut: ink leaving one side comes back at the other, and exports tile seamlessly. <strong>See it repeat</strong> shows the copies side by side.</p>
   <p>Outlines are never cut at the seam. They stay whole, every motion repeats across the join, and they're drawn wherever they show. That has a real physical cost: a doughnut has only so much surface. In Classic, each drop's growth is balanced by a slight contraction of everything else. In Film and Wake, drops spread over water instead, so a tank with no water left stops them growing.</p>
   <p><strong>Offset</strong> shifts the repeat by half a tile, each row for a brick layout or each column for half-drop. An angled rake then has copies of its tines coming in from other places, so the whole bath can move a little before the tines get to it. That's the geometry at work, not a bug. Switching layout with ink on the tank moves copies relative to each other, so raked patterns stop lining up at the seams.</p>
-  <p>Classic, Film, Wake and Grid ink repeat, and Grid ink doesn't do offsets yet. Spreading and Thin film don't repeat.</p>
+  <p>Classic, Film, Wake, Wake (fast) and Grid ink repeat, and Grid ink doesn't do offsets yet. Spreading, Thin film and Cells don't repeat.</p>
 </section>
 
 <section id="keeping">
