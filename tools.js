@@ -37,7 +37,7 @@ export const TOOLS = {
         const jitter = v.count > 1 ? m.random() * 0.5 : 0;
         t.place((at) => m.drop({
           x: x + r * Math.cos(a), y: y + r * Math.sin(a),
-          quantity: v.quantity, dispersion: v.dispersion, ...ink,
+          quantity: v.quantity, dispersion: v.dispersion, gall: v.gall, ...ink,
           at: at === undefined || t.queueMode !== 'together' ? at : at + jitter,
         }));
       }
@@ -49,6 +49,7 @@ export const TOOLS = {
       dispersion: ['Spread speed', 0.6, 0.05, 5, 0.05],
       count: ['Drops per click', 1, 1, 60, 1],
       scatter: ['Scatter', 0, 0, 40, 0.5],
+      gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
     },
   },
   heartDrop: {
@@ -72,7 +73,7 @@ export const TOOLS = {
     act(t) {
       const { m, v, point: [x, y], share = 1 } = t;
       const colors = v.sprayColors === 'one' ? [t.ink] : t.inks;
-      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min: Math.min(v.min, v.max), max: v.max, colors, at }));
+      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min: Math.min(v.min, v.max), max: v.max, colors, gall: v.gall, at }));
     },
     hint: 'Click, or drag, to spray fine dots. They use the colours chosen below.',
     color: true,
@@ -82,6 +83,7 @@ export const TOOLS = {
       radius: ['Spray width', 15, 1, 60, 0.5],
       min: ['Smallest dot', 0.05, 0.02, 1, 0.01],
       max: ['Largest dot', 0.6, 0.05, 5, 0.01],
+      gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
     },
   },
   fillDots: {
@@ -112,6 +114,7 @@ export const TOOLS = {
       gap: ['Space between dots', 0.3, 0, 5, 0.05],
       tightness: ['Tightness', 0.6, 0, 1, 0.05],
       rings: ['Rings in each dot', 1, 1, 5, 1],
+      gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
     },
   },
   text: {

@@ -19,6 +19,7 @@ export const COMMANDS = [
     ['quantity', 'number', 1.5, 'amount of ink, as % of the tank area at plain size', 'q'],
     ['dispersion', 'number', 0.8, 'growth speed, 1/s'],
     ['spreading', 'number', 4, 'how many times its plain area a drop can grow: alone on clear water it reaches this on every simulator, but in the outline films a drop landing in ink stops at its plain size, so for drops stacked on ink 1 looks the same everywhere; higher also pushes other ink harder, like adding surfactant'],
+    ['gall', 'number', null, 'ox gall: more spreads further, and a drop opens only over weaker ink, otherwise staying a dot; left out, the bath\'s gall (see gall()), or none, which always opens'],
     COLOR('#1f4e79'), SHIMMER, AT,
   ] },
   { name: 'heartDrop', group: 'Ink', summary: 'A heart of ink with a fine point, landing whole: it pushes the ink round it aside as it lands, then holds its shape and never spreads. Does not advance the timeline.', params: [
@@ -38,6 +39,7 @@ export const COMMANDS = [
     ['spread', 'number', 0.3, 'random size variation, 0 to 1'],
     ['dispersion', 'number', 0.8, '1/s'],
     ['spreading', 'number', 4, 'as for drop'],
+    ['gall', 'number', null, 'as for drop'],
     ['colors', 'color[]', ['#1f4e79'], 'cycled through; CSS colours or palette inks'],
     ['stagger', 'number', 0, 'spreads start times over this many seconds'],
     AT,
@@ -54,6 +56,7 @@ export const COMMANDS = [
     ['dispersion', 'number', 0.8, '1/s'],
     SHIMMER,
     ['over', 'boolean', false, 'true places dots on top of existing ink instead of around it'],
+    ['gall', 'number', null, 'as for drop'],
     AT,
   ] },
   { name: 'spray', group: 'Ink', summary: 'A spray bottle: many fine dots of varying size around a point, most of them tiny and thickest in the middle. Good for the very fine spatter of traditional marbling. Call it several times for layers or several places. It does not advance the timeline.', params: [
@@ -65,6 +68,7 @@ export const COMMANDS = [
     ['colors', 'color[]', ['#1f4e79'], 'picked at random; CSS colours or palette inks'],
     ['dispersion', 'number', 4, '1/s'],
     ['stagger', 'number', 0.4, 'spreads start times over this many seconds'],
+    ['gall', 'number', null, 'as for drop'],
     AT,
   ] },
   { name: 'text', group: 'Ink', summary: 'Prints text as ink, centred on x, y. It never expands, but later tools move it.', params: [
@@ -233,6 +237,11 @@ export const COMMANDS = [
   ] },
   { name: 'viscosity', engine: 'setViscosity', group: 'Tank', summary: 'Sets how thick the bath is, for everything from here on. It applies straight away. Under the Wake simulator, thin baths keep moving after a tool stops: curls and long feathers need about 5 to 60, and 1000 stays crisp and still.', params: [
     ['value', 'number', 1000, 'viscosity in mm²/s, from 5 (thin as water) to 20000'],
+  ] },
+  { name: 'gall', engine: 'setGall', group: 'Tank', summary: 'Ox gall for the whole bath, as a marbler adds a little more with each colour. Every drop that does not set its own gall gets start + step × k, where k counts the colours thrown before its own since the tank was cleared, so each new colour opens over the last and pushes it into veins. A drop with no more gall than the ink it lands on stays a dot. on: false turns it off again.', params: [
+    ['on', 'boolean', true, 'false goes back to every drop opening'],
+    ['start', 'number', 1, 'gall for the first colour; 1 spreads as drops always have'],
+    ['step', 'number', 0.15, 'how much more each later colour gets'],
   ] },
   { name: 'flow', engine: 'setFlow', group: 'Tank', summary: 'Tunes the Wake simulator\'s moving bath, for everything from here on. It applies straight away and other simulators ignore it. The defaults are Wake\'s usual behaviour. For whorls, like paint stirred into water, try friction 0.05, coast 120 and push 3 with viscosity 5 to 10, then settle() and wait.', params: [
     ['cell', 'number', 7, 'flow grid cell size in mm, from 1.5 to 20; smaller keeps smaller curls but each halving costs about four times as much per tick'],

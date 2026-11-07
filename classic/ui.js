@@ -542,6 +542,7 @@ function onSimulatorChange() {
 }
 $('simulator').onchange = onSimulatorChange;
 $('walls').onchange = () => c.commitWalls();
+for (const id of ['gall', 'gallStart', 'gallStep']) $(id).onchange = () => c.commitGall();
 $('queueMode').onchange = () => { $('queueGapLabel').hidden = c.settings.queueMode !== 'order'; };
 $('useBath').onchange = $('bath').oninput = () => c.commitBath();
 $('play').onclick = () => c.setPlaying(!c.playing);
