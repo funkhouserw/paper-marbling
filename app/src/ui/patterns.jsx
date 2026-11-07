@@ -65,7 +65,7 @@ export function PatternsDialog({ tank, onClose }) {
                       {STATUS[p.status] && <p className="mt-1 text-[11px] italic text-ink-400">{STATUS[p.status]}</p>}
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-400">
                         {p.example && <Button primary className="h-7" onClick={() => make(p.example)}><Play size={11} /> Make this</Button>}
-                        {p.alsoExample && <Button className="h-7" onClick={() => make(p.alsoExample)}><Play size={11} /> {p.alsoExample}</Button>}
+                        {[p.alsoExample ?? []].flat().map((name) => <Button key={name} className="h-7" onClick={() => make(name)}><Play size={11} /> {name}</Button>)}
                         {p.image && (
                           <a href={p.image.url} target="_blank" rel="noopener noreferrer" className="text-gilt-soft underline decoration-ink-600 underline-offset-2">
                             {p.image.title} ↗
