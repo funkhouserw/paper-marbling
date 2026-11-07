@@ -250,8 +250,32 @@ jiggle({ angle: 0, period: 21, amplitude: 4.5, duration: 2 });
 settle();
 fullRake({ angle: 0, teeth: 14, speed: 28, D: 0.5 });
 `,
+  'Italian vein': `// Italian vein (Film, Wake): a full ground of four vein colours, then clear gall-water beaten on
+// in three passes. Each clear drop carries more gall than the ground (spreading 4 against 1),
+// so it opens and squeezes the colours into veins between the clear cells. Passes interleave on a
+// jittered grid, settling in between, so the cells come out even instead of bursting outwards.
+// Clear is drawn in the bath colour: a drop inside ink sits on top of it.
+viscosity({ value: 1000 });
+const water = '#f3eee0';
+bath({ color: water });
+const inks = palette('Old Dutch').inks;
+const veins = [inks[0], inks[1], inks[2], inks[3]];
+for (let r = 0; r < 9; r++) for (let c = 0; c < 12; c++) drop({ x: (c + 0.5 + (random() - 0.5) * 0.8) * 100 / 12, y: (r + 0.5 + (random() - 0.5) * 0.8) * 100 / 9, quantity: 1.0, spreading: 1, color: veins[Math.floor(random() * veins.length)] });
+settle();
+const cols = 22, rows = 15, passes = 3;
+const cells = [];
+for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) cells.push([c, r]);
+for (let p = 0; p < passes; p++) {
+  cells.forEach(([c, r], i) => {
+    if ((i + r) % passes !== p) return;
+    drop({ x: (c + 0.5 + (random() - 0.5) * 0.6) * 100 / cols, y: (r + 0.5 + (random() - 0.5) * 0.6) * 100 / rows,
+           quantity: 0.30, spreading: 4, color: water });
+  });
+  settle();
+}
+`
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film',
 };
