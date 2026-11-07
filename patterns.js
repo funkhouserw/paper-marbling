@@ -122,6 +122,7 @@ export const PATTERNS = [
     id: 'ebru', family: 'ebru', names: { en: 'Ebru', tr: 'ebru' }, status: 'partly',
     summary: 'The Turkish art of marbling. The name is often traced to Persian abrî, "cloud-like", but the etymology is disputed.',
     sources: ['TDV', 'WIKI'], image: { title: 'Turkish ebru sample', url: commons('Turkish_ebru_sample.jpg'), licence: 'Public domain' },
+    example: 'Ebru, combed stone',
   },
   {
     id: 'tarakli', family: 'ebru', names: { tr: 'taraklı', en: 'combed ebru' }, status: 'verified',
