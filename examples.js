@@ -340,7 +340,7 @@ broom({ n: 140, size: 0.08, spread: 0.8, spreading: 6, color: '#7a2e24' });
 settle();
 broom({ n: 260, size: 0.06, spread: 0.6, spreading: 6, color: '#2f4a6b' });
 settle();
-for (let i = 0; i < 30; i++) drop({ x: random() * 100, y: random() * 100, quantity: 0.9, turpentine: 0.35, color: '#e2c27a' });
+for (let i = 0; i < 30; i++) drop({ x: random() * 100, y: random() * 100, quantity: 0.9, turpentine: 0.28, color: '#e2c27a' });
 settle();
 `,
   'Stone, four colours': `// Stone in four colours, after Jeffrey Ang's broom-straw video: the first colour flicked until it
