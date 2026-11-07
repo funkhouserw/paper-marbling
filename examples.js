@@ -322,6 +322,16 @@ settle();
 fullRake({ angle: 0, teeth: 40, speed: 30, D: 1.6 });
 settle();
 `,
+  'Broom-straw stone': `// Broom-straw stone, after a marbler's video: a broom flicks the first colour until it covers most of
+// the bath, then the second colour, which opens inside the first and squeezes it into a thin dark net.
+// Each drop keeps its own cell, so bare size shows as pale channels between them.
+viscosity({ value: 1000 });
+bath({ color: '#f4efe2' });
+broom({ n: 160, size: 0.08, spread: 0.8, spreading: 6, color: '#8a6a4a' });
+settle();
+broom({ n: 420, size: 0.065, spread: 0.6, spreading: 6, color: '#3fa7d6' });
+settle();
+`,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
 // the same way into plumes.
@@ -342,5 +352,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'film', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'classic',
 };
