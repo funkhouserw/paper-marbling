@@ -85,3 +85,15 @@ test('a spray over settled Fill dots pushes them aside rather than wiping them o
   const kept = dots.filter((p) => m.polys.includes(p)).length;
   assert.ok(kept >= 0.95 * dots.length, `${kept} of ${dots.length} settled dots still there`);
 });
+
+test('on an empty tank, every drop of a dense spray grows: none is left a tiny dot (#31)', async () => {
+  const { dialToValue } = await import('./api.js');
+  const m = new Cells({ width: 1000, height: 700, seed: 7 });
+  const k = m.width / 100;
+  const max = dialToValue(95, 0.05, 5) * k;
+  m.spray({ x: 0, y: 0, n: 40, max, min: max * 0.73, radius: dialToValue(72, 1, 60) * k, skew: 0.6, colors: ['#4b231a', '#7a3e2c', '#b38a6a', '#d9c6b3'] });
+  settle(m);
+  const area = (p) => { let a = 0; for (let i = 0, j = p.n - 1; i < p.n; j = i++) a += p.xy[j * 2] * p.xy[i * 2 + 1] - p.xy[i * 2] * p.xy[j * 2 + 1]; return Math.abs(a / 2); };
+  const areas = m.polys.map(area).sort((a, b) => a - b);
+  assert.ok(areas[0] > 0.1 * areas[areas.length >> 1], `smallest ${Math.round(areas[0])} mm² against a median of ${Math.round(areas[areas.length >> 1])}`);
+});

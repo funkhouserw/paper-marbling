@@ -1393,7 +1393,10 @@ export class Marble {
         // New ink spreads in full and squeezes the older: the children may take everything but what
         // the parent's own ink needs at its cap (fresh ink doesn't give), whatever share the layout
         // above left it. The rim is what they don't take, and its thickness follows.
-        const least = ownNow(c) / (c.fresh ? 1 : c.tauMax);
+        // Within one throw (a spray lands over a fraction of a second), a later drop can land in an
+        // earlier one that is still spreading: that parent gives to it too, or its children never
+        // grew at all in a packed spray (#31, the empty-tank case).
+        const least = ownNow(c) / (c.fresh && !kids.some((k) => k.fresh) ? 1 : c.tauMax);
         const kidRoom = Math.max(0, area - least);
         const kidsWant = kids.reduce((sum, k) => sum + total(k), 0);
         c.share = Math.max(least, area - Math.min(kidRoom, kidsWant));
