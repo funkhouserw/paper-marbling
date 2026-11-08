@@ -336,9 +336,9 @@ settle();
 // colour spreads, the turpentine thins it into a lace of fine holes showing the bare size.
 viscosity({ value: 1000 });
 bath({ color: '#f4efe2' });
-broom({ n: 140, size: 0.08, spread: 0.8, spreading: 6, color: '#7a2e24' });
+broom({ n: 600, size: 0.08, spread: 0.8, spreading: 2, color: '#7a2e24' });
 settle();
-broom({ n: 260, size: 0.06, spread: 0.6, spreading: 6, color: '#2f4a6b' });
+broom({ n: 1200, size: 0.06, spread: 0.6, spreading: 2, color: '#2f4a6b' });
 settle();
 for (let i = 0; i < 30; i++) drop({ x: random() * 100, y: random() * 100, quantity: 0.9, turpentine: 0.28, color: '#e2c27a' });
 settle();
