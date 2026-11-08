@@ -44,10 +44,9 @@ self.onmessage = ({ data: m }) => {
   const merged = half ? mergedPoints(polys.map((p, k) => ({ xy: whole[k], n: whole[k].length / 2, color: p.base ?? p.color, group: p.group }))) : null;
   const thinned = polys.map((p, k) => {
     let points = whole[k];
-    if (half) {
-      const first = !p.group || polys[k - 1]?.group !== p.group;
-      points = seamed(points, points.length / 2, half, first, merged[k], p.group ? half : bareSeam(points, points.length / 2, seam, share) / 2);
-    }
+    // Holes (later loops of a group, gall water) are never seamed, as in Marble.draw.
+    const first = !p.group || polys[k - 1]?.group !== p.group;
+    if (half && first) points = seamed(points, points.length / 2, half, true, merged[k], p.group ? half : bareSeam(points, points.length / 2, seam, share) / 2);
     kept += points.length / 2;
     return points;
   });

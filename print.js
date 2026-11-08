@@ -118,7 +118,8 @@ function paintLabels(marble, w, h, scale, labels) {
     do {
       const loop = smooth[p];
       // Keep cells separate: each loop printed half a seam into its ink, as on screen.
-      loops.push(half ? { xy: seamed(loop.xy, loop.n, half, p === first, merged[p], polys[p].group ? half : bareSeam(loop.xy, loop.n, marble.seam, marble.seamShare ?? 0) / 2), n: loop.n } : loop);
+      // Holes (later loops of a group) are gall water: never seamed, as on screen.
+      loops.push(half && p === first ? { xy: seamed(loop.xy, loop.n, half, true, merged[p], polys[p].group ? half : bareSeam(loop.xy, loop.n, marble.seam, marble.seamShare ?? 0) / 2), n: loop.n } : loop);
     } while (group && polys[p + 1]?.group === group && ++p);
     // Each repeat is filled on its own, because repeats can overlap and this fill is even-odd.
     for (const [sx, sy] of marble.tileShifts?.(loops) ?? [[0, 0]]) {
