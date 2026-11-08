@@ -21,6 +21,7 @@ const WATER_REACH = 3.5; // mm; how far pressure carries past the ink's edge
 const INK_GIVE = 500; // mm; how far a push reaches through ink that has no water left
 const EDGE_COVERAGE = 0.2; // share of a cell covered by ink at which it counts as ink
 const SOURCE_WIDTH = 6; // mm. Narrower sources make drops wander away from where they landed.
+const SELF_DRIFT = 0.5; // most a source can read at its own centre from its own push, × Q/2πσ (lone ones read ≤ 0.33)
 const EDGE_STEP = 2; // mm; the most a film's edge moves in one tick, so nothing folds
 const STOPS_FACING = 0.02; // share of a film's edge facing water at which spreading stops
 const FULL_FACING = 0.2; // above this much further, spreading is unaffected
@@ -498,7 +499,6 @@ export class Film extends Marble {
       give = own > 0 ? Math.max(0, 1 - host / own) : 0;
     }
     op.feed = (Math.max(toPlain, toLimit) * give) / dt;
-    this._feedHosts(op, op.feed * dt);
     if (give === 0) op.squeezedOut = true;
     this.growth.push(op);
     const small = GROWTH_DONE * op.plain;
@@ -564,6 +564,9 @@ export class Film extends Marble {
       for (let i = 0; i < nx * ny; i++) p[i] *= slow;
       for (const op of feeding) if (!exact.has(op)) op.feed *= slow;
     }
+    // A ring holding a drop counts it in its rest area: what the drop really took this tick, after
+    // any slowing, not what it asked for (asked, a Stormont's holes fed their ring ~2.5× their area).
+    for (const op of feeding) this._feedHosts(op, op.feed * dt);
 
     // Velocity. At a film's last cell a central difference straddles the water and reads half
     // the true flow, which crushes outer rings, so it reads across the water face instead.
@@ -681,6 +684,35 @@ export class Film extends Marble {
         op.driftY = u[1];
         live.push(op);
       }
+    }
+    // A gall-water drop (a hole) pins only its own drift. What it reads is mostly its neighbours'
+    // push, which is real flow: the ink between them moves, and pinning that away (summed over every
+    // overlapping pin) pulled a Stormont's ring in on itself as its few hundred holes opened together
+    // (#44). So the neighbours' push, as free-space sources of the same width, comes off first, and
+    // what's left is capped at what a lone source on this grid reads at its own centre. Coloured
+    // drops keep the whole pin, as every scene was tuned with: they stay where they landed.
+    if (live.length > 1 && live.some((op) => op.clear)) {
+      const s2 = 2 * sourceWidth * sourceWidth;
+      const own = live.map((a) => {
+        if (!a.clear) return [a.driftX, a.driftY];
+        let vx = 0, vy = 0;
+        for (const b of live) {
+          if (b === a) continue;
+          const dx = torus ? wrapX(a.x - b.x, a.y - b.y, W, H, off) : a.x - b.x;
+          const dy = torus ? wrapY(a.x - b.x, a.y - b.y, W, H, off) : a.y - b.y;
+          const r2 = dx * dx + dy * dy;
+          if (r2 < 1e-12) continue;
+          const f = (b.feed / (2 * Math.PI * r2)) * (1 - Math.exp(-r2 / s2));
+          vx += f * dx;
+          vy += f * dy;
+        }
+        let sx = a.driftX - vx, sy = a.driftY - vy;
+        const most = (SELF_DRIFT * a.feed) / (2 * Math.PI * sourceWidth);
+        const size = Math.hypot(sx, sy);
+        if (size > most) { sx *= most / size; sy *= most / size; }
+        return [sx, sy];
+      });
+      live.forEach((op, k) => { [op.driftX, op.driftY] = own[k]; });
     }
     const nearReach = (5 * sourceWidth) ** 2;
     const pinWidth = 2 * sourceWidth;

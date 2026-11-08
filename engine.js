@@ -3359,17 +3359,19 @@ export class Marble {
       const { group, shimmer } = this.polys[p];
       const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
       const first = p;
-      ctx.beginPath();
       // Loops of one printed shape share a path, so inner loops become holes.
+      const loops = [];
       do {
         const { n } = this.polys[p];
         // With Keep cells separate, every loop is drawn half a seam into its ink (a hole's outward).
         // A hole (a later loop of a group: gall water cut through the colour) is water, never seamed:
         // pushed out, neighbouring holes would overlap and the even-odd fill would show ink arcs in them.
-        const xy = half && p === first ? seamed(this.polys[p].xy, n, half, true, contactKeep(merged[p], this.polys[p].edgeFaces, n), group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
-        // Points closer than a third of a pixel can't change the picture.
-        const skip = (0.33 / pxPerMm) ** 2;
-        for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
+        loops.push({ xy: half && p === first ? seamed(this.polys[p].xy, n, half, true, contactKeep(merged[p], this.polys[p].edgeFaces, n), group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy, n });
+      } while (group && this.polys[p + 1]?.group === group && ++p);
+      // Points closer than a third of a pixel can't change the picture.
+      const skip = (0.33 / pxPerMm) ** 2;
+      const trace = (sx, sy) => {
+        for (const { xy, n } of loops) {
           ctx.moveTo(xy[0] + sx, xy[1] + sy);
           let lx = xy[0], ly = xy[1];
           for (let i = 1; i < n; i++) {
@@ -3382,9 +3384,22 @@ export class Marble {
           }
           ctx.closePath();
         }
-      } while (group && this.polys[p + 1]?.group === group && ++p);
+      };
       ctx.fillStyle = color;
-      ctx.fill(group ? 'evenodd' : 'nonzero');
+      if (group) {
+        // Each repeat is filled on its own: a shape longer than the tile overlaps its own copies, and
+        // in one even-odd path the overlap would cancel, showing the ink beneath in bands (#47).
+        for (const [sx, sy] of this.tileShifts(this.polys.slice(first, p + 1))) {
+          ctx.beginPath();
+          trace(sx, sy);
+          ctx.fill('evenodd');
+          if (shimmer > 0) this._drawShimmer(ctx, 'evenodd', shimmer);
+        }
+      } else {
+        ctx.beginPath();
+        for (const [sx, sy] of this.tileShifts([this.polys[p]])) trace(sx, sy);
+        ctx.fill('nonzero');
+      }
       // Plateau borders where this film presses on another: a darker band inside its edge.
       const runs = half ? contactRuns(this.polys[first].xy, this.polys[first].n, this.polys[first].edgeFaces, this.polys[first].edgeTau) : null;
       // Stroked across the edge, not clipped inside it: films that met stop a hair apart, and the band
@@ -3412,7 +3427,7 @@ export class Marble {
         ctx.strokeStyle = color;
         ctx.stroke();
       }
-      if (shimmer > 0) this._drawShimmer(ctx, group ? 'evenodd' : 'nonzero', shimmer);
+      if (shimmer > 0 && !group) this._drawShimmer(ctx, 'nonzero', shimmer);
     }
     ctx.restore();
   }
@@ -3445,21 +3460,26 @@ export class Marble {
       const { group, cell } = this.polys[p];
       const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
       const first = p;
-      let d = '';
+      const loops = [];
       do {
         const { n } = this.polys[p];
         // A hole (a later loop of a group: gall water cut through the colour) is water, never seamed:
         // pushed out, neighbouring holes would overlap and the even-odd fill would show ink arcs in them.
-        const xy = half && p === first ? seamed(this.polys[p].xy, n, half, true, contactKeep(merged[p], this.polys[p].edgeFaces, n), group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
-        for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
-          const pts = [];
-          for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
-          d += `M${pts.join('L')}Z`;
-        }
+        loops.push({ xy: half && p === first ? seamed(this.polys[p].xy, n, half, true, contactKeep(merged[p], this.polys[p].edgeFaces, n), group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy, n });
       } while (group && this.polys[p + 1]?.group === group && ++p);
-      const extra = group ? ' fill-rule="evenodd"'
-        : isTranslucent(color) || cell || half ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
-      paths.push(`<path fill="${color}"${extra} d="${d}"/>`);
+      const trace = (sx, sy) => loops.map(({ xy, n }) => {
+        const pts = [];
+        for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
+        return `M${pts.join('L')}Z`;
+      }).join('');
+      if (group) {
+        // One path per repeat: copies of a shape longer than the tile overlap, and even-odd would cancel them (#47).
+        for (const [sx, sy] of this.tileShifts(this.polys.slice(first, p + 1))) paths.push(`<path fill="${color}" fill-rule="evenodd" d="${trace(sx, sy)}"/>`);
+      } else {
+        const d = this.tileShifts([this.polys[p]]).map(([sx, sy]) => trace(sx, sy)).join('');
+        const extra = isTranslucent(color) || cell || half ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
+        paths.push(`<path fill="${color}"${extra} d="${d}"/>`);
+      }
       // Plateau borders (see Marble.draw).
       const runs = half ? contactRuns(this.polys[first].xy, this.polys[first].n, this.polys[first].edgeFaces, this.polys[first].edgeTau) : null;
       if (runs) {

@@ -80,3 +80,28 @@ test('clear cuts through every layer of ink at its point, down to the bath', () 
     assert.equal(m.shapesAt(0, 0).length, 0, 'bare bath');
   }
 });
+
+// #44: in Film and Wake a Stormont's few hundred holes open together. Each source pinned away all the
+// drift it read, its neighbours' push included, so the ring was pulled in on itself and its middle
+// crushed into hairline scribbles; and the ring's rest area was fed what the holes asked for, not
+// what they took, so it read as squeezed past its cap.
+test('a Stormont in Film and Wake opens outward into a lace: the ring keeps its ink and is not squeezed', async () => {
+  const { Film } = await import('./film.js');
+  const { Wake } = await import('./wake.js');
+  for (const [Engine, extra] of [[Film, {}], [Wake, { viscosity: 227 }]]) {
+    const m = new Engine({ width: 400, height: 300, seed: 3, ...extra });
+    m.drop({ quantity: 1, dispersion: 0.6, turpentine: 0.65, color: '#8a6a30' });
+    let rest = 0;
+    while (!m.polys[0]?.a0 && m.time < 20) { m.step(); rest = m.polys[0] ? area(m.polys[0]) : 0; }
+    m.runUntilIdle();
+    const ring = m.polys[0];
+    const holes = m.polys.filter((p) => p !== ring && p.group === ring.group);
+    assert.ok(holes.length > 100, `${Engine.name}: ${holes.length} holes`);
+    const ink = area(ring) - holes.reduce((s, h) => s + area(h), 0);
+    assert.ok(area(ring) > 1.3 * rest, `${Engine.name}: the ring opened outward (${area(ring).toFixed(0)} vs ${rest.toFixed(0)} at rest)`);
+    assert.ok(ink > 0.85 * rest, `${Engine.name}: its ink kept (${ink.toFixed(0)} of ${rest.toFixed(0)})`);
+    assert.ok(ring.a0 / area(ring) < 1.1, `${Engine.name}: not read as squeezed (τ ${(ring.a0 / area(ring)).toFixed(2)})`);
+    const points = m.polys.reduce((s, p) => s + p.n, 0);
+    assert.ok(points < 30000, `${Engine.name}: no hairline scribble (${points} points)`);
+  }
+});

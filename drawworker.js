@@ -9,13 +9,16 @@ const translucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/
 let canvas = null;
 
 // Where to draw an outline so that it covers the tank, as in Marble.tileShifts.
+// points: one outline, or a list of them (a group's loops).
 function shifts(points, W, H, offset) {
   let left = Infinity, right = -Infinity, low = Infinity, high = -Infinity;
-  for (let i = 0; i < points.length; i += 2) {
-    if (points[i] < left) left = points[i];
-    if (points[i] > right) right = points[i];
-    if (points[i + 1] < low) low = points[i + 1];
-    if (points[i + 1] > high) high = points[i + 1];
+  for (const loop of Array.isArray(points) ? points : [points]) {
+    for (let i = 0; i < loop.length; i += 2) {
+      if (loop[i] < left) left = loop[i];
+      if (loop[i] > right) right = loop[i];
+      if (loop[i + 1] < low) low = loop[i + 1];
+      if (loop[i + 1] > high) high = loop[i + 1];
+    }
   }
   return latticeShifts(-W / 2 - right, W / 2 - left, -H / 2 - high, H / 2 - low, W, H, offset);
 }
@@ -70,12 +73,21 @@ self.onmessage = ({ data: m }) => {
   for (let p = 0; p < polys.length; p++) {
     const { group, color } = polys[p];
     const first = p;
-    ctx.beginPath();
-    do {
-      for (const [sx, sy] of where(thinned[p])) trace(ctx, thinned[p], sx, sy);
-    } while (group && polys[p + 1]?.group === group && ++p);
     ctx.fillStyle = color;
-    ctx.fill(group ? 'evenodd' : 'nonzero');
+    if (group) {
+      while (polys[p + 1]?.group === group) p++;
+      // Each repeat is filled on its own: a shape longer than the tile overlaps its own copies, and in
+      // one even-odd path the overlap would cancel (#47).
+      for (const [sx, sy] of where(thinned.slice(first, p + 1))) {
+        ctx.beginPath();
+        for (let k = first; k <= p; k++) trace(ctx, thinned[k], sx, sy);
+        ctx.fill('evenodd');
+      }
+    } else {
+      ctx.beginPath();
+      for (const [sx, sy] of where(thinned[p])) trace(ctx, thinned[p], sx, sy);
+      ctx.fill('nonzero');
+    }
     // Plateau borders (see Marble.draw).
     const runs = half ? contactRuns(whole[first], whole[first].length / 2, faces[first], taus[first]) : null;
     if (runs) {
