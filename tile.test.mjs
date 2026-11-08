@@ -223,3 +223,35 @@ for (const [name, use] of [
     assert.ok(moved > 0.5, `${name} barely moved ink near it: ${moved} mm`);
   });
 }
+
+// #47: a stripe runs 1.5 tiles, so it overlaps its own copies. Once a clear drop cut it, its group was
+// filled even-odd with every copy in one path, the overlap cancelled, and the stripe beneath showed in
+// the outer quarters, as if the middle had slid. Each repeat is now filled on its own.
+test('a holed shape longer than the tile fills each repeat on its own, on canvas and in SVG', () => {
+  const m = new Marble({ ...TANK, seed: 5 });
+  m.tile({ on: true, offset: 'brick' });
+  m.stripes({ count: 4, colors: ['#963a33', '#3b5e4c'] });
+  m.settle();
+  m.drop({ x: 0, y: 0, quantity: 1, spreading: 1, color: 'clear' });
+  m.runUntilIdle();
+  const hole = m.polys.findIndex((p, k) => k && p.group && m.polys[k - 1].group === p.group);
+  assert.ok(hole > 0, 'the drop cut a stripe');
+  const group = m.polys[hole].group;
+  const loops = m.polys.filter((p) => p.group === group).length;
+  const copies = m.tileShifts(m.polys.filter((p) => p.group === group)).length;
+  assert.ok(copies > 1);
+  const svg = m.toSVG();
+  const fill = m.polys[hole - 1].color;
+  const paths = [...svg.matchAll(/<path fill="([^"]+)" fill-rule="evenodd" d="([^"]+)"/g)].filter(([, c]) => c !== undefined);
+  assert.ok(paths.length >= copies, `${paths.length} even-odd paths for ${copies} repeats`);
+  for (const [, , d] of paths) assert.equal(d.split('M').length - 1, loops, `${fill}: one repeat per path`);
+  // Canvas: every even-odd fill holds one repeat's loops.
+  let moves = 0;
+  const fills = [];
+  const noop = () => {};
+  const ctx = new Proxy({}, { get: (_, k) => (k === 'beginPath' ? () => { moves = 0; } : k === 'moveTo' ? () => { moves++; } : k === 'fill' ? (rule) => fills.push([rule, moves]) : k === 'createPattern' || k === 'createLinearGradient' ? () => ({ addColorStop: noop, setTransform: noop }) : noop), set: () => true });
+  m.draw(ctx, 1);
+  const odd = fills.filter(([rule]) => rule === 'evenodd');
+  assert.ok(odd.length >= copies);
+  for (const [, n] of odd) assert.equal(n, loops);
+});
