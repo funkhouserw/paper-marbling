@@ -243,7 +243,9 @@ export function filmPressure(tau, tauMax = TAU_MAX) {
   if (!(tau > 1)) return 0;
   const m = Math.max(1.01, tauMax);
   const V = (t) => t / (1 - t / m);
-  const knee = m * PRESSURE_KNEE;
+  // 98% of the way from rest to the cap: never below rest, so Π stays monotone however low the cap
+  // (98% of the cap itself fell below 1 for caps under ~1.02, and Π(1) went negative).
+  const knee = 1 + (m - 1) * PRESSURE_KNEE;
   if (tau <= knee) return V(tau) - V(1);
   return V(knee) - V(1) + (tau - knee) / (1 - knee / m) ** 2;
 }
@@ -251,7 +253,7 @@ export function filmPressure(tau, tauMax = TAU_MAX) {
 // dΠ/dτ, for Newton's method.
 export function filmPressureSlope(tau, tauMax = TAU_MAX) {
   const m = Math.max(1.01, tauMax);
-  const t = Math.min(Math.max(tau, 1), m * PRESSURE_KNEE);
+  const t = Math.min(Math.max(tau, 1), 1 + (m - 1) * PRESSURE_KNEE);
   return 1 / (1 - t / m) ** 2;
 }
 
