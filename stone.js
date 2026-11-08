@@ -221,7 +221,7 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     const apply = (v, out) => {
       for (let i = 0; i < n; i++) {
         if (!live(i)) { out[i] = v[i]; continue; }
-        let sum = diag[i] * v[i];
+        let sum = (diag[i] * (1 + 1e-9) + 1e-12) * v[i];
         for (const [j, w] of nbr[i]) if (live(j)) sum -= w * v[j];
         out[i] = sum;
       }
@@ -242,6 +242,15 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
       for (let i = 0; i < n; i++) pp[i] = rr[i] + (next / rs) * pp[i];
       rs = next;
     }
+    // A cell hemmed in on every side by other cells, fixed walls and the domain has no disc edge, so
+    // the Jacobian among such cells is a bare graph Laplacian: singular, since raising all their
+    // weights together changes nothing. Asked for areas they can't have, conjugate gradients then
+    // returns an enormous step (weights near 1e18 were seen, and the cells vanished). No step may move
+    // a weight by more than a few times the largest target's own scale.
+    let biggest = 0;
+    for (let i = 0; i < n; i++) if (Math.abs(x[i]) > biggest) biggest = Math.abs(x[i]);
+    const scale = 4 * Math.max(...targets) / Math.PI;
+    if (biggest > scale) for (let i = 0; i < n; i++) x[i] *= scale / biggest;
     const before = psi.slice();
     let t = 1;
     let tried = null;
