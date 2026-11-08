@@ -124,12 +124,12 @@ for (const Engine of [Film, Wake]) {
     // The contact isn't pulled in: just inside the left drop's front is ink.
     assert.notEqual(colourAt(on, meeting(on) - 0.2, 0), 'bath');
     const svg = on.toSVG();
-    assert.match(svg, /<path class="border" fill="none" stroke=/, 'a border band');
+    assert.match(svg, /<path data-border="1" fill="none" stroke=/, 'a border band');
     // And the band, stroked across each front, is wide enough to cover the hair between them.
     const xr = crossing(on.polys[1], false);
-    const widest = Math.max(...[...svg.matchAll(/class="border"[^>]*stroke-width="([\d.]+)"/g)].map(([, w]) => Number(w)));
+    const widest = Math.max(...[...svg.matchAll(/data-border="1"[^>]*stroke-width="([\d.]+)"/g)].map(([, w]) => Number(w)));
     assert.ok(widest >= xr - meeting(on), `band ${widest} mm covers the ${(xr - meeting(on)).toFixed(2)} mm between the fronts`);
-    assert.doesNotMatch(svg.replace(/<path class="border"[^>]*>/g, ''), /fill="none" stroke=/, 'no underpaint');
+    assert.doesNotMatch(svg.replace(/<path data-border="1"[^>]*>/g, ''), /fill="none" stroke=/, 'no underpaint');
     const off = twoDrops(false, '#224466', Engine);
     assert.match(off.toSVG(), /fill="none" stroke=/);
   });

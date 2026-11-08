@@ -3458,7 +3458,7 @@ export class Marble {
               sd += `L${(seg[i + 2] + sx).toFixed(2)} ${(-(seg[i + 3] + sy)).toFixed(2)}`;
             }
           }
-          bands += `<path class="border" fill="none" stroke="${squeezedColour(this.polys[first].color, Math.max(tau, thickness(this.polys[first])))}" stroke-width="${(2 * (bandWidth(tau) + half)).toFixed(2)}" stroke-linecap="round" d="${sd}"/>`;
+          bands += `<path data-border="1" fill="none" stroke="${squeezedColour(this.polys[first].color, Math.max(tau, thickness(this.polys[first])))}" stroke-width="${(2 * (bandWidth(tau) + half)).toFixed(2)}" stroke-linecap="round" d="${sd}"/>`;
         }
         paths.push(bands);
       }
