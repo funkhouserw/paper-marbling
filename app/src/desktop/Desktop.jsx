@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, ChevronUp, Code, Copy, FastForward, PanelLef
 import { FREEZE_INFO_KEY, FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
 import { ACTIONS, FIXED, MENU_ORDER, SECTIONS } from '../ui/features.js';
 import { Button, IconButton, InfoTip, Swatches, cx } from '../ui/widgets.jsx';
-import { CreatureChat, FoldedSettings, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } from '../ui/parts.jsx';
+import { CreatureChat, ExamplesList, FoldedSettings, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } from '../ui/parts.jsx';
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { CommandPalette, ContextMenu, Notice, useCommands, useShortcuts } from '../ui/commands.jsx';
 import { CreditsDialog } from '../ui/credits.jsx';
@@ -86,6 +86,21 @@ export function MenuBar({ tank, commands, panelsOpen, onPanels }) {
             )}
           </div>
         ))}
+        <div className="relative">
+          <button
+            type="button" aria-haspopup="menu" aria-expanded={open === 'examples'}
+            onClick={() => setOpen(open === 'examples' ? null : 'examples')}
+            onPointerEnter={() => open !== null && setOpen('examples')}
+            className={cx('rounded px-2.5 py-1 text-xs', open === 'examples' ? 'bg-ink-700 text-ink-100' : 'text-ink-300 hover:text-ink-100')}
+          >
+            Examples
+          </button>
+          {open === 'examples' && (
+            <div role="menu" aria-label="Examples" className="scroll-thin absolute left-0 top-8 z-50 max-h-[calc(100dvh-3.5rem)] w-72 overflow-y-auto overscroll-contain rounded-lg border border-ink-600 bg-ink-850 p-1 shadow-2xl">
+              <ExamplesList current={state.example} onPick={(name) => { setOpen(null); tank.dispatch({ type: 'example', name }); }} />
+            </div>
+          )}
+        </div>
       </nav>
       <span className="mx-2 h-5 w-px bg-ink-700" />
       <IconButton size="sm" label="Undo (⌘Z)" onClick={() => commands.run('undo')} disabled={state.historyAt === 0}><Undo2 size={15} /></IconButton>

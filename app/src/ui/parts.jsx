@@ -12,6 +12,7 @@ import tankImage from '../../../docs/images/teal-copper-swirls.jpg';
 import { EXAMPLES, FONTS, INFO, WEAVE_ICONS, settingIcon, shortLabel, shownChoices, shownParams, toolDef } from './controls.js';
 import { Button, Choice, IconButton, InfoTip, Slider, Swatches, Toggle, cx, useDismiss, usePlace } from './widgets.jsx';
 import { createPortal } from 'react-dom';
+import { PATTERNS } from '../../../patterns.js';
 import { FAQ, search, wantsScript } from './faq.js';
 
 // The real tank when there is one, or the mockup's picture.
@@ -350,6 +351,48 @@ export function FoldedSettings({ tank }) {
         </div>
       )}
       {FREEZE_TOOLS.includes(id) && state.view === 'advanced' && <div className="shrink-0 pl-1.5"><FreezeRow tank={tank} /></div>}
+    </div>
+  );
+}
+
+// Every example, grouped: each traditional pattern with the examples that make it, then the rest.
+// Used by the desktop's Examples menu and the phone's menu; the Script drawer keeps its own list.
+export function exampleGroups() {
+  const used = new Set();
+  const patterns = PATTERNS.filter((p) => p.example).map((p) => {
+    const names = [p.example, ...[p.alsoExample ?? []].flat()].filter((n) => EXAMPLES[n]);
+    names.forEach((n) => used.add(n));
+    return { title: p.names.en, names };
+  }).filter((g) => g.names.length);
+  const rest = Object.keys(EXAMPLES).filter((n) => !used.has(n));
+  return { patterns, rest };
+}
+
+export function ExamplesList({ current, onPick, className }) {
+  const { patterns, rest } = exampleGroups();
+  const item = (n) => (
+    <button
+      key={n} type="button" role="menuitem" onClick={() => onPick(n)}
+      className={cx('flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-ink-700 [@media(pointer:coarse)]:py-2.5', n === current ? 'text-gilt-soft' : 'text-ink-100')}
+    >
+      {n}
+    </button>
+  );
+  return (
+    <div className={cx('flex flex-col gap-3', className)}>
+      <section>
+        <h3 className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Traditional patterns</h3>
+        {patterns.map((g) => (
+          <div key={g.title} className="pb-1">
+            <div className="px-2 pt-1 text-[11px] text-ink-400">{g.title}</div>
+            {g.names.map(item)}
+          </div>
+        ))}
+      </section>
+      <section>
+        <h3 className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">More examples</h3>
+        {rest.map(item)}
+      </section>
     </div>
   );
 }

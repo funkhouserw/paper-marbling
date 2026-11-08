@@ -2,11 +2,11 @@
 // and settings that rise from the strip. The ☰ sheet holds the same sections as the desktop
 // panels, from features.js, as tabs. A long press on the tank opens its menu.
 import { useEffect, useRef, useState } from 'react';
-import { Bookmark, Code, FastForward, Menu, Pause, Play, Printer, Redo2, Search, Trash2, Undo2, X } from 'lucide-react';
+import { BookOpen, Bookmark, Code, FastForward, Menu, Pause, Play, Printer, Redo2, Search, Trash2, Undo2, X } from 'lucide-react';
 import { FreezeIcon, GROUPS, INFO, NEEDS, groupOf, iconFor, shownChoices, shownParams, toolDef } from '../ui/controls.js';
 import { FIXED } from '../ui/features.js';
 import { Button, Choice, IconButton, Swatches, cx } from '../ui/widgets.jsx';
-import { CreatureChat, InkDrop, ParamSlider, ScriptBody, TankArea, ToolSettings } from '../ui/parts.jsx';
+import { CreatureChat, ExamplesList, InkDrop, ParamSlider, ScriptBody, TankArea, ToolSettings } from '../ui/parts.jsx';
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { ViewSwitch, useOverlays } from '../desktop/Desktop.jsx';
 
@@ -102,6 +102,15 @@ function MenuSheet({ tank, commands, local, onClose, onScript, peek, dropping })
   const sections = sectionsFor('menu', 'phone', state, local);
   const [tab, setTab] = useState(sections[0]?.id);
   const section = sections.find((s) => s.id === tab) ?? sections[0];
+  const [examples, setExamples] = useState(false);
+  if (examples) {
+    return (
+      <Sheet title="Examples" height="full" peek={peek} dropping={dropping} onClose={onClose}>
+        <Button className="mb-3 self-start" onClick={() => setExamples(false)}>Back to the menu</Button>
+        <ExamplesList current={state.example} onPick={(name) => { onClose(); dispatch({ type: 'example', name }); }} />
+      </Sheet>
+    );
+  }
   return (
     <Sheet title="Marbler" height="full" peek={peek} dropping={dropping} onClose={onClose}>
       <div className="flex flex-col gap-4">
@@ -115,6 +124,7 @@ function MenuSheet({ tank, commands, local, onClose, onScript, peek, dropping })
           {[['clear', 'Clear the tank', Trash2], ['pull', 'Pull a print', Printer], ['saveState', 'Save state', Bookmark], ['finish', 'Finish now', FastForward]].map(([id, label, Icon]) => (
             <Button key={id} className="h-10 justify-start" onClick={() => { commands.run(id); if (id === 'clear' || id === 'pull') onClose(); }}><Icon size={14} /> {label}</Button>
           ))}
+          <Button className="col-span-2 h-10 justify-start" onClick={() => setExamples(true)}><BookOpen size={14} /> Examples</Button>
         </div>
         <ViscositySlider c={visc} value={state.settings.visc} info={INFO.viscosity} className="w-full" onChange={(value) => dispatch({ type: 'setting', key: 'visc', value })} />
         <div role="tablist" aria-label="Sections" className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto px-4">
