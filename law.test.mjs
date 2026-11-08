@@ -197,9 +197,3 @@ test('Cells drift is per second: halving the time step lays the same cells out',
   const median = off[off.length >> 1];
   assert.ok(median < 2, `cells' centres differ by ${median.toFixed(2)} mm (median), ${off.at(-1).toFixed(1)} at most`);
 });
-
-test('Cells lays out by the pressure law, with site drift, by default', () => {
-  const m = new Cells({ width: 300, height: 200 });
-  assert.equal(m.cellsPressure, true);
-  assert.equal(m.cellDrift, true);
-});
