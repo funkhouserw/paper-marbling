@@ -117,6 +117,7 @@
     <dt>My scripts</dt><dd>Scripts kept by name. Choosing one opens it with the simulator it was saved on, and it doesn't run until you press Run.</dd>
     <dt>My palettes</dt><dd>Your own inks and base colour under a name. Scripts can use them with <code>palette('name')</code>.</dd>
     <dt>Undo</dt><dd>Keeps full copies up to 500 MB, and older steps replay when undone.</dd>
+    <dt>Starting afresh</dt><dd>Your tool and tank settings are remembered too. File › Reset tools to defaults puts the tools back as they ship and keeps the ink in the tank; File › Reset tank settings does the same for the simulator, size, viscosity, Repeating, detail and paper, then reloads. Clear everything deletes everything Marbler keeps in this browser.</dd>
   </dl>
 </section>
 
@@ -124,6 +125,7 @@
   <h2>Detail and speed</h2>
   <p><strong>Point limit</strong> caps how many points outlines may use, from 50,000 to 20 million. The limit holds: when ink needs more, edges get coarser so the total fits. Standard (400,000) is tuned for live play.</p>
   <p><strong>Low framerate</strong> shows a snapshot about every 2 seconds and spends the rest of the time simulating. It also switches on by itself when things get slow, until the tank settles. The simulation still runs on the page's main thread, so clicks can wait for the current tick. <strong>Wake (fast)</strong> draws in a background worker, which helps busy tanks keep moving.</p>
+  <p>If a simulator can't keep up (for 20 seconds the ink moves less than a tenth of a second's worth each second), Marbler says it is struggling, with how many shapes there are. Pause or undo, or switch to Wake (fast). Cells (beta) is the slowest with many small drops.</p>
   <p>Wake also cuts off ribbons of ink thinner than 0.5 mm, which can split one drop's outline into several, so the counts on the status line can rise as you work.</p>
 </section>
 
