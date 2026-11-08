@@ -49,7 +49,7 @@ test('every tool in tools.js has a place in a tool group, once', () => {
 });
 
 // Settings the page keeps for itself, which the tank never reads.
-const PAGE_ONLY = ['imperfection', 'pullBase', 'clearAfter', 'mirror', 'spanish', 'spanishBands', 'spanishAngle', 'spanishStrength', 'autoSave', 'printPale', 'printTexture', 'printSoft', 'detailPreset', 'profiling'];
+const PAGE_ONLY = ['imperfection', 'pullBase', 'clearAfter', 'mirror', 'spanish', 'spanishBands', 'spanishAngle', 'spanishStrength', 'spanishCreases', 'autoSave', 'printPale', 'printTexture', 'printSoft', 'detailPreset', 'profiling'];
 
 test('every setting control is a controller setting or a page setting, and every controller setting has a control', async () => {
   const { SETTINGS } = await import('../controller.js');

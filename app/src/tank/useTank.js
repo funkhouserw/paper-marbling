@@ -485,6 +485,7 @@ export function useTank() {
           spanishBands: page.spanishBands,
           spanishAngle: page.spanishAngle,
           spanishStrength: page.spanishStrength,
+          spanishCreases: page.spanishCreases,
           seed: seed.current++,
           clearAfter: () => latestUi.current.page.clearAfter,
         })).then(async (print) => {

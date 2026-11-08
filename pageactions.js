@@ -60,12 +60,12 @@ export async function printBlob(c, { pale = true, texture = true, soft = 0 } = {
 
 // What view.startPull() needs, from the Paper settings. tint is the chosen paper colour;
 // onBase uses the base colour instead, when there is one. imperfection is 0 to 100.
-export function pullOptions(c, { tint, onBase = false, imperfection = 50, mirror = false, seed, clearAfter = false, spanish = false, spanishBands = 6, spanishAngle = 30, spanishStrength = 50 }) {
+export function pullOptions(c, { tint, onBase = false, imperfection = 50, mirror = false, seed, clearAfter = false, spanish = false, spanishBands = 30, spanishAngle = 45, spanishStrength = 60, spanishCreases = 0 }) {
   return {
     tint: onBase && c.settings.useBath ? c.settings.bath : tint,
     imperfection: Number(imperfection) / 100,
     mirror,
-    spanish: spanish ? { bands: Number(spanishBands), angle: Number(spanishAngle), strength: Number(spanishStrength) / 100 } : null,
+    spanish: spanish ? { bands: Number(spanishBands), angle: Number(spanishAngle), strength: Number(spanishStrength) / 100, creases: Number(spanishCreases) / 100 } : null,
     seed,
     clearAfter,
   };

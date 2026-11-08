@@ -94,40 +94,52 @@ function hesitationLine(ctx, w, h, amount, random) {
   ctx.restore();
 }
 
-// Spanish marbling: the paper is rocked as it's laid, so it lingers and slides across the bath in
-// diagonal waves, picking up more ink where it lingers and less where it slides. Each band darkens
-// gradually and ends in a sharp light edge, with a faint fold-like streak there, over whatever
-// pattern is in the tank. bands: how many waves across the sheet; angle: their slant in degrees;
-// strength 0-1: how light the light edge gets.
-function spanishBands(ctx, w, h, { bands = 6, angle = 30, strength = 0.5 } = {}, random) {
-  const period = Math.hypot(w, h) / Math.max(1, bands);
-  const a = (angle * Math.PI) / 180;
-  const ux = Math.cos(a), uy = Math.sin(a); // across the bands
-  const mask = canvas(w, h);
-  const m = mask.getContext('2d');
-  const img = m.createImageData(w, h);
-  const d = img.data;
-  const lo = 1 - Math.max(0, Math.min(1, strength));
-  // A little wobble, so the waves aren't ruled lines.
-  const wob = period * 0.04, wl = period * (2.5 + random());
+// Spanish marbling (Jaffer, "Pigment Transport in Paint Marbling"): the paper is rocked to and fro
+// as it's laid, so its contact line moves along the lay direction a as f(a) = a + (A/2)·sin(2πa/λ),
+// and sideways by (B/2)·sin(2πa/λ). Where the paper runs ahead (f′ > 1) it takes a thicker layer of
+// paint and prints darker; where it's pushed back (f′ < 1), thinner and lighter. Jaffer tints by
+// 1 − (1 − I)^γ with γ = f′(a), the law Marbler already uses for squeezed ink. A sideways motion B
+// turns the compression bands into creases. f must keep moving forward, so A < λ/π.
+// The map from a point (p, q) on the paper (along and across the lay) back to the bath, with γ.
+export function spanishMap({ wavelength, along = 0, across = 0 }) {
+  const k = (2 * Math.PI) / wavelength;
+  const A = Math.min(Math.max(0, along), (0.95 * wavelength) / Math.PI);
+  const B = Math.max(0, across);
+  return (p, q) => {
+    // Invert p = a + (A/2) sin(k a) by Newton's method; f is monotonic, so it converges quickly.
+    let a = p;
+    for (let i = 0; i < 8; i++) {
+      const f = a + (A / 2) * Math.sin(k * a) - p;
+      a -= f / (1 + (A / 2) * k * Math.cos(k * a));
+    }
+    return [a, q - (B / 2) * Math.sin(k * a), 1 + (A / 2) * k * Math.cos(k * a)];
+  };
+}
+
+// Prints the ink canvas through spanishMap: bands across the lay direction (angle in degrees, 0 laid
+// left to right), wavelength in pixels, strength 0-1 of the largest A, creases 0-1 for B.
+function spanishTransfer(ctx, w, h, { bands = 30, angle = 45, strength = 0.6, creases = 0 } = {}) {
+  const t = (angle * Math.PI) / 180;
+  const ux = Math.cos(t), uy = Math.sin(t);
+  const span = Math.abs(w * ux) + Math.abs(h * uy);
+  const wavelength = span / Math.max(1, bands);
+  const map = spanishMap({ wavelength, along: Math.max(0, Math.min(1, strength)) * (0.95 * wavelength) / Math.PI, across: Math.max(0, creases) * wavelength * 0.5 });
+  const src = ctx.getImageData(0, 0, w, h);
+  const out = ctx.createImageData(w, h);
+  const s = src.data, d = out.data;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const along = -x * uy + y * ux;
-      const t = ((x * ux + y * uy + wob * Math.sin(along / wl)) / period) % 1;
-      const f = t < 0 ? t + 1 : t;
-      // Gradual darkening over the band, then a quick return to light (the last 6 %).
-      const ramp = f < 0.94 ? f / 0.94 : 1 - (f - 0.94) / 0.06;
-      let alpha = lo + (1 - lo) * ramp * ramp * (3 - 2 * ramp);
-      // The fold: a thin lighter streak just past the light edge.
-      if (f < 0.012) alpha *= 1 - 0.35 * (1 - lo);
-      d[(y * w + x) * 4 + 3] = Math.round(255 * alpha);
+      const p = x * ux + y * uy, q = -x * uy + y * ux;
+      const [a, b, gamma] = map(p, q);
+      const bx = Math.min(w - 1, Math.max(0, Math.round(a * ux - b * uy))), by = Math.min(h - 1, Math.max(0, Math.round(a * uy + b * ux)));
+      const i = (by * w + bx) * 4, o = (y * w + x) * 4;
+      // Thicker paint where γ > 1: the squeeze tint with τ multiplied by γ (the tint goes by √τ).
+      const e = 1 / Math.sqrt(Math.max(0.05, gamma));
+      for (let c = 0; c < 3; c++) d[o + c] = Math.round(255 * (1 - (1 - s[i + c] / 255) ** e));
+      d[o + 3] = s[i + 3];
     }
   }
-  m.putImageData(img, 0, 0);
-  ctx.save();
-  ctx.globalCompositeOperation = 'destination-in';
-  ctx.drawImage(mask, 0, 0);
-  ctx.restore();
+  ctx.putImageData(out, 0, 0);
 }
 
 function paperSheet(w, h, tint, random) {
@@ -181,7 +193,7 @@ export function pullPrint(marble, { tint = TINTS['Warm white'], imperfection = 0
     airBubbles(ictx, w, h, imperfection, random);
     hesitationLine(ictx, w, h, imperfection, random);
   }
-  if (spanish) spanishBands(ictx, w, h, spanish, random);
+  if (spanish) spanishTransfer(ictx, w, h, spanish);
 
   const sheet = paperSheet(w, h, tint, random);
   const print = canvas(w, h);
