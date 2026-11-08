@@ -3228,6 +3228,14 @@ export class Marble {
       else buckets.set(k, [i]);
     }
     const near2 = THINNEST * THINNEST;
+    const inkAt = (px, py) => {
+      let w = false;
+      for (let a = 0, b = n - 1; a < n; b = a++) {
+        const ay = xy[b * 2 + 1], cy = xy[a * 2 + 1];
+        if ((ay > py) !== (cy > py) && px < xy[b * 2] + ((py - ay) * (xy[a * 2] - xy[b * 2])) / (cy - ay)) w = !w;
+      }
+      return w;
+    };
     const closest = (i) => {
       const x = xy[i * 2];
       const y = xy[i * 2 + 1];
@@ -3246,7 +3254,10 @@ export class Marble {
             const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
             const ex = ax + dx * t - x;
             const ey = ay + dy * t - y;
-            if (ex * ex + ey * ey < near2 && j > best) best = j;
+            // Only across a thin neck of ink: halfway between the two sides must be ink. Across a thin
+            // inlet of water (the outline folding round bare bath) it isn't, and that's left open.
+            // (A ribbon of no width has its two sides on top of each other: that's ink too.)
+            if (ex * ex + ey * ey < near2 && j > best && (ex * ex + ey * ey < 1e-6 || inkAt(x + ex / 2, y + ey / 2))) best = j;
           }
         }
       }
@@ -3276,7 +3287,9 @@ export class Marble {
       const j = closest(i);
       if (j < 0) { i++; continue; }
       const [area, length] = areaLength(i, j);
-      if ((area / length) * tau >= THINNEST) {
+      // The piece from i to j runs down one side of the ribbon and back up the other, so its width is
+      // twice its area over its length (area/length alone kept only ribbons wider than 1/τ mm).
+      if (((2 * area) / length) * tau >= THINNEST) {
         // A big piece behind a thin neck stands alone, unless it would take almost the whole outline.
         if (j - i < n - MIN_PIECE && j - i >= MIN_PIECE) extra.push(piece(i + 1, j));
         else { i++; continue; }
