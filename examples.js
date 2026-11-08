@@ -565,11 +565,32 @@ for (const x0 of [8, 38, 68]) {
   settle();
 }
 `,
+  Spanish: `// Spanish: a plain stone ground, pulled Spanish. The marbler rocks the paper as it is laid on
+// the size, so the colour takes in diagonal bands, light and dark, like folded cloth: Spanish names a
+// way of laying the paper, not a colour layout. This example turns on Paper › Spanish (rock the
+// paper) for you: Pull a print to see the bands, and try Bands, Angle, Rocking and Creases.
+viscosity({ value: 1000 });
+bath({ color: '#efe8da' });
+const colours = ['#2c3e66', '#9c3b2e', '#d8b25a'];
+let k = 0;
+colours.forEach((color, i) => {
+  for (let y = 17; y <= 83; y += 6) for (let x = 3; x <= 97; x += 6) {
+    k++;
+    drop({ x: x + 2.5 * Math.sin(k * 2.3 + i), y: y + 2.5 * Math.cos(k * 1.7 + i * 2), quantity: [0.35, 0.14, 0.05][i], color });
+  }
+  settle();
+});
+`,
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic', Spanish: 'classic',
   // Written on 1 Nov for the first engine, since retuned for spreading ink: in Classic their drops
   // leave bare bath and Repeating whorls never whorls, so they keep the editor's Wake (fast) (#51).
   'Lapis bullseyes': 'wakefast', 'Blue & gold feather': 'wakefast', 'Emerald peacock': 'wakefast', 'Gilded stone': 'wakefast', 'Oxblood whirl': 'wakefast', 'Library endpaper': 'wakefast', 'Dot garden': 'wakefast', 'Bead field': 'wakefast', 'Repeating whorls': 'wakefast', 'Starry spray': 'wakefast', 'Wave comb': 'wakefast', 'Verdigris waves': 'wakefast',
+};
+
+// Paper settings an example sets for the next pull, as the Paper panel holds them.
+export const EXAMPLE_PAGE = {
+  Spanish: { spanish: true, spanishBands: 30, spanishAngle: 45, spanishStrength: 60, spanishCreases: 0 },
 };

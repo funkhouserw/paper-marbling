@@ -111,6 +111,7 @@ export const PATTERNS = [
     id: 'spanish', family: 'combed', names: { en: 'Spanish' }, status: 'verified',
     summary: 'The paper is rocked as it is laid down, giving diagonal light and dark bands like folded cloth. It names a way of laying the paper, not a colour layout.',
     sources: ['UW', 'AAT', 'WOOL'], image: { title: 'Marbled paper (Flickr 7564185358)', url: commons('Marbled_Paper_(7564185358).jpg'), licence: 'CC BY 2.0' },
+    example: 'Spanish',
   },
   {
     id: 'cockerell', family: 'combed', names: { en: 'Cockerell' }, status: 'partly',

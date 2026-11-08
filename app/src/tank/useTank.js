@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { TankController, SETTINGS, DETAIL_PRESETS, storedSettings, storeSetting } from '../../../controller.js';
 import { textContours } from '../../../text.js';
-import { EXAMPLES, EXAMPLE_SIMULATOR } from '../../../examples.js';
+import { EXAMPLES, EXAMPLE_SIMULATOR, EXAMPLE_PAGE } from '../../../examples.js';
 import { PALETTES, palette as findPalette } from '../../../palettes.js';
 import { FIXED, SECTIONS } from '../ui/features.js';
 import { TINTS } from '../../../paper.js';
@@ -343,7 +343,9 @@ export function useTank() {
         }
         c.notice('');
         const failed = c.runScript(EXAMPLES[a.name], { clearing: true });
-        setUi({ example: a.name, script: EXAMPLES[a.name], scriptError: failed ? String(failed) : null });
+        // Some examples are about the pull, such as Spanish: they set the Paper panel for it.
+        const page = EXAMPLE_PAGE[a.name] ? { page: { ...latestUi.current.page, ...EXAMPLE_PAGE[a.name] } } : {};
+        setUi({ example: a.name, script: EXAMPLES[a.name], scriptError: failed ? String(failed) : null, ...page });
         return;
       }
       case 'tint': setUi({ tint: a.color }); return;
