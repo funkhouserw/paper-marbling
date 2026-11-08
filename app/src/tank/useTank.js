@@ -170,6 +170,11 @@ export function useTank() {
       }));
     } catch { /* storage full or blocked: nothing to keep */ }
   };
+  // Says so when the simulator can't keep up with what's in the tank (#51).
+  useEffect(() => {
+    const id = setInterval(() => c.checkSlow(performance.now() / 1000), 1000);
+    return () => clearInterval(id);
+  }, [c]);
   const lastKept = useRef(0);
   useEffect(() => {
     const wait = 1000 - (performance.now() - lastKept.current);

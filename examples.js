@@ -546,18 +546,22 @@ settle();
 `,
   'Feather plumes': `// Feather plumes (Drawn rake): thin vertical bands of colour, combed fine, then whole rakes dragged east and curving
 // south. The teeth keep the north-south line the first eastward movement set, so every tine fans
-// the same way into plumes.
+// the same way into plumes: three big curling feathers, each a fan of the combed bands swept round
+// a bend, like the plumes a marbler draws with a rake moved in a curve rather than a straight line.
+// Both combs reach twice the gap between their tines (reach: 2), so the close-set teeth carry the
+// ink between them along, as a real rake's do in a thick size; at the default reach the bands only
+// wiggle and no plume forms.
 viscosity({ value: 1000 });
 bath({ color: '#efe6d2' });
 const inks = ['#6b8f71', '#5a3d7a', '#e87a5d', '#c43a2b', '#7d93c4', '#f2b8a0'];
 stripes({ angle: 90, count: 36, colors: inks, variation: 0.3, slivers: 0.2 });
 settle();
-fullRake({ angle: 0, teeth: 24, speed: 20 });
+fullRake({ angle: 0, teeth: 24, speed: 20, reach: 2 });
 settle();
 for (const x0 of [8, 38, 68]) {
   const path = [];
   for (let k = 0; k <= 40; k++) { const t = k / 40; path.push([x0 + 22 * Math.sin(t * Math.PI / 2), 22 + 70 * (1 - Math.cos(t * Math.PI / 2))]); }
-  rake({ path, teeth: 18, spacing: 1.6, speed: 22, D: 1.5 });
+  rake({ path, teeth: 18, spacing: 1.6, speed: 22, D: 1.5, reach: 2 });
   settle();
 }
 `,
@@ -565,4 +569,7 @@ for (const x0 of [8, 38, 68]) {
 
 export const EXAMPLE_SIMULATOR = {
   Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic',
+  // Written on 1 Nov for the first engine, since retuned for spreading ink: in Classic their drops
+  // leave bare bath and Repeating whorls never whorls, so they keep the editor's Wake (fast) (#51).
+  'Lapis bullseyes': 'wakefast', 'Blue & gold feather': 'wakefast', 'Emerald peacock': 'wakefast', 'Gilded stone': 'wakefast', 'Oxblood whirl': 'wakefast', 'Library endpaper': 'wakefast', 'Dot garden': 'wakefast', 'Bead field': 'wakefast', 'Repeating whorls': 'wakefast', 'Starry spray': 'wakefast', 'Wave comb': 'wakefast', 'Verdigris waves': 'wakefast',
 };

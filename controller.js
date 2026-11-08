@@ -147,6 +147,8 @@ const KEPT_UNDO_BYTES = 500e6;
 const stateBytes = (state) => state.polys.reduce((sum, p) => sum + p.xy.byteLength, 0)
   + Object.values(state.grid ?? {}).flat().reduce((sum, f) => sum + (f?.byteLength ?? 0), 0);
 
+const SLOW_AFTER_S = 20;  // real seconds of moving ink before a crawl is called slow
+const SLOW_RATE = 0.1;    // simulated seconds per real second below which it crawls
 const STEP_BUDGET_MS = 10;   // simulation per frame while playing, leaving room for input
 const FINISH_BUDGET_MS = 24; // Finish now asks for speed, so it gets more
 const SNAPSHOT_STEP_MS = 150; // simulation per frame in low framerate mode
@@ -271,6 +273,24 @@ export class TankController {
   // ---- Simulator ------------------------------------------------------------
 
   model() { return MODELS.find((m) => m.id === this.settings.simulator); }
+
+  // A throw the simulator can't keep up with (#51: Starry spray in Cells sat on "Working…" for over a
+  // minute): the ink is still moving but simulated time crawls. Called about once a second with the
+  // clock in seconds; says so once per stretch of moving ink, and returns what it said.
+  checkSlow(nowS) {
+    const m = this.marble;
+    if (!this.playing || !m.busy) { this.slowSince = null; this.slowWarned = false; return null; }
+    if (!this.slowSince) { this.slowSince = { at: nowS, time: m.time }; return null; }
+    const wall = nowS - this.slowSince.at;
+    if (wall < SLOW_AFTER_S) return null;
+    const done = m.time - this.slowSince.time;
+    if (done >= SLOW_RATE * wall) { this.slowSince = { at: nowS, time: m.time }; return null; } // keeping up
+    if (this.slowWarned) return null;
+    this.slowWarned = true;
+    const text = `${this.model().label} is struggling: ${Math.round(wall)} s for ${done.toFixed(1)} s of marbling, with ${m.polys.length.toLocaleString('en')} shapes. Pause or undo, or try Wake (fast), the quickest.`;
+    this.notice(text);
+    return text;
+  }
   engine() { return this.model().engine ?? Marble; }
   startingViscosity(model = this.model()) { return model?.viscosity ?? STANDARD_VISCOSITY; }
 

@@ -506,3 +506,27 @@ test('Reset tools to defaults puts every tool back as shipped and keeps the ink 
   assert.equal(c.tool, 'stripes');
   assert.equal(fns(c).filter((f) => f === 'drop').length, drops);
 });
+
+test('a throw the simulator crawls through is called slow once, and a brisk one never (#51)', () => {
+  const c = fresh();
+  const said = [];
+  c.on?.('notice', (t) => said.push(t));
+  c.press([0, 0]);
+  c.release();
+  assert.ok(c.marble.busy);
+  const t0 = c.marble.time;
+  // Brisk: the clock and the marbling go together.
+  for (let s = 0; s <= 30; s++) { c.marble.time = t0 + s; assert.equal(c.checkSlow(s), null); }
+  // Crawling: 40 real seconds for a tenth of a second of marbling.
+  const at = c.marble.time;
+  const out = [];
+  for (let s = 31; s <= 80; s++) { c.marble.time = at + (s - 31) * 0.002; out.push(c.checkSlow(s)); }
+  const warnings = out.filter(Boolean);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /^Classic is struggling: \d+ s for 0\.\d s of marbling, with [\d,]+ shapes/);
+  // Once the ink stops, the next crawl may be told again.
+  c.marble.time = 1e9;
+  while (c.marble.busy) c.marble.step();
+  assert.equal(c.checkSlow(81), null);
+  assert.equal(c.slowWarned, false);
+});
