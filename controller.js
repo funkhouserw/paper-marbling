@@ -496,6 +496,12 @@ export class TankController {
 
   // ---- Tools ------------------------------------------------------------------
 
+  // Every tool's settings back to how they ship; the tool in hand and the tank's ink stay.
+  resetToolValues() {
+    this.values = startingValues();
+    this.emit('settings');
+  }
+
   setTool(name) {
     const changed = name !== this.tool;
     if (changed && this.freezeMode !== 'off') {

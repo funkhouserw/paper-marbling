@@ -147,9 +147,11 @@ function MenuSheet({ tank, commands, local, onClose, onScript, peek, dropping })
             <button key={id} type="button" onClick={() => { if (id === 'patterns' || id === 'credits') onClose(); commands.run(id); }} className="text-gilt-soft underline-offset-2 hover:underline">{label}</button>
           ))}
         </div>
-        <button type="button" onClick={() => commands.run('resetAll')} className="mt-3 self-start text-xs text-red-300/80 underline-offset-2 hover:underline">
-          Clear everything…
-        </button>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
+          <button type="button" onClick={() => commands.run('resetTools')} className="text-ink-300 underline-offset-2 hover:underline">Reset tools to defaults…</button>
+          <button type="button" onClick={() => commands.run('resetTankSettings')} className="text-ink-300 underline-offset-2 hover:underline">Reset tank settings…</button>
+          <button type="button" onClick={() => commands.run('resetAll')} className="text-red-300/80 underline-offset-2 hover:underline">Clear everything…</button>
+        </div>
       </div>
     </Sheet>
   );

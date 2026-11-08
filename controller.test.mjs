@@ -490,3 +490,19 @@ test('Full rake overhang on Auto stays Auto in mm, and a set value is scaled lik
   c.values.fullRake.overhang = 2;
   assert.equal(c.inMm('fullRake').overhang, 20);
 });
+
+test('Reset tools to defaults puts every tool back as shipped and keeps the ink and the tool (#48)', () => {
+  const c = fresh();
+  const shipped = JSON.parse(JSON.stringify(c.values));
+  c.press([200, 200]);
+  c.release();
+  const drops = fns(c).filter((f) => f === 'drop').length;
+  assert.ok(drops > 0);
+  for (const values of Object.values(c.values)) for (const k of Object.keys(values)) if (typeof values[k] === 'number') values[k] += 1;
+  c.values.text.string = 'changed';
+  c.setTool('stripes');
+  c.resetToolValues();
+  assert.deepEqual(c.values, shipped);
+  assert.equal(c.tool, 'stripes');
+  assert.equal(fns(c).filter((f) => f === 'drop').length, drops);
+});

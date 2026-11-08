@@ -33,6 +33,8 @@ function perform(id, tank, ctx) {
     case 'exportSvg': return say('Downloading marbler.svg');
     case 'exportPrint': return say('Printing at high resolution…');
     case 'runScript': return dispatch({ type: 'run' });
+    case 'resetTools': return say('Every tool is back to its defaults.');
+    case 'resetTankSettings': return say('The tank settings are back to their defaults.');
     case 'viewSimple': return set({ view: 'simple', drawer: false });
     case 'viewAdvanced': return set({ view: 'advanced' });
     case 'toggleScript': return set({ view: 'advanced', drawer: !state.drawer });

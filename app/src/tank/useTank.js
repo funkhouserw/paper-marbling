@@ -106,6 +106,9 @@ function readKept() {
 }
 const pick = (from, allowed) => Object.fromEntries(Object.entries(from ?? {}).filter(([k]) => k in allowed));
 
+// The storage keys of settings kept on their own (the simulator, the point limit…).
+const keptSettingKeys = () => Object.values(SETTINGS).map((s) => s.store).filter(Boolean);
+
 function uiReducer(s, a) {
   return { ...s, ...a };
 }
@@ -456,6 +459,28 @@ export function useTank() {
       case 'freezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'freeze'); return true;
       case 'unfreezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'unfreeze'); return true;
       case 'unfreezeAll': c.unfreezeAll(); return true;
+      case 'resetTools':
+        // Brush settings only (#48): every tool's sliders and choices as shipped. Saves, prints,
+        // palettes, the tank settings and the ink in the tank are left alone.
+        if (!window.confirm('Reset every tool\'s settings to the defaults?\n\nThe ink in the tank, the tank settings, saved states, prints and palettes stay as they are.')) return true;
+        c.resetToolValues();
+        bump();
+        c.notice('Tools reset to their defaults');
+        return true;
+      case 'resetTankSettings': {
+        // The tank's settings (simulator, size, viscosity, Repeating, detail, base colour…) and the
+        // paper's, as shipped. They're read when the page starts, so this forgets them and reloads.
+        if (!window.confirm('Reset the tank settings to the defaults?\n\nSimulator, tank size, viscosity, Repeating, detail and the paper go back to how they ship, and the page reloads, so the ink in the tank is cleared: Save state first to keep it. Tool settings, saved states, prints and palettes stay.')) return true;
+        resetting.current = true;
+        for (const key of keptSettingKeys()) localStorage.removeItem(key);
+        const last = readKept();
+        if (last) {
+          const { settings: _s, page: _p, tint: _t, ...rest } = last;
+          try { localStorage.setItem(KEPT_KEY, JSON.stringify(rest)); } catch { /* nothing to keep */ }
+        }
+        location.reload();
+        return true;
+      }
       case 'resetAll': {
         // Everything Marbler keeps in this browser: saved states, prints, my scripts, my palettes and
         // every remembered setting. Asks first, then starts afresh.
