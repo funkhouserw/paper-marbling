@@ -190,3 +190,18 @@ test('Thin film with separation off joins drops of one colour across a hairline 
   assert.ok(widths.every((w) => w >= 0.8), `wide enough to close a 0.8 mm gap (${widths})`);
   assert.equal(colourAt(make(true), 0, 0), 'bath', 'on: the seam stays');
 });
+
+test('gall-water holes are never seamed: two holes side by side show no ink between them (#35)', () => {
+  const m = new Marble({ width: 300, height: 200, seed: 1 });
+  m.drop({ x: 0, y: 0, quantity: 3, color: '#224466', at: 0 });
+  m.runUntilIdle();
+  m.drop({ x: -6, y: 0, quantity: 0.05, color: 'clear' });
+  m.drop({ x: 6, y: 0, quantity: 0.05, color: 'clear' });
+  m.runUntilIdle();
+  const holes = m.polys.filter((p, i) => p.group && m.polys[i - 1]?.group === p.group);
+  assert.ok(holes.length >= 2, 'both clear drops are holes in the blue');
+  // The SVG's hole loops are exactly the outlines, not pushed out.
+  const svg = m.toSVG();
+  const first = holes[0];
+  assert.ok(svg.includes(`${first.xy[0].toFixed(2)} ${(-first.xy[1]).toFixed(2)}`), 'hole drawn as its own outline');
+});

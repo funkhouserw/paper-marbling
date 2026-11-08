@@ -3142,7 +3142,9 @@ export class Marble {
       do {
         const { n } = this.polys[p];
         // With Keep cells separate, every loop is drawn half a seam into its ink (a hole's outward).
-        const xy = half ? seamed(this.polys[p].xy, n, half, p === first, merged[p], group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
+        // A hole (a later loop of a group: gall water cut through the colour) is water, never seamed:
+        // pushed out, neighbouring holes would overlap and the even-odd fill would show ink arcs in them.
+        const xy = half && p === first ? seamed(this.polys[p].xy, n, half, true, merged[p], group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
         // Points closer than a third of a pixel can't change the picture.
         const skip = (0.33 / pxPerMm) ** 2;
         for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
@@ -3206,7 +3208,9 @@ export class Marble {
       let d = '';
       do {
         const { n } = this.polys[p];
-        const xy = half ? seamed(this.polys[p].xy, n, half, p === first, merged[p], group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
+        // A hole (a later loop of a group: gall water cut through the colour) is water, never seamed:
+        // pushed out, neighbouring holes would overlap and the even-odd fill would show ink arcs in them.
+        const xy = half && p === first ? seamed(this.polys[p].xy, n, half, true, merged[p], group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
         for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
           const pts = [];
           for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
