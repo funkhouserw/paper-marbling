@@ -46,9 +46,15 @@ test('with Keep cells separate off, cells share walls with no seam', () => {
     if (!on) m.separate({ on: false, at: 0 });
     m.drops({ n: 20, quantity: 0.3, colors: ['#335577'] });
     settle(m);
-    return m.polys.reduce((a, p) => a + (p.n ? Math.abs(p.xy.subarray(0, p.n * 2).reduce((s, v, i, xy) => (i % 2 ? s : s + xy[i] * xy[(i + 3) % (p.n * 2)] - xy[(i + 2) % (p.n * 2)] * xy[i + 1]), 0)) / 2 : 0), 0);
+    // Bare bath among the cells: sampled within their bounding box. (Under the pressure law the ink's
+    // drawn area is the same either way; what changes is whether walls between cells are open.)
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of m.polys) for (let i = 0; i < p.n; i++) { x0 = Math.min(x0, p.xy[i * 2]); x1 = Math.max(x1, p.xy[i * 2]); y0 = Math.min(y0, p.xy[i * 2 + 1]); y1 = Math.max(y1, p.xy[i * 2 + 1]); }
+    let bare = 0, all = 0;
+    for (let x = x0; x <= x1; x += 1) for (let y = y0; y <= y1; y += 1) { all++; if (!m.shapesAt(x, y).length) bare++; }
+    return bare / all;
   };
-  assert.ok(gaps(false) > gaps(true), 'more ink area drawn when cells join');
+  assert.ok(gaps(false) < gaps(true), 'less bare bath among the cells when they join');
 });
 
 test('with rising gall a later colour spreads further in Cells, as the gall rule says', () => {

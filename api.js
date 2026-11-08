@@ -251,6 +251,12 @@ export const COMMANDS = [
     ['share', 'number', null, 'where a cell faces bare bath its seam widens to this share of the square root of its area (at least seam), so bigger cells have wider channels; null for the default, 0.03; 0 keeps every seam the same'],
     AT,
   ] },
+  { name: 'coalesce', group: 'Tank', summary: 'Cells only, off by default: two cells of one colour pressed together hard enough, for long enough that the bath between them drains, become one cell (as touching bubbles in a foam). Never different colours.', params: [
+    ['on', 'boolean', true, ''],
+    ['pressure', 'number', null, 'how hard they must press, in the film law\'s units (default 30); lower merges sooner'],
+    ['drain', 'number', null, 'how long, as pressure above that times seconds (default 3)'],
+    AT,
+  ] },
   { name: 'ribbonCut', group: 'Tank', summary: 'The thin-ink cut (on by default): while a tool moves ink, ribbons stretched thinner than half a millimetre are cut away, which keeps long sessions fast. Squeezed ink is never cut. Off, every thread stays however thin, and a heavily combed tank gets slower.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },
