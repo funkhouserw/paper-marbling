@@ -118,10 +118,15 @@ export class WakeFast extends Wake {
     let total = 0;
     for (const p of this.polys) total += p.n;
     const xy = new Float64Array(total * 2);
+    // Edge contacts (#33), offset like xy; τ 1 and bare where a shape has none or they're stale.
+    const edgeTau = new Float32Array(total).fill(1);
+    const edgeFaces = new Uint8Array(total);
     let off = 0;
     const polys = this.polys.map((poly) => {
       const { xy: from, n, group, cell } = poly;
       xy.set(from.subarray(0, n * 2), off * 2);
+      if (poly.edgeTau?.length === n) edgeTau.set(poly.edgeTau, off);
+      if (poly.edgeFaces?.length === n) edgeFaces.set(poly.edgeFaces, off);
       // Drawn as the page draws it: darker where squeezed (τ), and a broom cell keeps its seam.
       const p = { off, n, color: squeezedColour(poly.color, thickness(poly)), base: poly.color, group, cell };
       off += n;
@@ -142,9 +147,9 @@ export class WakeFast extends Wake {
     w.postMessage({
       width: ctx.canvas.width, height: ctx.canvas.height, px: pxPerMm, W: this.width, H: this.height, bath: this.bath ?? 'transparent',
       tile: this.tileOn, offset: this.tileOffset, closeGaps: this.closeGaps, polys, xy, total,
-      seam: this.seamsDrawn ? this.seam : 0, share: this.seamShare ?? 0,
+      seam: this.seamsDrawn ? this.seam : 0, share: this.seamShare ?? 0, edgeTau, edgeFaces,
       tolPx: this.busy ? WHILE_MOVING_PX : AT_REST_PX, join: this.busy ? 'bevel' : 'round',
-    }, [xy.buffer]);
+    }, [xy.buffer, edgeTau.buffer, edgeFaces.buffer]);
     return true;
   }
 }

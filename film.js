@@ -11,7 +11,7 @@
 // Pressure depends only on what's feeding right now, so when feeding stops all motion stops.
 // Close to a drop, the exact radial map from pst-marble (see NOTICE) takes over, so rings stay round below
 // grid size. Tools are unchanged. This is one-phase Hele-Shaw flow with a screened outer region.
-import { Marble, isTranslucent, filmPressure } from './engine.js';
+import { Marble, isTranslucent, filmPressure, thickness } from './engine.js';
 import { wrapX, wrapY, tileCell } from './tile.js';
 import { underpaintWidth } from './thin.js';
 
@@ -38,6 +38,11 @@ const NEARLY_ZERO = 1e-9; // keeps the solver well behaved where k would be exac
 const CLOSE_GAPS = 3.5; // mm
 // The compression limit. A film's cap on thickness is its own spreading (poly.tauMax), or this.
 const FILM_TAU_MAX = 4;
+// Edge contacts (#33): measured on a grid this fine (mm), every this many ticks while ink moves.
+const EDGE_CELL = 1.5;
+const EDGE_EVERY = 4;
+// The least squeeze where two fronts press on each other.
+const CONTACT_SQUEEZE = 0.5;
 // A drop whose gall beats the ink it lands in by this share of its pressure opens to its full spread
 // (gall 1.5 over gall 1 is 0.17).
 const GALL_OPENS = 0.15;
@@ -68,6 +73,78 @@ const mod = (i, n) => ((i % n) + n) % n;
 export class Film extends Marble {
   // The pressure grid joins up at the seams, so films meet and push across them.
   get tileSupported() { return true; }
+
+  step() {
+    super.step();
+    this._edgeStep();
+  }
+
+  // What each outline's edge touches, and how squeezed its ink is there (#33, Ilse's soap-bubble
+  // seams): poly.edgeFaces[i] is 0 where point i faces bare bath (a stop-short gap, drawn as a white
+  // seam), 1 where it presses on a film of its own colour, 2 on another colour (contact: a darkened
+  // band, a Plateau border, instead of white); poly.edgeTau[i] is the squeeze τ ≥ 1 there, which
+  // sets that band's width and darkness. Refreshed every few ticks while ink moves and once at rest;
+  // arrays whose length isn't the outline's point count are stale and should be ignored.
+  _edgeStep() {
+    if (!this.seamsDrawn) return;
+    this._edgeTicks = (this._edgeTicks ?? 0) + 1;
+    if (this.busy ? this._edgeTicks % EDGE_EVERY !== 0 : this._edgesAtRest) return;
+    this._edgesAtRest = !this.busy;
+    this._updateEdges();
+  }
+
+  _updateEdges() {
+    const { width: W, height: H, polys } = this;
+    const nx = Math.ceil(W / EDGE_CELL), ny = Math.ceil(H / EDGE_CELL);
+    const label = this._edgeLabels?.length === nx * ny ? this._edgeLabels.fill(0) : (this._edgeLabels = new Int32Array(nx * ny));
+    const toCol = (x) => (x + W / 2) / EDGE_CELL - 0.5, toRow = (y) => (y + H / 2) / EDGE_CELL - 0.5;
+    const rows = Array.from({ length: ny }, () => []);
+    // Which shape is on top in each cell, painted in drawing order; a hole (a later loop of a group)
+    // paints the bath back.
+    for (let p = 0; p < polys.length; p++) {
+      const { xy, n, group } = polys[p];
+      const hole = group && polys[p - 1]?.group === group;
+      let lo = ny, hi = -1;
+      for (let i = 0, j = n - 1; i < n; j = i++) {
+        const y0 = toRow(xy[j * 2 + 1]), y1 = toRow(xy[i * 2 + 1]);
+        const from = Math.max(0, Math.ceil(Math.min(y0, y1))), to = Math.min(ny - 1, Math.ceil(Math.max(y0, y1)) - 1);
+        const x0 = toCol(xy[j * 2]), x1 = toCol(xy[i * 2]);
+        for (let r = from; r <= to; r++) rows[r].push(x0 + ((x1 - x0) * (r - y0)) / (y1 - y0));
+        if (from <= to) { lo = Math.min(lo, from); hi = Math.max(hi, to); }
+      }
+      for (let r = lo; r <= hi; r++) {
+        const c = rows[r].sort((a, b) => a - b);
+        for (let k = 0; k + 1 < c.length; k += 2) {
+          for (let col = Math.max(0, Math.ceil(c[k])); col <= Math.min(nx - 1, Math.floor(c[k + 1])); col++) label[r * nx + col] = hole ? 0 : p + 1;
+        }
+        c.length = 0;
+      }
+    }
+    for (let p = 0; p < polys.length; p++) {
+      const poly = polys[p];
+      const { xy, n } = poly;
+      if (n < 3) continue;
+      let twice = 0;
+      for (let i = 0, k = n - 1; i < n; k = i++) twice += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
+      const out = twice > 0 ? 1 : -1; // counter-clockwise: outside is to the right of each edge
+      const tau = thickness(poly);
+      const faces = poly.edgeFaces?.length === n ? poly.edgeFaces : (poly.edgeFaces = new Uint8Array(n));
+      const taus = poly.edgeTau?.length === n ? poly.edgeTau : (poly.edgeTau = new Float32Array(n));
+      for (let i = 0; i < n; i++) {
+        const a = i === 0 ? n - 1 : i - 1, b = i === n - 1 ? 0 : i + 1;
+        const tx = xy[b * 2] - xy[a * 2], ty = xy[b * 2 + 1] - xy[a * 2 + 1];
+        const len = Math.hypot(tx, ty) || 1;
+        const sx = xy[i * 2] + (out * ty / len) * EDGE_CELL * 1.5, sy = xy[i * 2 + 1] - (out * tx / len) * EDGE_CELL * 1.5;
+        const col = Math.round(toCol(sx)), row = Math.round(toRow(sy));
+        const other = col >= 0 && row >= 0 && col < nx && row < ny ? label[row * nx + col] - 1 : -1;
+        const q = other >= 0 && other !== p ? polys[other] : null;
+        faces[i] = !q ? 0 : q.color === poly.color ? 1 : 2;
+        // Where fronts press on each other the ink there is squeezed at least a little, even when the
+        // films as a whole aren't: the darkened line where two films meet.
+        taus[i] = faces[i] ? Math.max(tau, 1 + CONTACT_SQUEEZE) : 1;
+      }
+    }
+  }
 
   get spreadFactor() { return 4; }
   get evenWalls() { return true; }
