@@ -9,7 +9,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Mic, Play, Rota
 import { dialToValue, valueToDial } from '../../../api.js';
 import { LiveTank } from '../tank/LiveTank.jsx';
 import tankImage from '../../../docs/images/teal-copper-swirls.jpg';
-import { EXAMPLES, FONTS, INFO, WEAVE_ICONS, shortLabel, shownChoices, shownParams, toolDef } from './controls.js';
+import { EXAMPLES, FONTS, INFO, WEAVE_ICONS, settingIcon, shortLabel, shownChoices, shownParams, toolDef } from './controls.js';
 import { Button, Choice, IconButton, InfoTip, Slider, Swatches, Toggle, cx, useDismiss, usePlace } from './widgets.jsx';
 import { createPortal } from 'react-dom';
 import { FAQ, search, wantsScript } from './faq.js';
@@ -159,6 +159,7 @@ export function ParamSlider({ tool, p, value, onChange, className, compact }) {
   ));
   return (
     <Slider
+      icon={compact ? settingIcon(p.key) : undefined}
       headerExtra={autoPill} hideValue={isAuto}
       className={className} compact={compact}
       label={p.label} shortLabel={shortLabel(p.label)} value={isAuto ? p.min : value} min={p.min} max={p.max} step={p.step}
@@ -194,6 +195,24 @@ function FreezeRow({ tank }) {
 const FREEZE_TOOLS = ['fullRake', 'hearts'];
 const DEFAULT_WEAVE_HEIGHT = 30;
 
+// The ways a tool's settings are set, shared by the full and folded bars and the panels.
+// The old page's two weave rules: a shape needs height to show, and height on a straight rake means a weave.
+function toolSetters({ state, dispatch }) {
+  const id = state.tool;
+  const values = state.values[id] ?? {};
+  const set = (key) => (value) => dispatch({ type: 'value', tool: id, key, value });
+  const setWeave = (shape) => {
+    set('waveShape')(shape);
+    if (shape === 'straight') set('waveAmp')(0);
+    else if (!values.waveAmp) set('waveAmp')(DEFAULT_WEAVE_HEIGHT);
+  };
+  const setParam = (key) => (value) => {
+    set(key)(value);
+    if (key === 'waveAmp' && value > 0 && values.waveShape === 'straight') set('waveShape')('sine');
+  };
+  return { set, setParam, setWeave };
+}
+
 // A tool's settings, laid out in a row (desktop's settings bar) or a column (panels, phone sheet).
 // Every tool's settings come from tools.js, so a new tool or setting appears here by itself.
 // In the desktop settings bar ('row') every setting has the same width, in at most two rows that
@@ -206,18 +225,8 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
   const values = state.values[id] ?? {};
   const params = shownParams(id, state.view).slice(0, limit);
   const choices = shownChoices(id, state.view);
-  const set = (key) => (value) => dispatch({ type: 'value', tool: id, key, value });
+  const { set, setParam, setWeave } = toolSetters(tank);
   const row = layout === 'row';
-  // The old page's two weave rules: a shape needs height to show, and height on a straight rake means a weave.
-  const setWeave = (shape) => {
-    set('waveShape')(shape);
-    if (shape === 'straight') set('waveAmp')(0);
-    else if (!values.waveAmp) set('waveAmp')(DEFAULT_WEAVE_HEIGHT);
-  };
-  const setParam = (key) => (value) => {
-    set(key)(value);
-    if (key === 'waveAmp' && value > 0 && values.waveShape === 'straight') set('waveShape')('sine');
-  };
   return (
     <div className={cx(row ? 'grid grid-flow-col grid-rows-2 auto-cols-[10rem] items-start gap-x-5 gap-y-2' : 'flex flex-col gap-4')}>
       {/* In a column the button comes first and last, so it's never a long scroll away. */}
@@ -241,7 +250,7 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
       ))}
       {choices.map((c) => (c.key === 'waveShape'
         ? <WeavePicker key={c.key} inline={!row} label={c.label} value={values[c.key]} options={c.options} info={INFO[`${id}.${c.key}`]} onChange={setWeave} />
-        : <Choice key={c.key} label={c.label} shortLabel={row ? shortLabel(c.label) : undefined} value={values[c.key]} options={c.options} info={INFO[`${id}.${c.key}`]} onChange={set(c.key)} />
+        : <Choice key={c.key} icon={row ? settingIcon(c.key) : undefined} label={c.label} shortLabel={row ? shortLabel(c.label) : undefined} value={values[c.key]} options={c.options} info={INFO[`${id}.${c.key}`]} onChange={set(c.key)} />
       ))}
       {def.directions && (
         <div className="flex flex-col gap-1">
@@ -265,6 +274,82 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
           <Play size={12} /> {def.label}
         </Button>
       )}
+    </div>
+  );
+}
+
+// The folded settings bar: every setting still works, on one line, as an icon and its value.
+// Pressing one opens its slider in a small popover; choices are compact lists. Labels and (i)s
+// live in the full bar, where the same icons sit beside the names.
+function FoldedParam({ tool, p, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef(null);
+  const pop = useRef(null);
+  useDismiss(open, setOpen, [button, pop], () => button.current?.focus());
+  const pos = usePlace(button, open, { width: 240 });
+  const Icon = settingIcon(p.key);
+  const auto = Boolean(p.auto) && (value === null || value === undefined);
+  const shown = auto ? p.auto
+    : p.dial ? String(Math.round(valueToDial(Number(value), p.min, p.max, p.over)))
+      : Number(value).toFixed(p.step < 0.1 ? 2 : p.step < 1 ? 1 : 0);
+  return (
+    <>
+      <button
+        ref={button} type="button" aria-expanded={open} aria-label={`${p.label}: ${shown}`} title={p.label}
+        onClick={() => setOpen((o) => !o)}
+        className={cx('flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs hover:bg-ink-800', open ? 'bg-ink-800 text-ink-50' : 'text-ink-200')}
+      >
+        <Icon size={14} aria-hidden="true" className="text-ink-400" />
+        <span className="tabular-nums">{shown}</span>
+      </button>
+      {open && pos && createPortal(
+        <div ref={pop} style={pos} className="z-[60] rounded-lg border border-ink-600 bg-ink-850 p-3 shadow-2xl">
+          <ParamSlider tool={tool} p={p} value={value} compact className="w-full" onChange={onChange} />
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+export function FoldedSettings({ tank }) {
+  const { state, dispatch } = tank;
+  const id = state.tool;
+  const def = toolDef(id);
+  const values = state.values[id] ?? {};
+  const { set, setParam, setWeave } = toolSetters(tank);
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      {def.text && (
+        <input
+          aria-label="Text" value={values.string ?? ''} onChange={(e) => set('string')(e.target.value)}
+          className="h-7 w-32 rounded-md border border-ink-600 bg-ink-800 px-2 text-xs text-ink-100"
+        />
+      )}
+      {shownParams(id, state.view).map((p) => (
+        <FoldedParam key={p.key} tool={id} p={p} value={values[p.key]} onChange={setParam(p.key)} />
+      ))}
+      {shownChoices(id, state.view).map((c) => {
+        const Icon = settingIcon(c.key);
+        return (
+          <div key={c.key} title={c.label} className="flex w-40 shrink-0 items-center gap-1 pl-1.5">
+            <Icon size={14} aria-hidden="true" className="shrink-0 text-ink-400" />
+            <div className="min-w-0 flex-1">
+              <Choice hideLabel label={c.label} value={values[c.key] ?? c.value} options={c.options} onChange={c.key === 'waveShape' ? setWeave : set(c.key)} />
+            </div>
+          </div>
+        );
+      })}
+      {def.directions && (
+        <div className="flex shrink-0 gap-0.5 pl-1.5">
+          {DIRECTIONS.map(({ angle, label, Icon }) => (
+            <IconButton key={angle} size="sm" label={label} active={Number(values.angle) === angle} onClick={() => set('angle')(angle)}>
+              <Icon size={14} />
+            </IconButton>
+          ))}
+        </div>
+      )}
+      {FREEZE_TOOLS.includes(id) && state.view === 'advanced' && <div className="shrink-0 pl-1.5"><FreezeRow tank={tank} /></div>}
     </div>
   );
 }

@@ -3,6 +3,10 @@
 import {
   Droplet, SprayCan, Grip, Type, Brush, Wheat, Rows3, Heart, PenTool, Waves, Activity, RefreshCw,
   Tornado, Wind, Eraser, Snowflake, Columns3, Sparkles, Spline,
+  Expand, Hash, Droplets, CircleDot, FlaskConical, Hourglass, TestTube, Shuffle, Maximize2, Compass,
+  CircleDashed, Circle, Dot, MoveHorizontal, Shrink, Target, Ruler, Triangle, Slice, BetweenHorizontalStart,
+  Gauge, Disc, MoveRight, AudioWaveform, ArrowUpToLine, ArrowDownToLine, Magnet, Frame, Timer, RotateCw,
+  Disc3, Maximize, Layers, Palette, BarChart3, Layers2, RotateCcw, SlidersHorizontal,
 } from 'lucide-react';
 import { createElement as h } from 'react';
 import { TOOL_GROUPS } from './features.js';
@@ -63,6 +67,7 @@ export const shownChoices = (id, _view) => toolDef(id).choices;
 // Shorter names for the settings bar, where every setting gets the same width. The full name stays
 // in the panels, the phone, and the (i) and hover text in the bar.
 export const SHORT_LABELS = {
+  'Smallest dot (% of largest)': 'Smallest (%)',
   'Drops per click': 'Per click', 'Dots per spray': 'Per spray', 'Space between dots': 'Spacing',
   'Rings in each dot': 'Rings', 'Space between teeth': 'Spacing', 'Tooth thickness': 'Thickness',
   'Tine thickness': 'Thickness', 'Start above (%)': 'Starts (%)', 'Wave direction (°)': 'Direction (°)',
@@ -71,3 +76,19 @@ export const SHORT_LABELS = {
 export const shortLabel = (label) => SHORT_LABELS[label] ?? label;
 
 export const SPEEDS = ['0.5', '1', '2', '5'];
+
+// One icon per setting, by its key, shown beside the label in the full settings bar and alone (with
+// the value) in the folded one, so the icons are learnt by sitting next to their names.
+export const SETTING_ICONS = {
+  quantity: Droplet, dispersion: Expand, count: Hash, scatter: Sparkles, oil: Droplets, bands: CircleDot,
+  turpentine: FlaskConical, evaporation: Hourglass, gall: TestTube, variation: Shuffle, spreading: Maximize2,
+  angle: Compass, n: Hash, radius: CircleDashed, max: Circle, smallest: Dot, min: Dot, gap: BetweenHorizontalStart,
+  tightness: Shrink, rings: Target, size: Type, width: Ruler, taper: Triangle, wobble: Activity, slivers: Slice,
+  teeth: Columns3, spacing: BetweenHorizontalStart, speed: Gauge, D: Disc, reach: MoveHorizontal,
+  waveAmp: AudioWaveform, waveLength: Waves, above: ArrowUpToLine, below: ArrowDownToLine, pull: Magnet,
+  offset: MoveRight, overhang: Frame, period: Waves, amplitude: AudioWaveform, duration: Timer, degrees: RotateCw,
+  ringSpacing: Disc3, rate: RefreshCw, scale: Maximize, octaves: Layers, circulation: Tornado,
+  sprayColors: Palette, sizes: BarChart3, over: Layers2, waveShape: Spline, style: Heart, direction: RotateCcw,
+  mode: Eraser, ease: Activity,
+};
+export const settingIcon = (key) => SETTING_ICONS[key] ?? SlidersHorizontal;

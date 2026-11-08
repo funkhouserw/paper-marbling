@@ -127,7 +127,7 @@ function ValueBox({ value, digits, onCommit, label, min, max, loose }) {
 
 // `toDial`/`fromDial` turn a value into a 0-100 slider position and back, for size-like settings.
 // `showValue` makes the box show and take the real value instead of the slider position.
-export function Slider({ label, shortLabel, value, min, max, step, onChange, info, compact = false, className, hint, toDial, fromDial, dialTop = 100, showValue, headerExtra, hideValue = false }) {
+export function Slider({ icon: Icon, label, shortLabel, value, min, max, step, onChange, info, compact = false, className, hint, toDial, fromDial, dialTop = 100, showValue, headerExtra, hideValue = false }) {
   const id = useId();
   const dial = Boolean(toDial);
   const pos = dial ? toDial(Number(value)) : Number(value);
@@ -138,6 +138,7 @@ export function Slider({ label, shortLabel, value, min, max, step, onChange, inf
   return (
     <div className={cx('flex min-w-0 flex-col gap-1', className)}>
       <div className="flex items-center gap-1 text-xs text-ink-300">
+        {Icon && <Icon size={12} aria-hidden="true" className="shrink-0 text-ink-400" />}
         <label htmlFor={id} title={compact ? [label, hint].filter(Boolean).join(': ') : undefined} className={cx('truncate', compact && 'max-w-28')}>{compact ? (shortLabel ?? label) : label}</label>
         <InfoTip text={info} label={label} />
         {headerExtra}
@@ -203,7 +204,7 @@ export function NumberField({ label, value, min, max, step, onChange, info, plac
 
 // A dropdown, drawn by us rather than the browser so it matches everywhere. Keyboard: arrows, Home,
 // End, Enter or Space to pick, Escape to close, and typing jumps to an option by its first letters.
-export function Choice({ label, shortLabel, value, options, onChange, info, hideLabel = false }) {
+export function Choice({ icon: Icon, label, shortLabel, value, options, onChange, info, hideLabel = false }) {
   const id = useId();
   const entries = Object.entries(options);
   const at = Math.max(0, entries.findIndex(([k]) => String(k) === String(value)));
@@ -245,6 +246,7 @@ export function Choice({ label, shortLabel, value, options, onChange, info, hide
     <div className="flex min-w-0 flex-col gap-1">
       {!hideLabel && (
         <div className="flex items-center gap-1 text-xs text-ink-300">
+          {Icon && <Icon size={12} aria-hidden="true" className="shrink-0 text-ink-400" />}
           <span id={`${id}-label`} title={shortLabel && shortLabel !== label ? label : undefined} className="truncate">{shortLabel ?? label}</span>
           <InfoTip text={info} label={label} />
         </div>

@@ -2,11 +2,11 @@
 // tool's settings under them, a tool rail on the left, panels on the right, transport below.
 // Menus, panels and the tank's right-click menu are all drawn from features.js.
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Code, Copy, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, Pause, Play, Printer, Redo2, Share2, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, Code, Copy, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, Pause, Play, Printer, Redo2, Share2, Trash2, Undo2, X } from 'lucide-react';
 import { FREEZE_INFO_KEY, FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
 import { ACTIONS, FIXED, MENU_ORDER, SECTIONS } from '../ui/features.js';
 import { Button, IconButton, InfoTip, Swatches, cx } from '../ui/widgets.jsx';
-import { CreatureChat, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } from '../ui/parts.jsx';
+import { CreatureChat, FoldedSettings, InkDrop, ScriptBody, TankArea, ToolHint, ToolSettings } from '../ui/parts.jsx';
 import { SECTION_ICONS, SectionBody, ViscositySlider, applies, sectionsFor } from '../ui/sections.jsx';
 import { CommandPalette, ContextMenu, Notice, useCommands, useShortcuts } from '../ui/commands.jsx';
 import { CreditsDialog } from '../ui/credits.jsx';
@@ -108,13 +108,36 @@ export function MenuBar({ tank, commands, panelsOpen, onPanels }) {
   );
 }
 
-// The current tool's settings. Always two rows tall, so the tank doesn't jump when the tool
-// changes. The tool's name is at the left with its button underneath, the one place to look to
-// make a whole-tank tool go.
+// The current tool's settings. Two rows tall, so the tank doesn't jump when the tool changes; the
+// chevron folds them to one line of icons and values, every setting still live, giving the tank the
+// room (kept for the session). The
+// tool's name is at the left with its button underneath, the one place to look to make a
+// whole-tank tool go.
+const FOLD_KEY = 'marbler.optionsFolded';
 export function OptionsBar({ tank }) {
   const { state, palette, dispatch, applyTool } = tank;
   const def = toolDef(state.tool);
   const Icon = iconFor(state.tool);
+  const [folded, setFolded] = useState(() => sessionStorage.getItem(FOLD_KEY) === '1');
+  const fold = (on) => { setFolded(on); sessionStorage.setItem(FOLD_KEY, on ? '1' : '0'); };
+  const chevron = (
+    <IconButton size="sm" label={folded ? 'Show the tool settings' : 'Fold the tool settings to one line'} onClick={() => fold(!folded)} className="shrink-0 self-start">
+      {folded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+    </IconButton>
+  );
+  if (folded) {
+    return (
+      <div className="flex h-12 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-900/70 px-4">
+        <span className="flex w-32 shrink-0 items-center gap-2 text-sm font-medium"><Icon size={16} className="shrink-0 text-gilt" /> <span className="truncate">{def.label}</span></span>
+        {def.whole && <Button primary onClick={applyTool} className="shrink-0"><Play size={12} /> {def.label}</Button>}
+        {def.color && (
+          <div className="shrink-0"><Swatches palette={palette} ink={state.ink} custom={state.inkNow?.rgb} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} /></div>
+        )}
+        <div className="scroll-thin min-w-0 flex-1 overflow-x-auto"><FoldedSettings tank={tank} /></div>
+        <div className="ml-auto flex items-center">{chevron}</div>
+      </div>
+    );
+  }
   return (
     <div className="flex h-[128px] shrink-0 items-start gap-5 border-b border-ink-700 bg-ink-900/70 px-4 py-2">
       <div className="flex w-32 shrink-0 flex-col gap-3 pt-1">
@@ -125,6 +148,7 @@ export function OptionsBar({ tank }) {
         <div className="shrink-0 pt-1"><Swatches palette={palette} ink={state.ink} custom={state.inkNow?.rgb} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} /></div>
       )}
       <div className="scroll-thin h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden"><ToolSettings tank={tank} /></div>
+      {chevron}
     </div>
   );
 }
@@ -459,7 +483,7 @@ export function Desktop({ tank, local = true }) {
   const folded = narrow || drawer;
   const panels = <Panels tank={tank} commands={commands} local={local} floating={folded} onHide={folded ? undefined : () => hide(true)} />;
   return (
-    <div className="flex h-full min-h-[600px] flex-col overflow-hidden bg-ink-950">
+    <div className="flex h-dvh flex-col overflow-hidden bg-ink-950">
       <MenuBar
         tank={tank} commands={commands}
         panelsOpen={folded ? panelsOpen : !hidden}

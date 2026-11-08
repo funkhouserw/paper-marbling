@@ -61,9 +61,11 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
   // ---- Layout -------------------------------------------------------------
 
   function resize() {
-    const box = wrap.getBoundingClientRect();
+    // The box's own layout size, not its on-screen rectangle: a pinch zoom scales the box with a
+    // transform, and measuring that would size the canvas past the space it has.
+    const box = { width: wrap.clientWidth, height: wrap.clientHeight };
     const dpr = devicePixelRatio || 1;
-    const cssScale = Math.min(box.width / c.marble.width, box.height / c.marble.height);
+    const cssScale = Math.max(0.01, Math.min(box.width / c.marble.width, box.height / c.marble.height));
     pxPerMm = cssScale * dpr;
     for (const el of [tank, overlay]) {
       el.width = Math.round(c.marble.width * pxPerMm);
