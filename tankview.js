@@ -505,12 +505,12 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
   // Lays a sheet across the tank and lifts it, over a few seconds. Resolves with the print's
   // canvas, or null if a pull was already under way. clearAfter, true or a function asked as the
   // sheet lands, clears the tank under it. No undo or redo while the sheet is down.
-  view.startPull = ({ tint, imperfection, mirror, seed, clearAfter = false }) => {
+  view.startPull = ({ tint, imperfection, mirror, seed, spanish = null, clearAfter = false }) => {
     if (pull) return Promise.resolve(null);
     return new Promise((resolve) => {
       pull = {
         start: performance.now(),
-        ...pullPrint(c.marble, { tint, imperfection, mirror, seed }),
+        ...pullPrint(c.marble, { tint, imperfection, mirror, seed, spanish }),
         cleared: false,
         clearAfter,
         resolve,

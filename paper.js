@@ -94,6 +94,42 @@ function hesitationLine(ctx, w, h, amount, random) {
   ctx.restore();
 }
 
+// Spanish marbling: the paper is rocked as it's laid, so it lingers and slides across the bath in
+// diagonal waves, picking up more ink where it lingers and less where it slides. Each band darkens
+// gradually and ends in a sharp light edge, with a faint fold-like streak there, over whatever
+// pattern is in the tank. bands: how many waves across the sheet; angle: their slant in degrees;
+// strength 0-1: how light the light edge gets.
+function spanishBands(ctx, w, h, { bands = 6, angle = 30, strength = 0.5 } = {}, random) {
+  const period = Math.hypot(w, h) / Math.max(1, bands);
+  const a = (angle * Math.PI) / 180;
+  const ux = Math.cos(a), uy = Math.sin(a); // across the bands
+  const mask = canvas(w, h);
+  const m = mask.getContext('2d');
+  const img = m.createImageData(w, h);
+  const d = img.data;
+  const lo = 1 - Math.max(0, Math.min(1, strength));
+  // A little wobble, so the waves aren't ruled lines.
+  const wob = period * 0.04, wl = period * (2.5 + random());
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const along = -x * uy + y * ux;
+      const t = ((x * ux + y * uy + wob * Math.sin(along / wl)) / period) % 1;
+      const f = t < 0 ? t + 1 : t;
+      // Gradual darkening over the band, then a quick return to light (the last 6 %).
+      const ramp = f < 0.94 ? f / 0.94 : 1 - (f - 0.94) / 0.06;
+      let alpha = lo + (1 - lo) * ramp * ramp * (3 - 2 * ramp);
+      // The fold: a thin lighter streak just past the light edge.
+      if (f < 0.012) alpha *= 1 - 0.35 * (1 - lo);
+      d[(y * w + x) * 4 + 3] = Math.round(255 * alpha);
+    }
+  }
+  m.putImageData(img, 0, 0);
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(mask, 0, 0);
+  ctx.restore();
+}
+
 function paperSheet(w, h, tint, random) {
   const c = canvas(w, h);
   const ctx = c.getContext('2d');
@@ -126,7 +162,7 @@ function paperSheet(w, h, tint, random) {
 }
 
 // Renders the tank's ink onto paper and returns { print, sheet } canvases at the same size.
-export function pullPrint(marble, { tint = TINTS['Warm white'], imperfection = 0.5, mirror = false, seed = 1 } = {}) {
+export function pullPrint(marble, { tint = TINTS['Warm white'], imperfection = 0.5, mirror = false, seed = 1, spanish = null } = {}) {
   const random = rng(seed);
   const scale = PRINT_MAX_PX / Math.max(marble.width, marble.height);
   const w = Math.round(marble.width * scale), h = Math.round(marble.height * scale);
@@ -145,6 +181,7 @@ export function pullPrint(marble, { tint = TINTS['Warm white'], imperfection = 0
     airBubbles(ictx, w, h, imperfection, random);
     hesitationLine(ictx, w, h, imperfection, random);
   }
+  if (spanish) spanishBands(ictx, w, h, spanish, random);
 
   const sheet = paperSheet(w, h, tint, random);
   const print = canvas(w, h);

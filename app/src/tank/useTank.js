@@ -481,6 +481,10 @@ export function useTank() {
           onBase: page.pullBase,
           imperfection: page.imperfection,
           mirror: page.mirror,
+          spanish: page.spanish,
+          spanishBands: page.spanishBands,
+          spanishAngle: page.spanishAngle,
+          spanishStrength: page.spanishStrength,
           seed: seed.current++,
           clearAfter: () => latestUi.current.page.clearAfter,
         })).then(async (print) => {

@@ -3315,11 +3315,15 @@ export class Marble {
         for (const { tau, seg } of runs) {
           let sd = '';
           for (const [sx, sy] of this.tileShifts([this.polys[first]])) {
-            for (let i = 0; i < seg.length; i += 4) sd += `M${(seg[i] + sx).toFixed(2)} ${(-(seg[i + 1] + sy)).toFixed(2)}L${(seg[i + 2] + sx).toFixed(2)} ${(-(seg[i + 3] + sy)).toFixed(2)}`;
+            for (let i = 0; i < seg.length; i += 4) {
+              // Segments that continue the last one join it, so a run is one polyline.
+              if (!(i && seg[i] === seg[i - 2] && seg[i + 1] === seg[i - 1])) sd += `M${(seg[i] + sx).toFixed(2)} ${(-(seg[i + 1] + sy)).toFixed(2)}`;
+              sd += `L${(seg[i + 2] + sx).toFixed(2)} ${(-(seg[i + 3] + sy)).toFixed(2)}`;
+            }
           }
-          bands += `<path fill="none" stroke="${squeezedColour(this.polys[first].color, Math.max(tau, thickness(this.polys[first])))}" stroke-width="${(2 * (bandWidth(tau) + half)).toFixed(2)}" stroke-linecap="round" d="${sd}"/>`;
+          bands += `<path class="border" fill="none" stroke="${squeezedColour(this.polys[first].color, Math.max(tau, thickness(this.polys[first])))}" stroke-width="${(2 * (bandWidth(tau) + half)).toFixed(2)}" stroke-linecap="round" d="${sd}"/>`;
         }
-        paths.push(`<g class="border">${bands}</g>`);
+        paths.push(bands);
       }
     }
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-w / 2} ${-h / 2} ${w} ${h}" width="${w}mm" height="${h}mm">`

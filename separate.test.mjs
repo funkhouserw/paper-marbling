@@ -41,12 +41,19 @@ const twoDrops = (on, color2 = '#224466', Engine = Marble) => {
 };
 
 // Where the two drops meet: the point on the line between them where the left drop's outline ends.
-const meeting = (m) => {
-  const left = m.polys[0];
-  let x = -Infinity;
-  for (let i = 0; i < left.n; i++) if (Math.abs(left.xy[i * 2 + 1]) < 1 && left.xy[i * 2] > x) x = left.xy[i * 2];
-  return x;
+// Where an outline crosses the line y = 0: its furthest crossing to the right (or left).
+const crossing = (poly, right = true) => {
+  let best = right ? -Infinity : Infinity;
+  for (let i = 0, k = poly.n - 1; i < poly.n; k = i++) {
+    const ay = poly.xy[k * 2 + 1], by = poly.xy[i * 2 + 1];
+    if ((ay > 0) === (by > 0)) continue;
+    const x = poly.xy[k * 2] + ((0 - ay) * (poly.xy[i * 2] - poly.xy[k * 2])) / (by - ay);
+    best = right ? Math.max(best, x) : Math.min(best, x);
+  }
+  return best;
 };
+// Where the two drops meet: the point on the line between them where the left drop's outline ends.
+const meeting = (m) => crossing(m.polys[0], true);
 
 test('separate is on by default and logged when changed', () => {
   const m = new Marble({ width: 100, height: 100, seed: 1 });
@@ -114,10 +121,15 @@ for (const Engine of [Film, Wake]) {
   test(`${Engine.name}: drops that meet press into a dark border, not a white seam, with no underpaint; off, they join`, () => {
     const on = twoDrops(true, '#224466', Engine);
     assert.equal(on.seamsDrawn, true);
-    assert.notEqual(colourAt(on, meeting(on), 0), 'bath');
+    // The contact isn't pulled in: just inside the left drop's front is ink.
+    assert.notEqual(colourAt(on, meeting(on) - 0.2, 0), 'bath');
     const svg = on.toSVG();
-    assert.match(svg, /<g class="border"><path fill="none" stroke=/, 'a border band');
-    assert.doesNotMatch(svg.replace(/<g class="border">.*?<\/g>/g, ''), /fill="none" stroke=/, 'no underpaint');
+    assert.match(svg, /<path class="border" fill="none" stroke=/, 'a border band');
+    // And the band, stroked across each front, is wide enough to cover the hair between them.
+    const xr = crossing(on.polys[1], false);
+    const widest = Math.max(...[...svg.matchAll(/class="border"[^>]*stroke-width="([\d.]+)"/g)].map(([, w]) => Number(w)));
+    assert.ok(widest >= xr - meeting(on), `band ${widest} mm covers the ${(xr - meeting(on)).toFixed(2)} mm between the fronts`);
+    assert.doesNotMatch(svg.replace(/<path class="border"[^>]*>/g, ''), /fill="none" stroke=/, 'no underpaint');
     const off = twoDrops(false, '#224466', Engine);
     assert.match(off.toSVG(), /fill="none" stroke=/);
   });
