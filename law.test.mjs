@@ -71,3 +71,17 @@ test('Cells in a walled tank: a broom throw fills the tray instead of leaving sm
   // Measured 0.91 (0.67 with the open-water spread cap still applied).
   assert.ok(cover / tot > 0.8, `the first colour covers ${(cover / tot).toFixed(2)} of the tray`);
 });
+
+test('Cells: two cells of one colour pressed together coalesce; of two colours, they stay apart', () => {
+  const run = (second) => {
+    const m = new Cells({ width: 120, height: 80, seed: 2 });
+    m.walls({ on: true, at: 0 });
+    m.coalesce({ on: true, at: 0 });
+    m.drop({ x: -15, y: 0, quantity: 0.6, color: '#3b2b24', at: 0 });
+    m.drop({ x: 15, y: 0, quantity: 0.6, color: second, at: 0 });
+    for (let t = 0; t < 2000 && m.busy; t++) m.step();
+    return m.polys.length;
+  };
+  assert.equal(run('#3b2b24'), 1, 'one colour: the film between them broke');
+  assert.equal(run('#b38a6a'), 2, 'two colours: still two');
+});

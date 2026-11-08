@@ -297,6 +297,11 @@ const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of e
 const CELL_STIFFNESS = 1;
 // How readily a squeezed cell drifts into free room, per tick (overdamped).
 const CELL_DRIFT = 0.5;
+// The pressure (Π units) at which the film between two same-colour cells breaks and they coalesce,
+// for an ink of cap 2; thinner inks (higher caps) break through sooner.
+const CELL_RUPTURE = 30;
+// How long (pressure above rupture x seconds) the bath between two pressed cells takes to drain.
+const CELL_DRAIN = 3;
 const CUT_EVERY = 15; // ticks
 const MIN_CUT = 8; // points
 const MIN_PIECE = 24; // points
@@ -324,6 +329,7 @@ export class Marble {
     this.wallsOn = false;
     this.separateOn = true; // Keep cells separate: fronts that meet keep a hairline seam
     this.ribbonCutOn = true; // ribbons thinner than THINNEST are cut while tools move ink
+    this.coalesceOn = false; // Cells: same-colour cells pressed long enough merge (see coalesce)
     this.seam = SEAM;
     this.seamShare = BARE_SHARE; // where cells face bare bath, the seam is this share of √area, at least seam
     this.tileOn = false;
@@ -549,6 +555,19 @@ export class Marble {
     let covered = 0;
     for (const q of inside) if (!inside.some((r) => r !== q && holds(r, q.xy[0], q.xy[1]))) covered += outlineArea(q);
     return Math.max(0, area - covered);
+  }
+
+  // Coalescence (Cells; Ilse: "allowing cells to combine if they are thin enough?"), off by default:
+  // two cells of one colour pressed together past pressure (Π units, for an ink of cap 2; thinner
+  // inks sooner) for long enough that the bath between them drains (drain, pressure x seconds)
+  // become one. Never different colours. In a crowded walled tank it can merge a whole flick, so it's
+  // a choice to try, not the default.
+  coalesce({ on = true, pressure = null, drain = null, at } = {}) {
+    const args = { on };
+    if (pressure !== null && pressure !== undefined) args.pressure = pressure;
+    if (drain !== null && drain !== undefined) args.drain = drain;
+    if (at !== undefined) args.at = at;
+    return this._schedule('coalesce', args, { kind: 'coalesce', on, pressure, drain });
   }
 
   // Whether this simulator draws seams yet. Simulators that don't ignore the setting.
@@ -1385,8 +1404,56 @@ export class Marble {
           c.site = moved;
         });
         op.settled = e >= 1 && most < 0.05;
+        // Coalescence (Ilse: "allowing cells to combine if they are thin enough"): two cells of one
+        // colour pressed together drain the bath between them, and once both are pressed past the
+        // rupture pressure that thin film breaks and they become one, as touching bubbles in a foam
+        // do. Thinner inks (spread further, so a higher cap) break through at a lower pressure.
+        // The bath between them takes time to drain: a pair breaks through once it has been pressed
+        // past the rupture pressure long enough (excess pressure x seconds, CELL_DRAIN). Each cell
+        // merges at most once a tick, so merges don't cascade across a packed tank in one go.
+        const rupture = (c) => ((this.coalescePressure ?? CELL_RUPTURE) * 2) / Math.max(1.01, c.tauMax);
+        const drain = this.coalesceDrain ?? CELL_DRAIN;
+        const merging = new Set();
+        for (let k = 0; k < cells.length && this.coalesceOn; k++) {
+          const a = cells[k];
+          if (a.gone || merging.has(a) || !solved.tags[k]) continue;
+          for (const j of new Set(solved.tags[k].filter((t) => t >= 0))) {
+            const b = cells[j];
+            if (b.gone || b === a || merging.has(b) || b.color !== a.color) continue;
+            const excess = Math.min(P[k], P[j]) - Math.min(rupture(a), rupture(b));
+            a.pressed ??= new Map();
+            if (excess <= 0) { a.pressed.delete(b); continue; }
+            const pressed = (a.pressed.get(b) ?? 0) + excess * this.dt;
+            a.pressed.set(b, pressed);
+            if (pressed < drain) continue;
+            merging.add(a).add(b);
+            // The bigger one goes on; the other's ink and nested cells join it, and its site moves
+            // to the middle of the two, weighted by their ink.
+            const [keep, lose] = a.own >= b.own ? [a, b] : [b, a];
+            const w = lose.own / (keep.own + lose.own);
+            keep.site = [keep.site[0] + (lose.site[0] - keep.site[0]) * w, keep.site[1] + (lose.site[1] - keep.site[1]) * w];
+            keep.psi = 0;
+            keep.own += lose.own;
+            if (lose.fresh) keep.fresh = true;
+            const c0 = keep.n ? centreOf(Array.from(keep.xy.subarray(0, keep.n * 2))) : null;
+            for (const kid of lose.kids) {
+              kid.parentCell = keep;
+              const at = kid.n ? centreOf(Array.from(kid.xy.subarray(0, kid.n * 2))) : { x: kid.site[0], y: kid.site[1] };
+              if (c0) kid.rel = { dx: at.x - c0.x, dy: at.y - c0.y, area: c0.area };
+              keep.kids.push(kid);
+            }
+            lose.kids = [];
+            lose.gone = true;
+            lose.merged = true;
+            delete keep.nest;
+            const at = top.indexOf(lose);
+            if (at >= 0) top.splice(at, 1);
+            break;
+          }
+        }
       }
       cells.forEach((c, k) => {
+        if (c.merged) return;
         const outer = solved.cells[k];
         const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;
         const pressure = filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax);
@@ -3020,6 +3087,12 @@ export class Marble {
       const op = this.pending.shift();
       if (op.kind === 'openWater') {
         this.openWaterOn = op.on;
+        continue;
+      }
+      if (op.kind === 'coalesce') {
+        this.coalesceOn = op.on;
+        this.coalescePressure = op.pressure ?? null;
+        this.coalesceDrain = op.drain ?? null;
         continue;
       }
       if (op.kind === 'ribbonCut') {
