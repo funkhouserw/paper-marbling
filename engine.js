@@ -231,6 +231,25 @@ const outlineArea = ({ xy, n }) => {
   return Math.abs(s) / 2;
 };
 // τ is capped at the film's own spreading: squeezed back to its landing thickness but not past it.
+// The film's equation of state: its surface pressure when squeezed to thickness τ = A0/A, in units
+// of its stiffness Π₁ = kT/a_rest. Shifted Volmer (research/2026-11-07-broom-pressure-math.md §2.7):
+// zero at rest and below (an under-filled film doesn't pull), linear for a small squeeze, and without
+// bound as τ nears τ_max, so no film is ever squeezed past its cap.
+//   Π(τ) = τ/(1 − τ/τ_max) − 1/(1 − 1/τ_max)  for τ ≥ 1
+export function filmPressure(tau, tauMax = TAU_MAX) {
+  if (!(tau > 1)) return 0;
+  const m = Math.max(1.01, tauMax);
+  const t = Math.min(tau, m * (1 - 1e-6));
+  return t / (1 - t / m) - 1 / (1 - 1 / m);
+}
+
+// dΠ/dτ, for Newton's method.
+export function filmPressureSlope(tau, tauMax = TAU_MAX) {
+  const m = Math.max(1.01, tauMax);
+  const t = Math.min(Math.max(tau, 1), m * (1 - 1e-6));
+  return 1 / (1 - t / m) ** 2;
+}
+
 // A ring's ink is its outline less the drops inside it: poly.inkArea, where a simulator keeps it.
 export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / ((poly.inkArea ?? outlineArea(poly)) || poly.a0))) : 1);
 const tintCache = new Map();
