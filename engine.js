@@ -1367,7 +1367,18 @@ export class Marble {
           c.site = keepInside(domain, c.rel ? [now.x + c.rel.dx * k, now.y + c.rel.dy * k] : c.site);
         }
       }
-      const solved = partialTransport(cells.map((c) => c.site), ask, domain, { weights: cells.map((c) => c.psi), iterations: done ? 60 : 4, obstacles });
+      let solved = partialTransport(cells.map((c) => c.site), ask, domain, { weights: cells.map((c) => c.psi), iterations: done ? 60 : 4, obstacles });
+      // Cells hemmed in by settled ones that stay put can't all have what they ask: the pocket they
+      // share is smaller than the room counted. Asked for more than fits, the solve lets the biggest
+      // win and squeezes small cells to nothing, so settled dots vanished under a spray (#31). Share
+      // the shortfall instead: every ask scaled by what the pocket held, and solved again.
+      const got = solved.cells.reduce((a, c) => a + (c.length >= 6 ? polygonArea(c) : 0), 0);
+      const asked = ask.reduce((a, b) => a + b, 0);
+      if (got < 0.95 * asked) {
+        ask = ask.map((a) => (a * got) / asked);
+        // From scratch: the weights the failed solve left are inflated, and would swallow small cells.
+        solved = partialTransport(cells.map((c) => c.site), ask, domain, { iterations: done ? 60 : 8, obstacles });
+      }
       const shapes = solved.cells;
       cells.forEach((c, k) => { c.psi = solved.weights[k]; });
       cells.forEach((c, k) => {
@@ -1401,7 +1412,10 @@ export class Marble {
         // New ink spreads in full and squeezes the older: the children may take everything but what
         // the parent's own ink needs at its cap (fresh ink doesn't give), whatever share the layout
         // above left it. The rim is what they don't take, and its thickness follows.
-        const least = ownNow(c) / (c.fresh ? 1 : c.tauMax);
+        // Within one throw (a spray lands over a fraction of a second), a later drop can land in an
+        // earlier one that is still spreading: that parent gives to it too, or its children never
+        // grew at all in a packed spray (#31, the empty-tank case).
+        const least = ownNow(c) / (c.fresh && !kids.some((k) => k.fresh) ? 1 : c.tauMax);
         const kidRoom = Math.max(0, area - least);
         const kidsWant = kids.reduce((sum, k) => sum + total(k), 0);
         c.share = Math.max(least, area - Math.min(kidRoom, kidsWant));
