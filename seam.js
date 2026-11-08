@@ -73,11 +73,18 @@ export function mergedPoints(outlines, reach = 0) {
   const G = Math.max(reach, 1e-6);
   const grid = reach > 0 ? new Map() : null;
   if (grid) {
+    // Each edge in every square its bounding box (plus reach) touches: bucketed by its midpoint only,
+    // a long edge was missed by points near its ends (8 of 31 touching points found in one probe).
     outlines.forEach((o, b) => {
       if (o.group) return;
       for (let i = 0, j = o.n - 1; i < o.n; j = i++) {
-        const key = `${Math.floor((o.xy[j * 2] + o.xy[i * 2]) / 2 / G)},${Math.floor((o.xy[j * 2 + 1] + o.xy[i * 2 + 1]) / 2 / G)}`;
-        (grid.get(key) ?? grid.set(key, []).get(key)).push(b, j, i);
+        const ax = o.xy[j * 2], ay = o.xy[j * 2 + 1], bx = o.xy[i * 2], by = o.xy[i * 2 + 1];
+        for (let gx = Math.floor((Math.min(ax, bx) - reach) / G); gx <= Math.floor((Math.max(ax, bx) + reach) / G); gx++) {
+          for (let gy = Math.floor((Math.min(ay, by) - reach) / G); gy <= Math.floor((Math.max(ay, by) + reach) / G); gy++) {
+            const key = `${gx},${gy}`;
+            (grid.get(key) ?? grid.set(key, []).get(key)).push(b, j, i);
+          }
+        }
       }
     });
   }
