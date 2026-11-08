@@ -197,3 +197,42 @@ test('Cells drift is per second: halving the time step lays the same cells out',
   const median = off[off.length >> 1];
   assert.ok(median < 2, `cells' centres differ by ${median.toFixed(2)} mm (median), ${off.at(-1).toFixed(1)} at most`);
 });
+
+// The stone recipe's four stages in a walled tray (nav's stone-stages sheet, at 0.4 scale), law and
+// drift on. Every colour's ink must stay on the bath through every later throw. Under the law a
+// cell squeezed out of one tick's layout used to vanish with all its children, a settled cell held
+// as a fixed wall gave its neighbours nothing to balance against, and one empty cell's misfit
+// (τ → ∞) outweighed every other's: by the first yellow flick 75 % of the first colour was gone.
+test('Cells, walled, law and drift on: the stone recipe keeps every colour\'s ink through four stages', () => {
+  class LawCells extends Cells { get cellsPressure() { return true; } get cellDrift() { return true; } }
+  const k = 0.4;
+  const m = new LawCells({ width: 1000 * k, height: 700 * k, seed: 11 });
+  m.separate({ on: true, at: 0 });
+  m.walls({ on: true, at: 0 });
+  m.setGall({ on: true, start: 1, step: 0.5 });
+  const size = (2.5 / 60 / Math.exp(0.9 ** 2 / 2)) * 0.7 * k * k;
+  const spots = [[-250, -120], [250, 120], [220, -170], [-230, 170]].map(([x, y]) => [x * k, y * k]);
+  const flicks = [
+    ...spots.map(([x, y]) => [x, y, '#3b2b24', 1, 60]),
+    ...spots.slice(0, 3).map(([x, y]) => [-x * 0.8, y * 0.9, '#3fa7d6', 0.45, 60]),
+    ...spots.slice(0, 2).map(([x, y]) => [y, x * 0.6, '#e6d23a', 0.5, 10]),
+    ...spots.slice(0, 2).map(([x, y]) => [x * 0.5, -y, '#cdb8e6', 0.35, 10]),
+  ];
+  const inkBy = () => {
+    const all = new Set();
+    const walk = (c) => { if (c.gone) return; all.add(c); (c.kids ?? []).forEach(walk); };
+    m.polys.filter((p) => p.cell && !p.parentCell).forEach(walk);
+    const by = {};
+    for (const c of all) by[c.color] = (by[c.color] ?? 0) + (c.own ?? 0);
+    return by;
+  };
+  let was = {};
+  flicks.forEach(([x, y, color, s, n], f) => {
+    m.broom({ n: Math.ceil(n / 2), x, y, w: 500 * k, h: 500 * k, size: size * s * 2, spread: 0.9, spreading: 25, color });
+    for (let t = 0; t < 4000 && m.busy; t++) m.step();
+    const now = inkBy();
+    for (const [c, ink] of Object.entries(was)) assert.ok((now[c] ?? 0) > 0.99 * ink, `flick ${f + 1}: ${c} kept ${(((now[c] ?? 0) / ink) * 100).toFixed(0)}% of its ink`);
+    assert.ok(now[color] > 0, `flick ${f + 1}: ${color} landed`);
+    was = now;
+  });
+});

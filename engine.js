@@ -1360,7 +1360,10 @@ export class Marble {
       const o = centreOf(Array.from(c.xy.subarray(0, c.n * 2)));
       let size = 0;
       for (let k = 0; k < c.n; k++) size = Math.max(size, Math.hypot(c.xy[k * 2] - o.x, c.xy[k * 2 + 1] - o.y));
-      if (!reach.some((d) => Math.hypot(d.x - o.x, d.y - o.y) < size + d.r)) op.fixed.add(c);
+      // Under the pressure law every cell is re-laid: a settled neighbour held as a fixed wall can't
+      // push back, so cells pressed against it found no balance and the solve emptied them (bare holes
+      // on the walled stone sheet). Slower, about tenfold on a full walled tank.
+      if (!this.cellsPressure && !reach.some((d) => Math.hypot(d.x - o.x, d.y - o.y) < size + d.r)) op.fixed.add(c);
       // A cell that moves again starts from where it lies now, not where its drop first landed
       // (which may by now be under a neighbour that stays put), with its weight solved afresh.
       // Under the pressure law a weight is R0² + κΠ, thousands of mm² apart from cell to cell, and
@@ -1393,8 +1396,11 @@ export class Marble {
     // cap; inside a parent, children press against the parent's own ink at the parent's pressure, and
     // what they leave is the parent's rim, as squeezed as the law says. research/2026-11-07-broom-
     // pressure-math.md sec. 3.1.
+    // A cell squeezed out of this tick's layout keeps its last outline and its children, and is laid
+    // out again next tick: its ink is still on the bath (a solve not yet converged can empty it).
+    const keepLast = (c) => { if (c.gone || !(c.n >= 3 && c.laid)) return false; placed.push(c); c.kids.forEach(keepLast); return true; };
     const layoutLaw = (cells, domain, background = 0, nested = false, obstacles = []) => {
-      if (!cells.length || domain.length < 6) { for (const c of cells) c.gone = true; return; }
+      if (!cells.length || domain.length < 6) { for (const c of cells) if (!keepLast(c)) c.gone = true; return; }
       const gapOf = (a) => (apart ? Math.max(op.seam, (nested ? 0 : SEAM_SHARE) * Math.sqrt(a)) : 0);
       // Each cell is drawn eroded by half its channel, so its rest area carries that much more.
       const A0 = cells.map((c) => { const a = Math.max(total(c), 1e-6); return a + 1.1 * 2 * Math.sqrt(Math.PI * a) * (gapOf(a) / 2); });
@@ -1504,7 +1510,13 @@ export class Marble {
         const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
         const core = outer.length >= 6 ? erode(outer, gap / 2 + round) : [];
         const pts = core.length >= 6 ? grow(core, round) : [];
-        if (pts.length < 6) { c.gone = true; return; }
+        if (pts.length < 6) {
+          // Squeezed out of this tick's layout. Its ink is still on the bath: under the law a cell
+          // that drops out for a tick (a solve not yet converged) keeps its last outline and its
+          // children, and is laid out again next tick, instead of vanishing with all it holds.
+          if (!keepLast(c)) c.gone = true;
+          return;
+        }
         const m = pts.length / 2;
         c.xy = new Float64Array(m * 4);
         c.xy.set(pts);
