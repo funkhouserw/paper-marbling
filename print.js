@@ -110,7 +110,7 @@ function paintLabels(marble, w, h, scale, labels) {
   // Smoothed once, so that points inside another drop of the same colour (merged with it) can be
   // left where they are, as on screen.
   const smooth = polys.map((poly) => (poly.group ? poly : { ...smoothOutline(poly, 4 / scale), color: poly.color }));
-  const merged = half ? mergedPoints(smooth) : null;
+  const merged = half ? mergedPoints(smooth, marble.touchReach ?? 2 * marble.seam) : null;
   for (let p = 0; p < polys.length; p++) {
     const { group } = polys[p];
     const first = p;
