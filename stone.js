@@ -7,10 +7,74 @@
 // and what no cell reaches is bare size. The weights ψ are found so every cell has its area.
 // This is McNair et al.'s Monge–Ampère equilibrium in the limit of point-like deposits. No DOM.
 
-const DISC_SIDES = 72;
+const DISC_SIDES = 72; // a whole disc's outline is drawn with this many points
 const DAMPING = 0.8; // of the diagonal Newton step; neighbours move together, so a full step overshoots
-// Tangent lines this far out (as a share of r) make a DISC_SIDES-gon with exactly the disc's area.
-const APOTHEM = Math.sqrt(Math.PI / (DISC_SIDES * Math.tan(Math.PI / DISC_SIDES)));
+// Arcs are sampled on a circle this much wider (as a share of r), so a DISC_SIDES-gon inscribed in
+// it has exactly the disc's area.
+const CHORD = Math.sqrt((2 * Math.PI / DISC_SIDES) / Math.sin(2 * Math.PI / DISC_SIDES));
+const ARC_STEP = (2 * Math.PI) / DISC_SIDES;
+
+// A convex polygon { pts, tags } (counter-clockwise) clipped by the disc of radius r about (cx, cy),
+// exactly, in one walk round its edges: each edge keeps the part inside the circle, and where the
+// outline leaves the circle an arc, sampled every ARC_STEP or finer, carries it round to where it
+// comes back in. The arc's edges get `tag`. (It was 72 half-plane clips, one per side of a polygon
+// standing in for the disc: 70–85 % of a layout's time, research/2026-11-08-maths-and-speed.md.)
+function clipDisc({ pts, tags }, cx, cy, r, tag) {
+  const m = pts.length / 2;
+  const r2 = r * r;
+  const pieces = [];
+  for (let i = 0; i < m; i++) {
+    const k = i + 1 === m ? 0 : i + 1;
+    const px = pts[i * 2] - cx, py = pts[i * 2 + 1] - cy;
+    const dx = pts[k * 2] - cx - px, dy = pts[k * 2 + 1] - cy - py;
+    const a = dx * dx + dy * dy;
+    if (a < 1e-24) continue;
+    const b = px * dx + py * dy; // half the linear term
+    const c = px * px + py * py - r2;
+    const disc = b * b - a * c;
+    if (disc <= 0) continue;
+    const s = Math.sqrt(disc);
+    const lo = Math.max(0, (-b - s) / a), hi = Math.min(1, (-b + s) / a);
+    if (!(hi > lo)) continue;
+    pieces.push({ x0: px + dx * lo, y0: py + dy * lo, x1: px + dx * hi, y1: py + dy * hi, exit: hi < 1, tag: tags[i] });
+  }
+  const out = [], outTags = [];
+  const arc = (from, to) => {
+    let span = to - from;
+    while (span <= 1e-12) span += 2 * Math.PI;
+    while (span > 2 * Math.PI) span -= 2 * Math.PI;
+    const steps = Math.ceil(span / ARC_STEP - 1e-9);
+    for (let s = 1; s < steps; s++) {
+      const t = from + (span * s) / steps;
+      out.push(cx + r * Math.cos(t), cy + r * Math.sin(t));
+      outTags.push(tag);
+    }
+  };
+  if (!pieces.length) {
+    // No edge reaches inside the circle: the disc lies wholly inside the polygon, or outside it.
+    let inside = m >= 3;
+    for (let i = 0; i < m && inside; i++) {
+      const k = i + 1 === m ? 0 : i + 1;
+      if ((pts[k * 2] - pts[i * 2]) * (cy - pts[i * 2 + 1]) - (pts[k * 2 + 1] - pts[i * 2 + 1]) * (cx - pts[i * 2]) < 0) inside = false;
+    }
+    if (!inside) return { pts: [], tags: [] };
+    out.push(cx + r, cy);
+    outTags.push(tag);
+    arc(0, 2 * Math.PI);
+    return { pts: out, tags: outTags };
+  }
+  for (let p = 0; p < pieces.length; p++) {
+    const piece = pieces[p];
+    out.push(cx + piece.x0, cy + piece.y0);
+    outTags.push(piece.tag);
+    if (!piece.exit) continue; // it runs on to the next edge's start, a corner inside the circle
+    const next = pieces[(p + 1) % pieces.length];
+    out.push(cx + piece.x1, cy + piece.y1);
+    outTags.push(tag);
+    arc(Math.atan2(piece.y1, piece.x1), Math.atan2(next.y0, next.x0));
+  }
+  return { pts: out, tags: outTags };
+}
 
 // Sutherland–Hodgman on a convex polygon { pts: [x, y, ...], tags: [...] }, where tags[k] names the
 // line edge k (from point k to k + 1) lies on. Keeps the part where a·x + b·y ≤ c; the new edge
@@ -178,13 +242,8 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     // A packed cell that lies wholly inside its disc needs no clipping by it.
     let far = 0;
     for (let k = 0; k < cell.pts.length; k += 2) far = Math.max(far, (cell.pts[k] - xi) ** 2 + (cell.pts[k + 1] - yi) ** 2);
-    if (far <= (ri * APOTHEM) ** 2) return cell;
-    for (let s = 0; s < DISC_SIDES && cell.pts.length >= 6; s++) {
-      const t = ((s + 0.5) * 2 * Math.PI) / DISC_SIDES;
-      const a = Math.cos(t), b = Math.sin(t);
-      cell = clip(cell, a, b, a * xi + b * yi + ri * APOTHEM, DISC);
-    }
-    return cell;
+    if (far <= (ri * CHORD) ** 2) return cell;
+    return cell.pts.length >= 6 ? clipDisc(cell, xi, yi, ri * CHORD, DISC) : cell;
   };
   // Damped Newton (Kitagawa, Mérigot & Thibert 2019). ∂|Cᵢ|/∂ψⱼ = −|Γᵢⱼ| / (2|xᵢ − xⱼ|) for
   // neighbours sharing a wall Γᵢⱼ, and ∂|Cᵢ|/∂ψᵢ = Σⱼ |Γᵢⱼ| / (2|xᵢ − xⱼ|) + (arc length)/(2√ψᵢ).
