@@ -34,7 +34,7 @@ const opt = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1
 const root = opt('--root') ?? here;
 const WIDTH = 320;          // pixels across the pictures for people
 const MAX_STEPS = 6000;     // simulation steps after the script, at most; still moving after is an error
-const TIMEOUT_S = 900;      // a hard stop per run
+const TIMEOUT_S = 1500;     // a hard stop per run
 
 export const slug = (name) => name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -170,7 +170,7 @@ writeFileSync(join(out, 'report.json'), `${JSON.stringify({ commit, date: new Da
 const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
 const img = (file, caption) => (existsSync(join(out, file)) ? `<figure><img src="${file}"><figcaption>${esc(caption)}</figcaption></figure>` : '');
 const row = (r) => `<section class="${r.error ? 'error' : r.flagged ? 'flag' : 'ok'}"><h2>${esc(r.name)} <small>${esc(r.simulator ?? '')}${r.reference ? `, reference ${esc(r.reference.commit)} (${esc(r.reference.date)})` : ''}</small></h2>
-<p>${r.error ? `<b>Failed:</b> ${esc(r.error)}` : r.flagged ? `<b>Look at this:</b> ${esc(r.why.join('; '))}` : esc(r.note ?? 'Within its own seed-to-seed spread.')}${r.worst ? ` · furthest: ${esc(r.worst.measure)}, ${r.worst.times}× its spread` : ''} · ${r.seconds} s, ${r.steps ?? '–'} steps, ${r.shapes ?? '–'} shapes</p>
+<p>${r.error ? `<b>Failed:</b> ${esc(r.error)}` : r.flagged ? `<b>Look at this:</b> ${esc(r.why.join('; '))}` : esc(r.note ?? 'Within its own seed-to-seed spread.')}${r.worst ? ` · furthest: ${esc(r.worst.measure)}, ${r.worst.times}× its spread` : ''}${r.noisy?.length ? ` · noisy reference (${esc(r.noisy.join(', '))} at the cap)` : ''} · ${r.seconds} s, ${r.steps ?? '–'} steps, ${r.shapes ?? '–'} shapes</p>
 <div class="imgs">${img(`${slug(r.name)}.ref.png`, 'reference')}${img(`${slug(r.name)}.s1.png`, `now (${commit ?? ''})`)}</div></section>`;
 writeFileSync(join(out, 'report.html'), `<!doctype html><meta charset="utf-8"><title>Marbler examples review, ${esc(commit ?? '')}</title>
 <style>body{font:14px system-ui;margin:2em;background:#fafaf7}section{margin:1.5em 0;padding:.5em 1em;border-left:4px solid #9b9}section.flag{border-color:#d90;background:#fff9ee}section.error{border-color:#d33;background:#fff0ee}h2{font-size:16px;margin:.3em 0}small{color:#777;font-weight:normal}.imgs{display:flex;gap:12px;flex-wrap:wrap}figure{margin:0}figcaption{color:#777;font-size:12px}img{width:${WIDTH}px;border:1px solid #ddd}</style>

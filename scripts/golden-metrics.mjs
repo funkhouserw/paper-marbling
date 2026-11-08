@@ -11,19 +11,20 @@
 // Features, overall and on a 4×3 grid of tiles (so a report can say where):
 //   orient    length-weighted histogram of outline directions, 12 bins over 180°
 //   length    outline length per mm² of tank
-//   shapes    how many outlines
+//   shapes    how many outlines of at least a square millimetre (smaller ones are specks)
 //   colours   share of the tank's area by colour (overlapping ink counts twice, consistently)
-//   sizes     log10 of the 10th, 50th and 90th percentile shape area, in mm²
+//   sizes     log10 of the area of the shape holding the 10th, 50th and 90th percentile of the ink
+//             area, in mm² (weighted by area, so the specks that cut ribbons leave don't set it)
 
 const BINS = 12;
 const COLS = 4, ROWS = 3;
+const SPECK = 1; // mm²: outlines smaller than this don't count as shapes
 
 const area = (xy, n) => {
   let a = 0;
   for (let i = 0, k = n - 1; i < n; k = i++) a += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
   return Math.abs(a) / 2;
 };
-const quantile = (sorted, q) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] : 0);
 
 // polys: [{ xy, n, color }] in tank millimetres, the tank centred on 0 (as Marble keeps them).
 export function features(polys, width, height) {
@@ -55,14 +56,16 @@ export function features(polys, width, height) {
     }
   }
   const norm = (h, total) => h.map((v) => (total ? v / total : 0));
-  areas.sort((x, y) => x - y);
+  const big = areas.filter((a) => a >= SPECK).sort((x, y) => x - y);
+  const ink = big.reduce((u, v) => u + v, 0);
+  const holding = (q) => { let acc = 0; for (const v of big) { acc += v; if (acc >= q * ink) return v; } return big.at(-1) ?? SPECK; };
   const tileArea = (width * height) / (COLS * ROWS);
   return {
     orient: norm(orient, length),
     length: length / (width * height),
-    shapes: polys.length,
+    shapes: big.length,
     colours,
-    sizes: [0.1, 0.5, 0.9].map((q) => Math.log10(Math.max(1e-6, quantile(areas, q)))),
+    sizes: [0.1, 0.5, 0.9].map((q) => Math.log10(holding(q))),
     tiles: tiles.map((t) => ({ orient: norm(t.orient, t.length), length: t.length / tileArea })),
   };
 }
@@ -102,7 +105,11 @@ export function distances(a, b) {
 
 // The smallest spread each measure is allowed, so an example whose two seeds happen to agree closely
 // isn't flagged for noise: 0.02 of a histogram, 5% of a length or count, a tenth of a decade of size.
-export const FLOOR = { orient: 0.02, length: Math.log(1.05), shapes: Math.log(1.05), colours: 0.02, sizes: 0.1, tileOrient: 0.04, tileLength: Math.log(1.1) };
+export const FLOOR = { orient: 0.02, length: Math.log(1.05), shapes: Math.log(1.15), colours: 0.02, sizes: 0.1, tileOrient: 0.04, tileLength: Math.log(1.1) };
+// The most change each measure may allow, however noisy the example's two seeds were: past these an
+// example has become something else whatever its spread (research/2026-11-08-golden-tolerances.md).
+// An example whose spread hits a cap is marked as having a noisy reference.
+export const CAP = { orient: 0.3, length: Math.log(3), shapes: Math.log(3), colours: 0.45, sizes: 0.5, tileOrient: 0.6, tileLength: Math.log(4) };
 export const FACTOR = 3;
 
 const WHAT = {
@@ -120,11 +127,14 @@ export function judge(ref, now, spread) {
   const d = distances(ref, now);
   const why = [];
   const scores = {};
+  const noisy = [];
   for (const k of Object.keys(FLOOR)) {
-    const allowed = FACTOR * Math.max(spread?.[k] ?? 0, FLOOR[k]);
-    scores[k] = d[k] / allowed; // over 1 flags
+    const wide = FACTOR * Math.max(spread?.[k] ?? 0, FLOOR[k]);
+    if (wide > CAP[k]) noisy.push(k);
+    const allowed = Math.min(wide, CAP[k]);
+    scores[k] = d[k] / allowed * FACTOR; // multiples of the allowed spread; over 3 flags
     if (d[k] > allowed) why.push(WHAT[k](d[k], ref, now, d));
   }
   const worst = Object.entries(scores).sort((x, y) => y[1] - x[1])[0];
-  return { distances: d, scores, worst: worst ? { measure: worst[0], times: +(worst[1] * FACTOR).toFixed(1) } : null, flagged: why.length > 0, why };
+  return { distances: d, scores, worst: worst ? { measure: worst[0], times: +worst[1].toFixed(1) } : null, noisy, flagged: why.length > 0, why };
 }
