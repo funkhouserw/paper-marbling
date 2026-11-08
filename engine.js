@@ -295,6 +295,8 @@ const REACH_SHARE = 0.5; // a comb tine's pull reaches at most this share of the
 const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
 // How stiff Cells' films are under the pressure law: κ as a share of a typical cell's R0².
 const CELL_STIFFNESS = 1;
+// How readily a squeezed cell drifts into free room, per tick (overdamped).
+const CELL_DRIFT = 0.5;
 const CUT_EVERY = 15; // ticks
 const MIN_CUT = 8; // points
 const MIN_PIECE = 24; // points
@@ -1316,8 +1318,10 @@ export class Marble {
     // New cells grow as fronts spread on a deep layer (area ∝ t^¾, Jensen 1995), each tick a
     // settled layout (the films' pressure evens out far faster than the fronts move).
     const e = (this.time - op.start) / BROOM_SPREAD;
-    const done = e >= 1;
-    const grown = done ? 1 : Math.max(0.02, e ** 0.75);
+    // Under the pressure law cells go on drifting after they've grown, until the pressures have
+    // evened out (or for at most as long again).
+    const done = e >= 1 && (!this.cellsPressure || op.settled || e >= 2);
+    const grown = e >= 1 ? 1 : Math.max(0.02, e ** 0.75);
     const ownNow = (c) => (c.fresh ? c.own * grown : c.own);
     const W = this.width, H = this.height;
     const total = (c) => ownNow(c) + c.kids.filter((k) => !k.gone).reduce((sum, k) => sum + total(k), 0);
@@ -1349,6 +1353,39 @@ export class Marble {
         law: { A0, tauMax: cells.map((c) => c.tauMax), kappa, background, Pi: filmPressure, dPi: filmPressureSlope },
       });
       cells.forEach((c, k) => { c.psi = solved.weights[k]; });
+      // Sites drift down pressure differences (research note sec. 3.2): the net push on a cell is its
+      // pressure against what's outside each edge (a neighbour's pressure, 0 at bare bath; a wall or
+      // a settled cell pushes back as hard as it's pushed), so a squeezed cell moves into free room.
+      // Overdamped, scaled by the cell's size over its perimeter, and at most a tenth of its size a
+      // tick, so neighbours never swap.
+      if (!nested) {
+        const P = cells.map((c, k) => filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax));
+        let most = 0;
+        cells.forEach((c, k) => {
+          const poly = solved.cells[k], tags = solved.tags[k];
+          const m = poly.length / 2;
+          if (m < 3 || !tags) return;
+          let fx = 0, fy = 0, perimeter = 0;
+          for (let i = 0; i < m; i++) {
+            const j = (i + 1) % m;
+            const ex = poly[j * 2] - poly[i * 2], ey = poly[j * 2 + 1] - poly[i * 2 + 1];
+            const outside = tags[i] >= 0 ? P[tags[i]] : tags[i] === -2 ? 0 : P[k];
+            // Counter-clockwise: the outward normal times the edge's length is (ey, −ex).
+            fx += (P[k] - outside) * ey;
+            fy -= (P[k] - outside) * ex;
+            perimeter += Math.hypot(ex, ey);
+          }
+          const R = Math.sqrt(Math.max(solved.areas[k], 1e-9) / Math.PI);
+          let dx = (CELL_DRIFT * fx * R) / Math.max(perimeter, 1e-9), dy = (CELL_DRIFT * fy * R) / Math.max(perimeter, 1e-9);
+          const len = Math.hypot(dx, dy), cap = 0.1 * R;
+          if (len > cap) { dx *= cap / len; dy *= cap / len; }
+          // Never out of its own cell: a site past a wall or inside a settled neighbour loses its cell.
+          const moved = keepInside(poly, [c.site[0] + dx, c.site[1] + dy]);
+          most = Math.max(most, Math.hypot(moved[0] - c.site[0], moved[1] - c.site[1]));
+          c.site = moved;
+        });
+        op.settled = e >= 1 && most < 0.05;
+      }
       cells.forEach((c, k) => {
         const outer = solved.cells[k];
         const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;

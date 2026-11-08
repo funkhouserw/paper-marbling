@@ -302,7 +302,9 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
   error = 0;
   if (law) for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(residual(i, now.area[i])) / R0sq[i]);
   else for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(now.area[i] - targets[i]) / targets[i]);
-  return { cells, weights: psi, error, areas: now.area };
+  // tags[i][k] names what edge k of cell i lies on: a neighbour's index, DOMAIN (-1, the domain or an
+  // obstacle) or DISC (-2, the cell's own disc: bare bath).
+  return { cells, weights: psi, error, areas: now.area, tags: now.all.map((c) => c.tags) };
 }
 
 // Pulls a convex polygon in by d along its edges' normals (an inner parallel polygon).
