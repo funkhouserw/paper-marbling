@@ -244,7 +244,9 @@ export function filmPressure(tau, tauMax = TAU_MAX) {
   if (!(tau > 1)) return 0;
   const m = Math.max(1.01, tauMax);
   const V = (t) => t / (1 - t / m);
-  const knee = m * PRESSURE_KNEE;
+  // 98% of the way from rest to the cap: never below rest, so Π stays monotone however low the cap
+  // (98% of the cap itself fell below 1 for caps under ~1.02, and Π(1) went negative).
+  const knee = 1 + (m - 1) * PRESSURE_KNEE;
   if (tau <= knee) return V(tau) - V(1);
   return V(knee) - V(1) + (tau - knee) / (1 - knee / m) ** 2;
 }
@@ -252,12 +254,14 @@ export function filmPressure(tau, tauMax = TAU_MAX) {
 // dΠ/dτ, for Newton's method.
 export function filmPressureSlope(tau, tauMax = TAU_MAX) {
   const m = Math.max(1.01, tauMax);
-  const t = Math.min(Math.max(tau, 1), m * PRESSURE_KNEE);
+  const t = Math.min(Math.max(tau, 1), 1 + (m - 1) * PRESSURE_KNEE);
   return 1 / (1 - t / m) ** 2;
 }
 
 // A ring's ink is its outline less the drops inside it: poly.inkArea, where a simulator keeps it.
-export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / ((poly.inkArea ?? outlineArea(poly)) || poly.a0))) : 1);
+// a0 is the area the film's outline enclosed at rest, plus whatever drops have since landed inside it
+// (see _feedHosts), so a drop nested in a ring doesn't count as squeezing it.
+export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / (outlineArea(poly) || poly.a0))) : 1);
 export { tintOf, squeezedColour } from './tint.js';
 
 // A repeatable random sequence from a seed, so a heart's variation replays exactly.
@@ -551,6 +555,16 @@ export class Marble {
     if (drain !== null && drain !== undefined) args.drain = drain;
     if (at !== undefined) args.at = at;
     return this._schedule('coalesce', args, { kind: 'coalesce', on, pressure, drain });
+  }
+
+  // A drop growing inside rested films (a ring round it) adds its area to theirs: a ring's rest area
+  // a0 is what its outline encloses at rest, the newcomer included, so its squeeze τ = a0/area stays
+  // 1 at landing and rises only when the ring is actually pressed (research/2026-11-08-maths-and-
+  // speed.md sec. 5). The films it landed in are found once, as it lands.
+  _feedHosts(op, area) {
+    if (!(area > 0)) return;
+    op.hosts ??= this.shapesAt(op.x, op.y).map((s) => s[0]).filter((p) => p.a0 && !p.group);
+    for (const h of op.hosts) if (h.a0) h.a0 += area;
   }
 
   // Whether this simulator draws seams yet. Simulators that don't ignore the setting.
@@ -1335,7 +1349,7 @@ export class Marble {
     const e = (this.time - op.start) / BROOM_SPREAD;
     // Under the pressure law cells go on drifting after they've grown, until the pressures have
     // evened out (or for at most as long again).
-    const done = e >= 1 && (!this.cellsPressure || op.settled || e >= 2);
+    const done = e >= 1 && (!this.cellsPressure || !this.cellDrift || op.settled || e >= 2);
     const grown = e >= 1 ? 1 : Math.max(0.02, e ** 0.75);
     const ownNow = (c) => (c.fresh ? c.own * grown : c.own);
     const W = this.width, H = this.height;
@@ -1373,7 +1387,7 @@ export class Marble {
       // a settled cell pushes back as hard as it's pushed), so a squeezed cell moves into free room.
       // Overdamped, scaled by the cell's size over its perimeter, and at most a tenth of its size a
       // tick, so neighbours never swap.
-      if (!nested) {
+      if (!nested && this.cellDrift) {
         const P = cells.map((c, k) => filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax));
         let most = 0;
         cells.forEach((c, k) => {
@@ -2450,6 +2464,7 @@ export class Marble {
     if (da <= 0) return frac >= 1;
     this.growth.push([op.x, op.y, da]);
     if (!op.poly) this.landing.push([op, Math.sqrt(da)]);
+    this._feedHosts(op, Math.PI * da);
     return frac >= 1;
   }
 
@@ -3161,7 +3176,7 @@ export class Marble {
         if (op.stormont && !op.stormont.thrown && op.poly && done) this._throwHoles(op); // once it has spread, so no solid core is left
         if (done && op.cell && op.poly) this._insetCell(op.poly, op.cell);
         if (done && op.poly && !op.poly.a0 && !op.poly.group) {
-          op.poly.a0 = this._inkArea(op.poly);
+          op.poly.a0 = outlineArea(op.poly);
           op.poly.tauMax = Math.max(1, op.spreading ?? TAU_MAX);
         }
         return !done;

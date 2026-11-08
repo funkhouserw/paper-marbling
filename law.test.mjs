@@ -72,9 +72,13 @@ test('Cells in a walled tank: a broom throw fills the tray instead of leaving sm
   assert.ok(cover / tot > 0.8, `the first colour covers ${(cover / tot).toFixed(2)} of the tray`);
 });
 
+// The pressure law and coalescence in Cells are off by default for now (cellsPressure); these tests
+// switch them on.
+class LawCells extends Cells { get cellsPressure() { return true; } get cellDrift() { return true; } }
+
 test('Cells: two cells of one colour pressed together coalesce; of two colours, they stay apart', () => {
   const run = (second) => {
-    const m = new Cells({ width: 120, height: 80, seed: 2 });
+    const m = new LawCells({ width: 120, height: 80, seed: 2 });
     m.walls({ on: true, at: 0 });
     m.coalesce({ on: true, at: 0 });
     m.drop({ x: -15, y: 0, quantity: 0.6, color: '#3b2b24', at: 0 });
@@ -84,4 +88,63 @@ test('Cells: two cells of one colour pressed together coalesce; of two colours, 
   };
   assert.equal(run('#3b2b24'), 1, 'one colour: the film between them broke');
   assert.equal(run('#b38a6a'), 2, 'two colours: still two');
+});
+
+for (const Engine of [Marble, Film]) {
+  test(`${Engine.name}: a drop landing in a settled film doesn't count as squeezing it; pressing it does`, async () => {
+    const { thickness } = await import('./engine.js');
+    const m = new Engine({ width: 200, height: 140, seed: 2 });
+    m.drop({ x: 0, y: 0, quantity: 0.4, dispersion: 4, color: '#3b2b24', at: 0 });
+    for (let t = 0; t < 3000 && m.busy; t++) m.step();
+    const host = m.polys[0];
+    m.drop({ x: 0, y: 0, quantity: 0.1, dispersion: 4, color: '#3fa7d6' });
+    for (let t = 0; t < 3000 && m.busy; t++) m.step();
+    assert.ok(thickness(host) < 1.05, `host tau ${thickness(host).toFixed(2)} after a drop landed in it on open water`);
+  });
+}
+
+test('Film, walled: a host pressed by drops landing in it does read as squeezed', async () => {
+  const { thickness } = await import('./engine.js');
+  const m = new Film({ width: 100, height: 70, seed: 3 });
+  m.walls({ on: true, at: 0 });
+  m.drop({ x: 0, y: 0, quantity: 0.6, dispersion: 4, color: '#3b2b24', at: 0 });
+  for (let t = 0; t < 3000 && m.busy; t++) m.step();
+  const host = m.polys[0];
+  for (let k = 0; k < 4; k++) m.drop({ x: (k - 1.5) * 18, y: 0, quantity: 0.12, dispersion: 4, color: '#3fa7d6' });
+  for (let t = 0; t < 3000 && m.busy; t++) m.step();
+  assert.ok(thickness(host) > 1.1, `host tau ${thickness(host).toFixed(2)} in a full walled tank`);
+});
+
+test('Classic, walled: a host with drops nested in it reads as squeezed when the tank is full', async () => {
+  const { thickness } = await import('./engine.js');
+  const m = new Marble({ width: 100, height: 70, seed: 3 });
+  m.walls({ on: true, at: 0 });
+  m.drop({ x: 0, y: 0, quantity: 0.6, color: '#3b2b24', at: 0 });
+  m.runUntilIdle();
+  const host = m.polys[0];
+  for (let k = 0; k < 4; k++) m.drop({ x: (k - 1.5) * 18, y: 0, quantity: 0.12, color: '#3fa7d6' });
+  m.runUntilIdle();
+  assert.ok(thickness(host) > 1.05, `host tau ${thickness(host).toFixed(2)} in a full walled tank`);
+});
+
+test('Cells, walled: a second colour landing keeps every first-colour cell whole', () => {
+  const m = new Cells({ width: 300, height: 200, seed: 11 });
+  m.walls({ on: true, at: 0 });
+  m.broom({ n: 25, x: 0, y: 0, w: 260, h: 170, size: 0.02, spread: 0.9, spreading: 12, color: '#3b2b24' });
+  for (let t = 0; t < 2000 && m.busy; t++) m.step();
+  const brown = m.polys.filter((p) => p.cell);
+  const area = (p) => { let a = 0; for (let i = 0, k = p.n - 1; i < p.n; k = i++) a += p.xy[k * 2] * p.xy[i * 2 + 1] - p.xy[i * 2] * p.xy[k * 2 + 1]; return Math.abs(a / 2); };
+  let last = new Map(brown.map((p) => [p, area(p)]));
+  m.broom({ n: 25, x: 0, y: 0, w: 260, h: 170, size: 0.012, spread: 0.9, spreading: 12, color: '#3fa7d6' });
+  let worst = 0;
+  for (let t = 0; t < 2000 && m.busy; t++) {
+    m.step();
+    for (const p of brown) {
+      if (!m.polys.includes(p)) { worst = 1; continue; }
+      const a = area(p), was = last.get(p);
+      worst = Math.max(worst, 1 - a / was);
+      last.set(p, a);
+    }
+  }
+  assert.ok(worst < 0.3, `a first-colour cell lost ${(worst * 100).toFixed(0)}% of its area in one tick (or vanished)`);
 });

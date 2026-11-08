@@ -492,13 +492,13 @@ export class Film extends Marble {
     const under = op.under;
     // A drop landing in its own colour merges into it rather than squeezing it.
     if (under && under.a0 && under.color !== op.color && this.polys.includes(under)) {
-      under.inkArea = this._inkArea(under);
-      const host = filmPressure(under.a0 / Math.max(1e-9, under.inkArea), under.tauMax ?? FILM_TAU_MAX);
+      const host = filmPressure(thickness(under), under.tauMax ?? FILM_TAU_MAX);
       const target = Math.max(floor, op.area + (op.limit - op.area) * op.head);
       const own = filmPressure(target / Math.max(1e-9, op.area, op.plain * 0.01), Math.max(1.01, op.spreading ?? FILM_TAU_MAX));
       give = own > 0 ? Math.max(0, 1 - host / own) : 0;
     }
     op.feed = (Math.max(toPlain, toLimit) * give) / dt;
+    this._feedHosts(op, op.feed * dt);
     if (give === 0) op.squeezedOut = true;
     this.growth.push(op);
     const small = GROWTH_DONE * op.plain;
