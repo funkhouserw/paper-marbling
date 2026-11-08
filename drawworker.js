@@ -1,8 +1,9 @@
 // Draws a tank away from the page, so that the simulation and the page never wait for it. Outlines
 // arrive whole and are thinned first to what the screen can show. See wakefast.js.
-import { thin, underpaintWidth } from './thin.js';
+import { thinKept, underpaintWidth } from './thin.js';
 import { latticeShifts } from './tile.js';
-import { seamed, mergedPoints, bareSeam } from './seam.js';
+import { seamed, mergedPoints, bareSeam, contactKeep, contactRuns, bandWidth } from './seam.js';
+import { squeezedColour } from './tint.js';
 
 const translucent = (color) => /^#(.{4}|.{8})$|^(rgba|hsla)\(/.test(color) && !/^#.{3}f$|^#.{6}ff$/i.test(color);
 let canvas = null;
@@ -27,7 +28,7 @@ function trace(ctx, points, sx, sy) {
 
 self.onmessage = ({ data: m }) => {
   const start = performance.now();
-  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join, seam = 0, share = 0, touch = 2 * seam } = m;
+  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join, seam = 0, share = 0, touch = 2 * seam, edgeTau, edgeFaces } = m;
   if (!canvas || canvas.width !== width || canvas.height !== height) canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -39,14 +40,18 @@ self.onmessage = ({ data: m }) => {
   let kept = 0;
   // Keep cells separate: each loop drawn half a seam into its ink (a hole's loop outward).
   const half = seam / 2;
-  const whole = polys.map((p) => Float64Array.from(thin(xy, p.off, p.n, tol)));
+  // Thinned outlines, with the edge marks (#33) of the points kept.
+  const kept0 = polys.map((p) => thinKept(xy, p.off, p.n, tol));
+  const whole = polys.map((p, k) => { const ix = kept0[k], out = new Float64Array(ix.length * 2); ix.forEach((i, w) => { out[w * 2] = xy[(p.off + i) * 2]; out[w * 2 + 1] = xy[(p.off + i) * 2 + 1]; }); return out; });
+  const faces = polys.map((p, k) => (edgeFaces ? Uint8Array.from(kept0[k], (i) => edgeFaces[p.off + i]) : null));
+  const taus = polys.map((p, k) => (edgeTau ? Float32Array.from(kept0[k], (i) => edgeTau[p.off + i]) : null));
   // Points inside another drop of the same colour aren't pulled in: those drops have merged.
   const merged = half ? mergedPoints(polys.map((p, k) => ({ xy: whole[k], n: whole[k].length / 2, color: p.base ?? p.color, group: p.group })), touch) : null;
   const thinned = polys.map((p, k) => {
     let points = whole[k];
     // Holes (later loops of a group, gall water) are never seamed, as in Marble.draw.
     const first = !p.group || polys[k - 1]?.group !== p.group;
-    if (half && first) points = seamed(points, points.length / 2, half, true, merged[k], p.group ? half : bareSeam(points, points.length / 2, seam, share) / 2);
+    if (half && first) points = seamed(points, points.length / 2, half, true, contactKeep(merged[k], faces[k], points.length / 2), p.group ? half : bareSeam(points, points.length / 2, seam, share) / 2);
     kept += points.length / 2;
     return points;
   });
@@ -64,12 +69,27 @@ self.onmessage = ({ data: m }) => {
   }
   for (let p = 0; p < polys.length; p++) {
     const { group, color } = polys[p];
+    const first = p;
     ctx.beginPath();
     do {
       for (const [sx, sy] of where(thinned[p])) trace(ctx, thinned[p], sx, sy);
     } while (group && polys[p + 1]?.group === group && ++p);
     ctx.fillStyle = color;
     ctx.fill(group ? 'evenodd' : 'nonzero');
+    // Plateau borders (see Marble.draw).
+    const runs = half ? contactRuns(whole[first], whole[first].length / 2, faces[first], taus[first]) : null;
+    if (runs) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (const { tau, seg } of runs) {
+        ctx.beginPath();
+        for (const [sx, sy] of where(whole[first])) for (let i = 0; i < seg.length; i += 4) { ctx.moveTo(seg[i] + sx, seg[i + 1] + sy); ctx.lineTo(seg[i + 2] + sx, seg[i + 3] + sy); }
+        ctx.lineWidth = 2 * (bandWidth(tau) + half);
+        ctx.strokeStyle = squeezedColour(polys[first].base ?? color, Math.max(tau, polys[first].tau ?? 1));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     if (!half && !group && !polys[p].cell && !translucent(color)) {
       ctx.lineWidth = 1.2 / px;
       ctx.lineJoin = join;

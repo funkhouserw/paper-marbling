@@ -128,7 +128,7 @@ export class WakeFast extends Wake {
       if (poly.edgeTau?.length === n) edgeTau.set(poly.edgeTau, off);
       if (poly.edgeFaces?.length === n) edgeFaces.set(poly.edgeFaces, off);
       // Drawn as the page draws it: darker where squeezed (τ), and a broom cell keeps its seam.
-      const p = { off, n, color: squeezedColour(poly.color, thickness(poly)), base: poly.color, group, cell };
+      const p = { off, n, color: squeezedColour(poly.color, thickness(poly)), base: poly.color, tau: thickness(poly), group, cell };
       off += n;
       return p;
     });

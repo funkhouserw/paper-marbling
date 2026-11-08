@@ -124,3 +124,40 @@ export function bareSeam(xy, n, seam, share) {
   for (let i = 0, k = n - 1; i < n; k = i++) twice += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
   return Math.max(seam, share * Math.sqrt(Math.abs(twice) / 2));
 }
+
+// Plateau borders (#33): where a film presses against another (the simulator marks each point of
+// its outline in poly.edgeFaces: 0 bare bath, 1 a film of its colour, 2 a film of another colour, and
+// its local squeeze in poly.edgeTau), the outline isn't pulled in, so no white shows; instead a band
+// inside the edge darkens with the squeeze, as a soap film's border thickens where films meet. Bare
+// bath keeps its seam. Arrays whose length isn't n are stale (the outline was refined) and ignored.
+export const BAND = 1; // mm of band per unit of τ above 1
+export const BAND_MAX = 3; // mm, the widest band
+export const bandWidth = (tau) => Math.min(BAND_MAX, BAND * (tau - 1));
+const marks = (a, n) => (a && a.length === n ? a : null);
+
+// keep (see seamed) with every contact point held where it is.
+export function contactKeep(keep, faces, n) {
+  const f = marks(faces, n);
+  if (!f) return keep;
+  const out = keep ? Uint8Array.from(keep) : new Uint8Array(n);
+  for (let i = 0; i < n; i++) if (f[i]) out[i] = 1;
+  return out;
+}
+
+// The band's edge segments, grouped by τ rounded to a quarter: [{ tau, seg: [x0, y0, x1, y1, ...] }],
+// or null when there's nothing to draw.
+export function contactRuns(xy, n, faces, tau) {
+  const f = marks(faces, n), t = marks(tau, n);
+  if (!f || !t) return null;
+  const runs = new Map();
+  for (let i = 0; i < n; i++) {
+    const j = i === n - 1 ? 0 : i + 1;
+    if (!f[i] || !f[j]) continue;
+    const q = Math.round(((t[i] + t[j]) / 2) * 4) / 4;
+    if (q < 1.25) continue;
+    let seg = runs.get(q);
+    if (!seg) runs.set(q, (seg = []));
+    seg.push(xy[i * 2], xy[i * 2 + 1], xy[j * 2], xy[j * 2 + 1]);
+  }
+  return runs.size ? [...runs].map(([q, seg]) => ({ tau: q, seg })) : null;
+}

@@ -15,7 +15,8 @@ import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
 import { wrapX, wrapY, doubled, closedDirection, latticeShifts, pushApartTiled, swirlTiled } from './tile.js';
 import { cutDisc } from './erase.js';
-import { SEAM, SEAM_SHARE as BARE_SHARE, seamed, mergedPoints, bareSeam } from './seam.js';
+import { tintOf, squeezedColour } from './tint.js';
+import { SEAM, SEAM_SHARE as BARE_SHARE, seamed, mergedPoints, bareSeam, contactKeep, contactRuns, bandWidth } from './seam.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
 import { ribbon, planStripes } from './paint.js';
@@ -257,25 +258,7 @@ export function filmPressureSlope(tau, tauMax = TAU_MAX) {
 
 // A ring's ink is its outline less the drops inside it: poly.inkArea, where a simulator keeps it.
 export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / ((poly.inkArea ?? outlineArea(poly)) || poly.a0))) : 1);
-const tintCache = new Map();
-// How dark squeezed ink looks: by √τ, so how far ink squeezes (its area, which sets how much room a
-// later colour gets) and how dark it turns are separate. Photo 31's net is squeezed about 3.5 times
-// but reads as dark brown, not black.
-export const tintOf = (tau) => Math.sqrt(Math.max(1, tau));
-
-export function squeezedColour(color, tau) {
-  tau = tintOf(tau);
-  if (tau <= 1.02 || !/^#[0-9a-f]{6}$/i.test(color)) return color;
-  const key = `${color}|${Math.round(tau * 20)}`;
-  let out = tintCache.get(key);
-  if (!out) {
-    const n = parseInt(color.slice(1), 16);
-    const t = Math.round(tau * 20) / 20;
-    out = `#${[n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(255 * (1 - (1 - v / 255) ** (1 / t))).toString(16).padStart(2, "0")).join("")}`;
-    tintCache.set(key, out);
-  }
-  return out;
-}
+export { tintOf, squeezedColour } from './tint.js';
 
 // A repeatable random sequence from a seed, so a heart's variation replays exactly.
 function seeded(seed) {
@@ -3231,7 +3214,7 @@ export class Marble {
         // With Keep cells separate, every loop is drawn half a seam into its ink (a hole's outward).
         // A hole (a later loop of a group: gall water cut through the colour) is water, never seamed:
         // pushed out, neighbouring holes would overlap and the even-odd fill would show ink arcs in them.
-        const xy = half && p === first ? seamed(this.polys[p].xy, n, half, true, merged[p], group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
+        const xy = half && p === first ? seamed(this.polys[p].xy, n, half, true, contactKeep(merged[p], this.polys[p].edgeFaces, n), group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
         // Points closer than a third of a pixel can't change the picture.
         const skip = (0.33 / pxPerMm) ** 2;
         for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
@@ -3250,6 +3233,24 @@ export class Marble {
       } while (group && this.polys[p + 1]?.group === group && ++p);
       ctx.fillStyle = color;
       ctx.fill(group ? 'evenodd' : 'nonzero');
+      // Plateau borders where this film presses on another: a darker band inside its edge.
+      const runs = half ? contactRuns(this.polys[first].xy, this.polys[first].n, this.polys[first].edgeFaces, this.polys[first].edgeTau) : null;
+      // Stroked across the edge, not clipped inside it: films that met stop a hair apart, and the band
+      // covers that gap so pressed films show a dark line, never white.
+      if (runs) {
+        ctx.save();
+        ctx.lineCap = 'round';
+        for (const { tau, seg } of runs) {
+          ctx.beginPath();
+          for (const [sx, sy] of this.tileShifts([this.polys[first]])) {
+            for (let i = 0; i < seg.length; i += 4) { ctx.moveTo(seg[i] + sx, seg[i + 1] + sy); ctx.lineTo(seg[i + 2] + sx, seg[i + 3] + sy); }
+          }
+          ctx.lineWidth = 2 * (bandWidth(tau) + half);
+          ctx.strokeStyle = squeezedColour(this.polys[first].color, Math.max(tau, thickness(this.polys[first])));
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
       // A hairline closes the sliver of water between near-touching drops, so drops of
       // one colour join. See-through ink would show it as a darker edge, so it's skipped, and
       // with Keep cells separate there's a seam to show instead.
@@ -3297,7 +3298,7 @@ export class Marble {
         const { n } = this.polys[p];
         // A hole (a later loop of a group: gall water cut through the colour) is water, never seamed:
         // pushed out, neighbouring holes would overlap and the even-odd fill would show ink arcs in them.
-        const xy = half && p === first ? seamed(this.polys[p].xy, n, half, true, merged[p], group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
+        const xy = half && p === first ? seamed(this.polys[p].xy, n, half, true, contactKeep(merged[p], this.polys[p].edgeFaces, n), group ? half : bareSeam(this.polys[p].xy, n, this.seam, this.seamShare) / 2) : this.polys[p].xy;
         for (const [sx, sy] of this.tileShifts([this.polys[p]])) {
           const pts = [];
           for (let i = 0; i < n; i++) pts.push(`${(xy[i * 2] + sx).toFixed(2)} ${(-(xy[i * 2 + 1] + sy)).toFixed(2)}`);
@@ -3307,6 +3308,19 @@ export class Marble {
       const extra = group ? ' fill-rule="evenodd"'
         : isTranslucent(color) || cell || half ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
       paths.push(`<path fill="${color}"${extra} d="${d}"/>`);
+      // Plateau borders (see Marble.draw).
+      const runs = half ? contactRuns(this.polys[first].xy, this.polys[first].n, this.polys[first].edgeFaces, this.polys[first].edgeTau) : null;
+      if (runs) {
+        let bands = '';
+        for (const { tau, seg } of runs) {
+          let sd = '';
+          for (const [sx, sy] of this.tileShifts([this.polys[first]])) {
+            for (let i = 0; i < seg.length; i += 4) sd += `M${(seg[i] + sx).toFixed(2)} ${(-(seg[i + 1] + sy)).toFixed(2)}L${(seg[i + 2] + sx).toFixed(2)} ${(-(seg[i + 3] + sy)).toFixed(2)}`;
+          }
+          bands += `<path fill="none" stroke="${squeezedColour(this.polys[first].color, Math.max(tau, thickness(this.polys[first])))}" stroke-width="${(2 * (bandWidth(tau) + half)).toFixed(2)}" stroke-linecap="round" d="${sd}"/>`;
+        }
+        paths.push(`<g class="border">${bands}</g>`);
+      }
     }
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-w / 2} ${-h / 2} ${w} ${h}" width="${w}mm" height="${h}mm">`
       + `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="${this.bath}"/>${this._svgBeforeInk()}${paths.join('')}</svg>`;

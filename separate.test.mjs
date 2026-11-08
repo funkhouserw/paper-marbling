@@ -109,11 +109,15 @@ test('simulators without seams yet ignore the setting', () => {
 });
 
 for (const Engine of [Film, Wake]) {
-  test(`${Engine.name}: drops that meet keep a seam, with no underpaint closing it; off, they join`, () => {
+  // #33: where two films press together there's no white seam but a darker band inside each edge
+  // (a Plateau border); bare bath shows only where fronts stopped short.
+  test(`${Engine.name}: drops that meet press into a dark border, not a white seam, with no underpaint; off, they join`, () => {
     const on = twoDrops(true, '#224466', Engine);
     assert.equal(on.seamsDrawn, true);
-    assert.equal(colourAt(on, meeting(on), 0), 'bath');
-    assert.doesNotMatch(on.toSVG(), /fill="none" stroke=/, 'no underpaint');
+    assert.notEqual(colourAt(on, meeting(on), 0), 'bath');
+    const svg = on.toSVG();
+    assert.match(svg, /<g class="border"><path fill="none" stroke=/, 'a border band');
+    assert.doesNotMatch(svg.replace(/<g class="border">.*?<\/g>/g, ''), /fill="none" stroke=/, 'no underpaint');
     const off = twoDrops(false, '#224466', Engine);
     assert.match(off.toSVG(), /fill="none" stroke=/);
   });

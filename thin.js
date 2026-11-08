@@ -46,8 +46,30 @@ export function underpaintWidth(xy, off, n, full) {
 
 // Thins one closed outline to what a given tolerance can show, by Douglas-Peucker: no dropped point
 // is further than tol from the outline that's left. Reads n points of xy from offset off (in points).
+// thin's kept points as indices into the outline (0..n-1), for arrays that run alongside it.
+export function thinKept(xy, off, n, tol) {
+  const pts = thinMask(xy, off, n, tol);
+  const out = [];
+  for (let i = 0; i < n; i++) if (!pts || pts[i]) out.push(i);
+  return out;
+}
+
 export function thin(xy, off, n, tol) {
   if (n < 16) return xy.slice(off * 2, (off + n) * 2);
+  const keep = thinMask(xy, off, n, tol);
+  let count = 0;
+  for (let i = 0; i < n; i++) count += keep[i];
+  const out = new Float64Array(count * 2);
+  for (let i = 0, w = 0; i < n; i++) {
+    if (!keep[i]) continue;
+    out[w++] = xy[(off + i) * 2];
+    out[w++] = xy[(off + i) * 2 + 1];
+  }
+  return out;
+}
+
+function thinMask(xy, off, n, tol) {
+  if (n < 16) return null;
   const keep = new Uint8Array(n);
   const stack = [];
   // A dot that's only a few tolerances across would otherwise come out as a square, since all of it
@@ -86,13 +108,5 @@ export function thin(xy, off, n, tol) {
       stack.push(from, at, at, to);
     }
   }
-  let count = 0;
-  for (let i = 0; i < n; i++) count += keep[i];
-  const out = new Float64Array(count * 2);
-  for (let i = 0, w = 0; i < n; i++) {
-    if (!keep[i]) continue;
-    out[w++] = xy[(off + i) * 2];
-    out[w++] = xy[(off + i) * 2 + 1];
-  }
-  return out;
+  return keep;
 }
