@@ -51,3 +51,29 @@ test('a shell replays exactly', () => {
   again.runUntilIdle();
   assert.deepEqual(again.polys.map((p) => [p.color, Math.round(area(p))]), m.polys.map((p) => [p.color, Math.round(area(p))]));
 });
+
+// #45: drop() scheduled a Shell and returned before the Stormont setup, so turpentine did nothing with oil.
+test('an oiled drop with turpentine breaks into lace through every band, and replays the same', async () => {
+  const { Film } = await import('./film.js');
+  for (const Engine of [Marble, Film]) {
+    const run = () => {
+      const m = new Engine({ width: 400, height: 300, seed: 2 });
+      m.drop({ quantity: 1, oil: 0.15, bands: 3, turpentine: 0.2, color: '#2c4f86' });
+      m.runUntilIdle();
+      return m;
+    };
+    const m = run();
+    const cut = new Set(m.polys.filter((p, k) => k && p.group && m.polys[k - 1].group === p.group).map((p) => p.group));
+    const holes = m.polys.filter((p, k) => k && p.group && m.polys[k - 1].group === p.group).length;
+    assert.ok(holes > 20, `${Engine.name}: ${holes} holes`);
+    const colours = new Set(m.polys.filter((p) => cut.has(p.group)).map((p) => p.color));
+    assert.ok(colours.size >= 2, `${Engine.name}: holes cut ${colours.size} bands`);
+    const again = run();
+    assert.deepEqual(again.polys.map((p) => p.n), m.polys.map((p) => p.n), `${Engine.name}: replays`);
+    // Without turpentine the shell has no holes.
+    const plain = new Engine({ width: 400, height: 300, seed: 2 });
+    plain.drop({ quantity: 1, oil: 0.15, bands: 3, color: '#2c4f86' });
+    plain.runUntilIdle();
+    assert.ok(!plain.polys.some((p) => p.group), `${Engine.name}: plain shell uncut`);
+  }
+});

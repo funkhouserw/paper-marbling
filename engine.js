@@ -954,7 +954,10 @@ export class Marble {
       const tints = shellTints(color, 3 * oil, k);
       const g = gall ?? this._bathGall(color);
       const reach = g === undefined ? spreading : spreading * gallSpread(g, this.gallMost) / gallSpread(1);
-      const op = { kind: 'shell', x, y, quantity, dispersion, spreading, reach, gall: g, shimmer, k, tints, next: 0, current: null };
+      const op = { kind: 'shell', x, y, quantity, dispersion, spreading, reach, gall: g, shimmer, k, tints, next: 0, current: null, bands: [] };
+      // Turpentine in an oiled colour (#45): once every band has landed, the whole shell breaks into
+      // lace, its holes cutting through all the bands at their point.
+      if (turpentine > 0) op.stormont = { turpentine: Math.min(1, turpentine), evaporation, thrown: false };
       return this._schedule('drop', args, op);
     }
     if (at !== undefined) args.at = at;
@@ -1045,8 +1048,9 @@ export class Marble {
   // lace of holes and "flies out". Here the holes are clear drops seeded inside the colour as it
   // spreads: Poisson-disc spaced, log-normal in size, and together 35 to 70% of its area. They open
   // almost at once, as real ones do in milliseconds, and are real holes: the bath shows through.
-  _throwHoles(op) {
-    const s = op.stormont;
+  // s: the turpentine (a Shell passes its own); family: the shapes the holes start cutting from, the
+  // topmost of them at each hole and everything beneath (a Shell's bands; by default the colour itself).
+  _throwHoles(op, s = op.stormont, family = [op.poly]) {
     s.thrown = true;
     const { xy, n } = op.poly;
     let twice = 0, x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -1089,7 +1093,7 @@ export class Marble {
       const hole = this.drop({ x: hx, y: hy, quantity: (a * this.film) / 1000, dispersion: 25, spreading: 1, color: 'clear', at: this.time });
       // Through this colour and everything drawn beneath it, never through ink lying on top.
       const under = this.shapesAt(hx, hy).map((loops) => loops[0]);
-      const k = under.indexOf(op.poly);
+      const k = under.findIndex((p) => family.includes(p));
       hole.cut = k >= 0 ? under.slice(k) : [op.poly];
       return { hole, area: a };
     });
@@ -1124,7 +1128,14 @@ export class Marble {
     const c = op.current;
     const growing = c && (this.pending.includes(c) || this.active.includes(c));
     if (growing && c.elapsed < 0.5 * c.growTime) return false;
-    if (op.next >= op.k) return !growing;
+    if (op.next >= op.k) {
+      if (growing) return false;
+      const halo = op.bands[0];
+      if (op.stormont && !op.stormont.thrown && halo?.poly && this.polys.includes(halo.poly)) {
+        this._throwHoles(halo, op.stormont, op.bands.map((b) => b.poly).filter((p) => p && this.polys.includes(p)));
+      }
+      return true;
+    }
     const j = op.k - 1 - op.next; // outermost band first
     const halo = op.next === 0;
     const log = this.log;
@@ -1141,6 +1152,7 @@ export class Marble {
       gall: op.gall,
       color: op.tints[j], shimmer: op.shimmer, at: this.time,
     });
+    op.bands.push(op.current);
     this.log = log;
     this._live = live;
     op.next++;
