@@ -98,10 +98,20 @@ export class Film extends Marble {
   }
 
   _updateEdges() {
-    const { width: W, height: H, polys } = this;
-    const nx = Math.ceil(W / EDGE_CELL), ny = Math.ceil(H / EDGE_CELL);
+    const { polys } = this;
+    // Over everything drawn (ink carries on past the tank's edges without walls), plus reach.
+    let x0 = -this.width / 2, x1 = this.width / 2, y0 = -this.height / 2, y1 = this.height / 2;
+    for (const { xy, n } of polys) {
+      for (let i = 0; i < n; i++) {
+        const x = xy[i * 2], y = xy[i * 2 + 1];
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+    const pad = this.touchReach + EDGE_CELL;
+    x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
+    const nx = Math.ceil((x1 - x0) / EDGE_CELL), ny = Math.ceil((y1 - y0) / EDGE_CELL);
     const label = this._edgeLabels?.length === nx * ny ? this._edgeLabels.fill(0) : (this._edgeLabels = new Int32Array(nx * ny));
-    const toCol = (x) => (x + W / 2) / EDGE_CELL - 0.5, toRow = (y) => (y + H / 2) / EDGE_CELL - 0.5;
+    const toCol = (x) => (x - x0) / EDGE_CELL - 0.5, toRow = (y) => (y - y0) / EDGE_CELL - 0.5;
     const rows = Array.from({ length: ny }, () => []);
     // Which shape is on top in each cell, painted in drawing order; a hole (a later loop of a group)
     // paints the bath back.
@@ -124,6 +134,7 @@ export class Film extends Marble {
         c.length = 0;
       }
     }
+    const reach = this.touchReach;
     for (let p = 0; p < polys.length; p++) {
       const poly = polys[p];
       const { xy, n } = poly;
@@ -138,10 +149,16 @@ export class Film extends Marble {
         const a = i === 0 ? n - 1 : i - 1, b = i === n - 1 ? 0 : i + 1;
         const tx = xy[b * 2] - xy[a * 2], ty = xy[b * 2 + 1] - xy[a * 2 + 1];
         const len = Math.hypot(tx, ty) || 1;
-        const sx = xy[i * 2] + (out * ty / len) * EDGE_CELL * 1.5, sy = xy[i * 2 + 1] - (out * tx / len) * EDGE_CELL * 1.5;
-        const col = Math.round(toCol(sx)), row = Math.round(toRow(sy));
-        const other = col >= 0 && row >= 0 && col < nx && row < ny ? label[row * nx + col] - 1 : -1;
-        const q = other >= 0 && other !== p ? polys[other] : null;
+        // Out along the normal, a cell at a time, as far as touchReach: the first other film met is
+        // what this point touches (fronts that met can be a millimetre or so apart, and curve away
+        // from each other towards the ends of the contact).
+        let q = null;
+        for (let dist = EDGE_CELL; dist <= reach + 1e-9 && !q; dist += EDGE_CELL / 2) {
+          const sx = xy[i * 2] + (out * ty / len) * dist, sy = xy[i * 2 + 1] - (out * tx / len) * dist;
+          const col = Math.round(toCol(sx)), row = Math.round(toRow(sy));
+          const other = col >= 0 && row >= 0 && col < nx && row < ny ? label[row * nx + col] - 1 : -1;
+          if (other >= 0 && other !== p) q = polys[other];
+        }
         faces[i] = !q ? 0 : q.color === poly.color ? 1 : 2;
         // Where fronts press on each other the ink there is squeezed at least a little, even when the
         // films as a whole aren't: the darkened line where two films meet.
