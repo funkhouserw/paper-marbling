@@ -36,3 +36,15 @@ test('a drop inside another colour faces that colour all round', () => {
   const inner = m.polys.find((p) => p.color === '#2244aa');
   assert.ok([...inner.edgeFaces].every((f) => f === 2));
 });
+
+test('a line of touching drops: most of each facing edge counts as contact, not just its middle', () => {
+  const m = new Film({ width: 200, height: 140, seed: 1 });
+  m.drop({ x: -12, y: 0, quantity: 1, color: '#224466', at: 0 });
+  m.drop({ x: 12, y: 0, quantity: 1, color: '#224466', at: 0 });
+  settle(m);
+  const [a] = m.polys;
+  // Points of a's outline on the side facing b (x > 0 half of its right side).
+  let facing = 0, contact = 0;
+  for (let i = 0; i < a.n; i++) if (a.xy[i * 2] > -2) { facing++; if (a.edgeFaces[i] === 1) contact++; }
+  assert.ok(contact >= 0.7 * facing, `${contact} of ${facing} facing points marked as contact`);
+});
