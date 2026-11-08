@@ -10,16 +10,12 @@ export class Cells extends Marble {
   get cellsLayout() { return true; }
 
   // The pressure law (cells take the area at which their pressures balance, filmPressure; 5ec856e)
-  // is off for now: on nav's walled stone sheet, from the second colour on, re-laid cells jumped and
-  // shattered (a first-colour cell lost 71% of its area in one tick, law.test.mjs). The area-based
-  // layout, as on 2026-11-07, is back by default; the law's code stays, to work on behind this.
-  get cellsPressure() { return false; }
-
-  // Sites drifting down pressure differences (808cd94): off until it's fixed. On nav's walled stone
-  // sheet, from the second colour on, cells shattered and bare holes opened (no time step and no limit
-  // on how far a cell drifts in a throw, so in an overfull tank every reached cell moved many times its
-  // size). The code stays; turn it on here to work on it.
-  get cellDrift() { return false; }
+  // and sites drifting down pressure differences (808cd94), on by default again since e4053b3: re-laid
+  // cells keep their site and weight, the first tick of a throw converges, and the drift is per
+  // second, so a second colour no longer shatters the first (law.test.mjs, six seeds). Still open:
+  // a walled throw asking for more than the tank holds at the cap (proposal: cap its spread at the room).
+  get cellsPressure() { return true; }
+  get cellDrift() { return true; }
 
   // A drop's cell spreads to at most this many times its plain area, times what its gall adds (so
   // with Rising gall each later colour reaches further). A broom throw asks for 25, which on open
