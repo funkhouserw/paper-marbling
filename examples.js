@@ -1,6 +1,7 @@
 // Example scripts for the Examples menu. Some only look right on one simulator, so choosing them chooses it too.
 export const EXAMPLES = {
   'Lapis bullseyes': `// Drops stacked on one spot in order, each pushing the last outward.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 const inks = palette('Lapis & Gilt').inks;
 const spots = [[16, 25.7], [44, 72.9], [73, 24.3], [93, 74.3], [7, 80]];
@@ -19,6 +20,7 @@ settle();
 fullRake({ angle: 180, teeth: 6, offset: 5.8, speed: 22, D: 0.8 });
 `,
   'Blue & gold feather': `// Rows of alternating bullseyes, combed one way and back, then feathered.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 const inks = palette('Lapis & Gilt').inks;
 allAtOnce();
@@ -53,6 +55,7 @@ settle();
 fullRake({ angle: 0, teeth: 30, speed: 32, D: 0.4 });
 `,
   'Emerald peacock': `// Emerald and gold, combed both ways with a fine weaving rake.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 const inks = palette('Emerald & Gold').inks;
 for (let i = 0; i < 40; i++) {
@@ -67,6 +70,7 @@ settle();
 fullRake({ angle: 0, teeth: 16, speed: 26, D: 0.6, waveAmp: 2.2, waveLength: 9 });
 `,
   'Gilded stone': `// A thick scatter of dark inks, then fine gold spatter over the top.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 const dark = palette('Dark Academia').inks;
 drops({ n: 90, quantity: 1.4, spread: 0.6, stagger: 2.5, dispersion: 1.4, spreading: 2, colors: dark.slice(0, 5) }); // crowded, so 2 is as far as they get
@@ -103,12 +107,14 @@ wait(1);
 fullRake({ angle: 90, teeth: 9, speed: 9, D: 0.3 });
 `,
   'Dot garden': `// Big dots first, small ones tucked into the gaps.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 const p = palette('Old Dutch');
 fillDots({ count: 220, min: 0.8, max: 9, colors: p.inks.slice(0, 4) });
 settle();
 `,
   'Bead field': `// Dots of stacked rings, each layer settling before the next.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 fillDots({ count: 60, min: 1.5, max: 10, gap: 0.8, rings: 3, colors: palette('Copper & Verdigris').inks });
 settle();
@@ -218,6 +224,7 @@ fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
 fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
 air({ scale: 25, speed: 6 });`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 const p = palette('Lapis & Gilt');
 bath({ color: p.bath });
@@ -228,6 +235,7 @@ spray({ x: 70, y: 65, radius: 40, n: 300, colors: [p.inks[3], p.inks[4]] });
 settle();
 `,
   'Wave comb': `// A traced surf wave as the rake's path. Try it on any simulator.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 const p = palette('Old Dutch');
 for (let i = 0; i < 8; i++) {
@@ -237,6 +245,7 @@ settle();
 fullRake({ angle: 0, teeth: 5, speed: 25, D: 1, waveAmp: 5, waveLength: 18, waveShape: 'wave' });
 `,
   'Verdigris waves': `// Copper and verdigris bands, shaken into waves.
+separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });
 const inks = palette('Copper & Verdigris').inks;
 for (let r = 0; r < 7; r++) {
