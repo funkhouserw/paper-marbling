@@ -64,7 +64,7 @@ export const PATTERNS = [
     id: 'italian', family: 'base', names: { en: 'Italian, Vein, hair-vein' }, status: 'partly',
     summary: 'A last throw of strong gall-water (or white) drives the earlier colours into fine veins between pale cells; a stronger expander gives the finer hair-vein.',
     sources: ['UW', 'WOOL'], image: { title: 'Woolnough 1881, Examples 1–2', url: 'https://archive.org/details/wholeartofmarbli00wool', licence: 'Public Domain Mark' },
-    example: 'Italian vein', alsoExample: ['Hair-vein', 'Stone veins (Thin film)', 'Large-cell vein (Cells)'],
+    example: 'Italian vein', alsoExample: ['Hair-vein', 'Stone veins (Thin film)', 'Stone veins, fuller (Thin film)', 'Large-cell vein (Cells)'],
   },
   // ---- Combed and manipulated patterns ----
   {

@@ -214,6 +214,7 @@ export const TOOLS = {
       D: ['Tooth thickness', 1, 0.3, 3, 0.1, FAR_DRAG],
       width: ['Tine width', 0, 0, 8, 0.1],
       reach: ['Tine reach', 0.5, 0.1, 2, 0.05, undefined, { advanced: true }],
+      ease: ['Ease in and out (s)', 0, 0, 3, 0.1, undefined, { advanced: true }],
       waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
     },
@@ -255,6 +256,7 @@ export const TOOLS = {
       D: ['Tooth thickness', 0.8, 0.3, 3, 0.1, FAR_DRAG],
       width: ['Tine width', 0, 0, 8, 0.1],
       reach: ['Tine reach', 0.5, 0.1, 2, 0.05, undefined, { advanced: true }],
+      ease: ['Ease in and out (s)', 0, 0, 3, 0.1, undefined, { advanced: true }],
       waveAmp: ['Weave height', 0, 0, 150, 1],
       waveLength: ['Weave length', 10, 2, 40, 0.5],
       // null is Auto: none on a repeating tank, where anything past an edge is raked again at the
@@ -278,6 +280,7 @@ export const TOOLS = {
       D: ['Tooth thickness', 1, 0.3, 3, 0.1, FAR_DRAG],
       width: ['Tine width', 0, 0, 8, 0.1],
       reach: ['Tine reach', 0.5, 0.1, 2, 0.05, undefined, { advanced: true }],
+      ease: ['Ease in and out (s)', 0, 0, 3, 0.1, undefined, { advanced: true }],
     },
   },
   stylus: {

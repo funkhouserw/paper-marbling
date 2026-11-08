@@ -374,6 +374,22 @@ for (const [x, y] of spots.slice(0, 2)) flick(y, x, '#e6d23a', 0.014, 10);
 for (const [x, y] of spots.slice(0, 2)) flick((x + 50) / 2, 100 - y, '#cdb8e6', 0.0098, 10);
 flick(50, 50, '#e2574c', 0.0034, 20);
 `,
+  'Stone veins, fuller (Thin film)': `// Stone veins, fuller: the same recipe as Stone veins (Thin film) with 2.2 times the ink in every
+// flick, so the colours cover more of the bath and the veins are fewer and finer. Thin film's films leave the most
+// bare size between them, so every colour sits in a lace of pale veins. Rising gall gives each colour
+// a little more than the last; Keep cells separate keeps same-colour cells apart.
+viscosity({ value: 1000 });
+bath({ color: '#e9e6df' });
+separate({ on: true });
+gall({ on: true, start: 1, step: 0.5 });
+const flick = (x, y, color, size, n = 60) => { broom({ n, x, y, w: 50, h: 50, size, spread: 0.9, spreading: 25, color }); settle(); };
+const spots = [[25, 33], [75, 67], [72, 26], [27, 74]];
+for (const [x, y] of spots) flick(x, y, '#3b2b24', 0.0616);
+for (const [x, y] of spots.slice(0, 3)) flick(100 - x, y, '#3fa7d6', 0.0275);
+for (const [x, y] of spots.slice(0, 2)) flick(y, x, '#e6d23a', 0.0308, 10);
+for (const [x, y] of spots.slice(0, 2)) flick((x + 50) / 2, 100 - y, '#cdb8e6', 0.0216, 10);
+flick(50, 50, '#e2574c', 0.0075, 20);
+`,
   'Stone (Cells)': `// Stone in Cells: the four-colour broom recipe in the simulator that packs drops into cells by
 // geometry. Each colour nests in the cell it lands in and squeezes it (up to twice as thick), and the
 // first throw leaves bare channels between its cells. Rising gall gives each colour a little more
@@ -539,5 +555,5 @@ for (const x0 of [8, 38, 68]) {
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic',
 };
