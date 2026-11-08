@@ -2537,6 +2537,83 @@ export class Marble {
   // Modified from /stylus-deformation in pst-marble.pro, copyright Aubrey Jaffer, LPPL 1.3c: translated
   // to JavaScript, applied tick by tick, with a limited reach, and measured across a repeating tank's
   // seams. NOTICE lists the conditions on reusing this function.
+  // The tank's points bucketed on a grid of `cell` mm, so a tine visits only those near it (the
+  // research assistant's F3: every tine substep used to visit every point in the tank). Built once
+  // per rake tick; `drift` bounds how far any point has moved since, and queries widen by it.
+  _nearIndex(cell) {
+    const polys = this.polys.filter((p) => !p.frozen && p.n);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, total = 0;
+    for (const { xy, n } of polys) {
+      total += n;
+      for (let i = 0; i < n * 2; i += 2) {
+        const x = xy[i], y = xy[i + 1];
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+    const cols = Math.max(1, Math.min(2048, Math.ceil((x1 - x0) / cell) + 1));
+    const rows = Math.max(1, Math.min(2048, Math.ceil((y1 - y0) / cell) + 1));
+    const at = (x, y) => Math.min(rows - 1, Math.max(0, Math.floor((y - y0) / cell))) * cols + Math.min(cols - 1, Math.max(0, Math.floor((x - x0) / cell)));
+    const start = new Int32Array(cols * rows + 1);
+    for (const { xy, n } of polys) for (let i = 0; i < n * 2; i += 2) start[at(xy[i], xy[i + 1]) + 1]++;
+    for (let b = 0; b < cols * rows; b++) start[b + 1] += start[b];
+    const fill = start.slice(0, cols * rows);
+    const which = new Int32Array(total), vertex = new Int32Array(total);
+    polys.forEach(({ xy, n }, p) => {
+      for (let i = 0; i < n; i++) { const b = at(xy[i * 2], xy[i * 2 + 1]); which[fill[b]] = p; vertex[fill[b]++] = i; }
+    });
+    return { polys, cell, x0, y0, cols, rows, start, which, vertex, drift: 0, sizes: polys.map((p) => p.n), xys: polys.map((p) => p.xy), count: this.polys.length };
+  }
+
+  // _map over only the points within (x0, y0)–(x1, y1), for a map that leaves every point outside
+  // it where it is: the same result as _map, since the wall rules only move points that moved.
+  _mapNear(f, x0, y0, x1, y1, cell) {
+    let idx = this._near;
+    const stale = !idx || idx.count !== this.polys.length || idx.drift > idx.cell
+      || idx.polys.some((p, k) => p.n !== idx.sizes[k] || p.xy !== idx.xys[k] || p.frozen || !this.polys.includes(p));
+    if (stale) idx = this._near = this._nearIndex(cell);
+    const out = [0, 0];
+    const walls = this.wallsOn;
+    const hw = this.width / 2, hh = this.height / 2;
+    const band = Math.min(this.width, this.height) * 0.1;
+    const apply = (x, y) => {
+      f(x, y, out);
+      if (walls) {
+        const dx = out[0] - x, dy = out[1] - y;
+        const roomX = this.evenWalls ? hw - Math.abs(x) : dx > 0 ? hw - x : x + hw;
+        const roomY = this.evenWalls ? hh - Math.abs(y) : dy > 0 ? hh - y : y + hh;
+        if (roomX < band) out[0] = x + dx * Math.max(roomX, 0) / band;
+        if (roomY < band) out[1] = y + dy * Math.max(roomY, 0) / band;
+        out[0] = Math.max(-hw, Math.min(hw, out[0]));
+        out[1] = Math.max(-hh, Math.min(hh, out[1]));
+      }
+    };
+    const grow = idx.drift;
+    const c0 = Math.max(0, Math.floor((x0 - grow - idx.x0) / idx.cell)), c1 = Math.min(idx.cols - 1, Math.floor((x1 + grow - idx.x0) / idx.cell));
+    const r0 = Math.max(0, Math.floor((y0 - grow - idx.y0) / idx.cell)), r1 = Math.min(idx.rows - 1, Math.floor((y1 + grow - idx.y0) / idx.cell));
+    let moved = 0;
+    for (let r = r0; r <= r1; r++) {
+      for (let b = r * idx.cols + c0, end = r * idx.cols + c1; b <= end; b++) {
+        for (let e = idx.start[b]; e < idx.start[b + 1]; e++) {
+          const xy = idx.xys[idx.which[e]];
+          const i = idx.vertex[e] * 2;
+          const x = xy[i], y = xy[i + 1];
+          apply(x, y);
+          const d = Math.max(Math.abs(out[0] - x), Math.abs(out[1] - y));
+          if (d > moved) moved = d;
+          xy[i] = out[0];
+          xy[i + 1] = out[1];
+        }
+      }
+    }
+    idx.drift += moved;
+    for (const op of this.sources) {
+      if (op.poly?.frozen) continue;
+      apply(op.x, op.y);
+      op.x = out[0];
+      op.y = out[1];
+    }
+  }
+
   _tine(bx0, by0, ex0, ey0, L) {
     const len = Math.hypot(ex0 - bx0, ey0 - by0);
     if (len < 1e-9) return;
@@ -2544,16 +2621,23 @@ export class Marble {
     const tU = len / rpts;
     const nx = (ex0 - bx0) / len;
     const ny = (ey0 - by0) / len;
-    const reach2 = (6 * L + tU) ** 2;
+    const reach = 6 * L + tU;
+    const reach2 = reach ** 2;
     const tiled = this.tileOn;
     const off = this.tileOffset;
     const { width: W, height: H } = this;
+    // Off a repeating tank only points within reach of a step can move, so a step visits only those
+    // (on a tile the reach is to a point's nearest image, so every point is visited as before).
+    // Hard edges can move points out of bounds back in, and simulators with their own _map (Wake feeds
+    // its flow from it; Wake (fast) skips far boxes) keep theirs: both visit every point as before.
+    const map = tiled || this.wallsOn || this._map !== Marble.prototype._map ? (fn) => this._map(fn)
+      : (fn, x0, y0, x1, y1) => this._mapNear(fn, x0 - reach, y0 - reach, x1 + reach, y1 + reach, Math.max(4, 2 * reach));
     for (let k = 0; k < rpts; k++) {
       const bx = bx0 + nx * tU * k;
       const by = by0 + ny * tU * k;
       const ex = bx + nx * tU;
       const ey = by + ny * tU;
-      this._map((px, py, out) => {
+      map((px, py, out) => {
         out[0] = px;
         out[1] = py;
         // On a repeating tank the tine pulls from its nearest image.
@@ -2574,7 +2658,7 @@ export class Marble {
         const iny = (txB * ty * tU) / denR + (txE * ty * tU) / denS;
         out[0] = px + inx * nx + iny * ny;
         out[1] = py + inx * ny - iny * nx;
-      });
+      }, Math.min(bx, ex), Math.min(by, ey), Math.max(bx, ex), Math.max(by, ey));
     }
   }
 
@@ -2651,6 +2735,7 @@ export class Marble {
   }
 
   _advanceRake(op, dt) {
+    this._near = null; // the tines' point index (_mapNear) lives for this tick only
     let next;
     if (op.ease > 0) {
       op.elapsed = (op.elapsed ?? 0) + dt;
@@ -2667,9 +2752,10 @@ export class Marble {
         // A tine wider than its drag has only its body: the drag's core would catch ink at the
         // centre line and carry it the whole way.
         if (op.width / 2 <= op.L) this._tine(bx, by, ex, ey, op.L);
-        if (op.width) this._tineBody(bx, by, ex, ey, op.width / 2);
+        if (op.width) { this._tineBody(bx, by, ex, ey, op.width / 2); this._near = null; }
       }
     }
+    this._near = null;
     op.dist = next;
     return next >= op.total;
   }
