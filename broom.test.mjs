@@ -136,3 +136,25 @@ test('a later flick leaves settled cells it cannot reach where they are (Hard ed
     assert.ok(Math.hypot(x - x0, y - y0) < 0.5, `and has not moved (${Math.hypot(x - x0, y - y0).toFixed(1)} mm)`);
   }
 });
+
+test('broom and spray pass turpentine and oil on to their drops (placement only)', () => {
+  const m = new Marble({ width: 400, height: 300, seed: 3 });
+  m.spray({ n: 6, radius: 50, turpentine: 0.6, evaporation: 2, colors: ['#335577'], at: 0 });
+  assert.ok(m.pending.filter((o) => o.kind === 'drop').every((o) => o.stormont?.turpentine === 0.6), 'every sprayed drop is turpentined');
+  const b = new Marble({ width: 400, height: 300, seed: 3 });
+  b.broom({ n: 5, size: 0.05, oil: 0.5, bands: 4, color: '#335577', at: 0 });
+  assert.equal(b.log[0].args.oil, 0.5, 'logged with the throw');
+  b.step(); // the throw lands and places its drops
+  const shells = [...b.pending, ...b.active].filter((o) => o.kind === 'shell');
+  assert.equal(shells.length, 5, 'each drop of the flick is a Shell');
+  const plain = new Marble({ width: 400, height: 300, seed: 3 });
+  plain.broom({ n: 5, size: 0.05, color: '#335577', at: 0 });
+  assert.equal('oil' in plain.log[0].args, false, 'not logged when unused');
+});
+
+test('in Cells a turpentined flick goes down as drops, which land as Stormont does', () => {
+  const m = new CellsTank({ width: 400, height: 300, seed: 3 });
+  m.broom({ n: 4, size: 0.05, turpentine: 0.5, color: '#335577', at: 0 });
+  m.step();
+  assert.ok([...m.pending, ...m.active].filter((o) => o.kind === 'drop' && o.stormont).length === 4);
+});

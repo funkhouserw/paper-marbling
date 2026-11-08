@@ -883,7 +883,8 @@ export class Marble {
   // min and max are the radii the dots end up at.
   // skew shapes the mix of sizes between min and max: 3 (the default) makes most dots tiny, 1 spreads
   // them evenly on a log scale, below 1 favours big ones.
-  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, skew = 3, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, gall, at } = {}) {
+  // turpentine, evaporation, oil and bands are passed on to every drop, as drop() takes them.
+  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, skew = 3, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, gall, turpentine = 0, evaporation = 0, oil = 0, bands = 5, at } = {}) {
     const start = at ?? this._now;
     const growth = this.spreadFactor;
     for (let i = 0; i < n; i++) {
@@ -896,6 +897,10 @@ export class Marble {
         quantity: ((Math.PI * r * r) / growth) * this.film / 1000,
         dispersion,
         gall,
+        turpentine,
+        evaporation,
+        oil,
+        bands,
         color: colors[Math.floor(this.random() * colors.length)],
         at: this.orderGap !== null && at === undefined ? undefined : start + this.random() * stagger,
       });
@@ -1184,10 +1189,14 @@ export class Marble {
   // spread is σ), landing over w x h within a third of a second. It's only a way of putting ink down:
   // the drops are ordinary drops, and what they do (spread, push, keep separate) is the simulator's.
   // seam is kept for older logs and the Cells simulator.
-  broom({ n = 60, x = 0, y = 0, w = this.width, h = this.height, size = 0.15, spread = 1, spreading = 25, dispersion = 1.5, gall, seam = 1.5, color = '#1f4e79', shimmer = 0, at } = {}) {
+  // turpentine, evaporation, oil and bands are passed on to every drop, as drop() takes them (a whole
+  // flick of turpentined colour, as in neftli battal; an oiled flick of Shells).
+  broom({ n = 60, x = 0, y = 0, w = this.width, h = this.height, size = 0.15, spread = 1, spreading = 25, dispersion = 1.5, gall, seam = 1.5, color = '#1f4e79', shimmer = 0, turpentine = 0, evaporation = 0, oil = 0, bands = 5, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color);
     const args = { n, x, y, w, h, size, spread, spreading, dispersion, seam, color, shimmer };
     if (gall !== undefined && gall !== null) args.gall = gall;
+    if (turpentine > 0) Object.assign(args, { turpentine, evaporation });
+    if (oil) Object.assign(args, { oil, bands });
     if (at !== undefined) args.at = at;
     // Where the drops land and how much ink each carries are drawn now, so a replay matches.
     const gauss = () => Math.sqrt(-2 * Math.log(1 - this.random())) * Math.cos(2 * Math.PI * this.random());
@@ -1196,7 +1205,7 @@ export class Marble {
       y: y + (this.random() - 0.5) * h,
       quantity: size * Math.exp(spread * Math.max(-2.5, Math.min(2.5, gauss()))), // no freak giants
     }));
-    return this._schedule('broom', args, { kind: 'broom', drops, spreading, dispersion, gall, seam, color, shimmer }, 0.5);
+    return this._schedule('broom', args, { kind: 'broom', drops, spreading, dispersion, gall, seam, color, shimmer, turpentine, evaporation, oil, bands }, 0.5);
   }
 
   // The throw's drops land as ordinary drops, each within BROOM_LANDING seconds of the throw. Their
@@ -1209,7 +1218,11 @@ export class Marble {
     this._live = true;
     try {
       op.drops.forEach((d, i) => {
-        this.drop({ x: d.x, y: d.y, quantity: d.quantity, spreading: op.spreading, dispersion: op.dispersion, gall: op.gall, color: op.color, shimmer: op.shimmer, at: this.time + BROOM_LANDING * ((i * 0.6180339887) % 1) });
+        this.drop({
+          x: d.x, y: d.y, quantity: d.quantity, spreading: op.spreading, dispersion: op.dispersion, gall: op.gall, color: op.color, shimmer: op.shimmer,
+          turpentine: op.turpentine ?? 0, evaporation: op.evaporation ?? 0, oil: op.oil ?? 0, bands: op.bands ?? 5,
+          at: this.time + BROOM_LANDING * ((i * 0.6180339887) % 1),
+        });
       });
     } finally {
       this.log = log;
@@ -3156,7 +3169,8 @@ export class Marble {
       if (op.kind === 'stormont') return !this._advanceStormont(op);
       if (op.kind === 'heartDrop') return !this._advanceHeartDrop(op, dt);
       if (op.kind === 'shell') return !this._advanceShell(op);
-      if (op.kind === 'broom') return !(this.cellsLayout ? this._landBroom(op) : this._placeBroom(op));
+      // (In Cells a turpentined or oiled flick goes down as drops, which land as Stormont or Shell do.)
+      if (op.kind === 'broom') return !(this.cellsLayout && !op.turpentine && !op.oil ? this._landBroom(op) : this._placeBroom(op));
       if (op.kind === 'hearts') return !this._advanceHeartBend(op, dt);
       if (op.kind === 'rake') return !this._advanceRake(op, dt);
       return !this._advanceTimed(op, dt);
@@ -3211,6 +3225,14 @@ export class Marble {
       else buckets.set(k, [i]);
     }
     const near2 = THINNEST * THINNEST;
+    const inkAt = (px, py) => {
+      let w = false;
+      for (let a = 0, b = n - 1; a < n; b = a++) {
+        const ay = xy[b * 2 + 1], cy = xy[a * 2 + 1];
+        if ((ay > py) !== (cy > py) && px < xy[b * 2] + ((py - ay) * (xy[a * 2] - xy[b * 2])) / (cy - ay)) w = !w;
+      }
+      return w;
+    };
     const closest = (i) => {
       const x = xy[i * 2];
       const y = xy[i * 2 + 1];
@@ -3229,7 +3251,10 @@ export class Marble {
             const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
             const ex = ax + dx * t - x;
             const ey = ay + dy * t - y;
-            if (ex * ex + ey * ey < near2 && j > best) best = j;
+            // Only across a thin neck of ink: halfway between the two sides must be ink. Across a thin
+            // inlet of water (the outline folding round bare bath) it isn't, and that's left open.
+            // (A ribbon of no width has its two sides on top of each other: that's ink too.)
+            if (ex * ex + ey * ey < near2 && j > best && (ex * ex + ey * ey < 1e-6 || inkAt(x + ex / 2, y + ey / 2))) best = j;
           }
         }
       }
@@ -3259,7 +3284,9 @@ export class Marble {
       const j = closest(i);
       if (j < 0) { i++; continue; }
       const [area, length] = areaLength(i, j);
-      if ((area / length) * tau >= THINNEST) {
+      // The piece from i to j runs down one side of the ribbon and back up the other, so its width is
+      // twice its area over its length (area/length alone kept only ribbons wider than 1/τ mm).
+      if (((2 * area) / length) * tau >= THINNEST) {
         // A big piece behind a thin neck stands alone, unless it would take almost the whole outline.
         if (j - i < n - MIN_PIECE && j - i >= MIN_PIECE) extra.push(piece(i + 1, j));
         else { i++; continue; }
