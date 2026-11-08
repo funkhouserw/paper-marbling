@@ -236,17 +236,22 @@ const outlineArea = ({ xy, n }) => {
 // zero at rest and below (an under-filled film doesn't pull), linear for a small squeeze, and without
 // bound as τ nears τ_max, so no film is ever squeezed past its cap.
 //   Π(τ) = τ/(1 − τ/τ_max) − 1/(1 − 1/τ_max)  for τ ≥ 1
+// Past 98% of the cap it carries straight on at its slope there: still very steep, but finite, so a
+// solver that starts out squeezed past the cap (overlapping new drops) can find its way back.
+const PRESSURE_KNEE = 0.98;
 export function filmPressure(tau, tauMax = TAU_MAX) {
   if (!(tau > 1)) return 0;
   const m = Math.max(1.01, tauMax);
-  const t = Math.min(tau, m * (1 - 1e-6));
-  return t / (1 - t / m) - 1 / (1 - 1 / m);
+  const V = (t) => t / (1 - t / m);
+  const knee = m * PRESSURE_KNEE;
+  if (tau <= knee) return V(tau) - V(1);
+  return V(knee) - V(1) + (tau - knee) / (1 - knee / m) ** 2;
 }
 
 // dΠ/dτ, for Newton's method.
 export function filmPressureSlope(tau, tauMax = TAU_MAX) {
   const m = Math.max(1.01, tauMax);
-  const t = Math.min(Math.max(tau, 1), m * (1 - 1e-6));
+  const t = Math.min(Math.max(tau, 1), m * PRESSURE_KNEE);
   return 1 / (1 - t / m) ** 2;
 }
 
@@ -288,6 +293,8 @@ function seeded(seed) {
 const THINNEST = 0.5; // mm
 const REACH_SHARE = 0.5; // a comb tine's pull reaches at most this share of the gap to its neighbour
 const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
+// How stiff Cells' films are under the pressure law: κ as a share of a typical cell's R0².
+const CELL_STIFFNESS = 1;
 const CUT_EVERY = 15; // ticks
 const MIN_CUT = 8; // points
 const MIN_PIECE = 24; // points
@@ -1314,7 +1321,61 @@ export class Marble {
     const hasFresh = (c) => c.fresh || c.kids.some(hasFresh);
     // Within a hundredth of a millimetre, point for point.
     const sameOutline = (a, b) => a.length === b.length && a.every((v, k) => Math.abs(v - b[k]) < 0.01);
+    // The pressure law (Cells): cells take the area at which their pressures balance, instead of
+    // asked-for areas shared out by rules. Each cell's ink at rest (its own and its children's) is
+    // its rest disc; packed cells press flat at equal pressure Π(τ); a squeezed cell never passes its
+    // cap; inside a parent, children press against the parent's own ink at the parent's pressure, and
+    // what they leave is the parent's rim, as squeezed as the law says. research/2026-11-07-broom-
+    // pressure-math.md sec. 3.1.
+    const layoutLaw = (cells, domain, background = 0, nested = false, obstacles = []) => {
+      if (!cells.length || domain.length < 6) { for (const c of cells) c.gone = true; return; }
+      const gapOf = (a) => (apart ? Math.max(op.seam, (nested ? 0 : SEAM_SHARE) * Math.sqrt(a)) : 0);
+      // Each cell is drawn eroded by half its channel, so its rest area carries that much more.
+      const A0 = cells.map((c) => { const a = Math.max(total(c), 1e-6); return a + 1.1 * 2 * Math.sqrt(Math.PI * a) * (gapOf(a) / 2); });
+      if (nested) {
+        const now = centreOf(domain);
+        for (const c of cells) {
+          const k = c.rel ? Math.sqrt(now.area / c.rel.area) : 0;
+          c.site = keepInside(domain, c.rel ? [now.x + c.rel.dx * k, now.y + c.rel.dy * k] : c.site);
+        }
+      }
+      const kappa = CELL_STIFFNESS * A0.reduce((a, b) => a + b, 0) / A0.length / Math.PI;
+      const solved = partialTransport(cells.map((c) => c.site), A0, domain, {
+        weights: cells.map((c) => c.psi), iterations: done ? 40 : 4, obstacles,
+        law: { A0, tauMax: cells.map((c) => c.tauMax), kappa, background, Pi: filmPressure, dPi: filmPressureSlope },
+      });
+      cells.forEach((c, k) => { c.psi = solved.weights[k]; });
+      cells.forEach((c, k) => {
+        const outer = solved.cells[k];
+        const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;
+        const pressure = filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax);
+        const gap = !apart ? 0 : nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
+        const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
+        const core = outer.length >= 6 ? erode(outer, gap / 2 + round) : [];
+        const pts = core.length >= 6 ? grow(core, round) : [];
+        if (pts.length < 6) { c.gone = true; return; }
+        const m = pts.length / 2;
+        c.xy = new Float64Array(m * 4);
+        c.xy.set(pts);
+        c.n = m;
+        c.laid = shape(c);
+        placed.push(c);
+        const area = polygonArea(pts);
+        const kids = c.kids.filter((x) => !x.gone);
+        let kidsArea = 0;
+        if (kids.length) {
+          const inside = round >= op.seam ? grow(core, round - op.seam) : erode(core, op.seam - round);
+          layoutLaw(kids, inside, pressure, true);
+          for (const x of kids) if (!x.gone && x.n) kidsArea += polygonArea(Array.from(x.xy.subarray(0, x.n * 2)));
+        }
+        // The parent's own ink lies in what its children leave; its thickness follows from that.
+        c.share = Math.max(1e-6, area - kidsArea);
+        const tau = Math.min(c.tauMax, Math.max(1, ownNow(c) / c.share));
+        c.a0 = tau * area;
+      });
+    };
     const layout = (cells, domain, most = Infinity, nested = false, obstacles = []) => {
+      if (this.cellsPressure) return layoutLaw(cells, domain, 0, nested, obstacles);
       if (!cells.length || domain.length < 6) { for (const c of cells) c.gone = true; return; }
       const room = Math.min(most, 0.97 * polygonArea(domain));
       // No room at all (a parent squeezed to its cap): its children are hidden this tick, rather than

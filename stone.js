@@ -92,8 +92,15 @@ export function polygonArea(poly) {
 // obstacles: convex polygons (settled cells left where they are) that no cell may cross. A cell near
 // one is cut by the line touching the obstacle at its point nearest the cell's site, so it presses
 // flat against it; those walls don't move with the weights, like the domain's.
-export function partialTransport(sites, targets, domain, { iterations = 300, tolerance = 0.01, weights, obstacles = [] } = {}) {
+// law, if given, replaces target areas with pressure balance (research/2026-11-07-broom-pressure-math.md
+// sec. 3.1): { A0, tauMax, kappa, background, Pi, dPi }. Cell i's weight then satisfies
+//   ψᵢ = R0ᵢ² + κ·(Π(A0ᵢ/|Cᵢ|) − background),  R0ᵢ² = A0ᵢ/π,
+// so a lone cell is exactly its rest disc, packed cells press flat at equal pressure, and a squeezed
+// cell can never pass its cap (Π diverges there). targets is then only used for scale.
+export function partialTransport(sites, targets, domain, { iterations = 300, tolerance = 0.01, weights, obstacles = [], law = null } = {}) {
   const n = sites.length;
+  const R0sq = law ? law.A0.map((a) => a / Math.PI) : null;
+  const residual = (i, area) => psi[i] - R0sq[i] - law.kappa * (law.Pi(law.A0[i] / Math.max(area, 1e-9), law.tauMax[i]) - (law.background ?? 0));
   const blocks = obstacles.filter((o) => o.length >= 6).map((pts) => {
     const c = centreOf(pts);
     let r = 0;
@@ -188,7 +195,8 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     const all = sites.map((_, i) => cellOf(i));
     const area = all.map((c) => (c.pts.length >= 6 ? polygonArea(c.pts) : 0));
     let misfit = 0;
-    for (let i = 0; i < n; i++) misfit += (area[i] - targets[i]) ** 2;
+    if (law) for (let i = 0; i < n; i++) misfit += (residual(i, area[i]) / R0sq[i]) ** 2;
+    else for (let i = 0; i < n; i++) misfit += (area[i] - targets[i]) ** 2;
     return { all, area, misfit };
   };
   let now = solve();
@@ -196,7 +204,8 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
   for (let it = 0; it < iterations; it++) {
     cells = now.all.map((c) => c.pts);
     error = 0;
-    for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(now.area[i] - targets[i]) / targets[i]);
+    if (law) for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(residual(i, now.area[i])) / R0sq[i]);
+    else for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(now.area[i] - targets[i]) / targets[i]);
     if (error < tolerance) break;
     // The Jacobian, as neighbour weights and a diagonal.
     const nbr = Array.from({ length: n }, () => new Map());
@@ -215,13 +224,23 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
       }
     }
     const r = new Float64Array(n);
-    for (let i = 0; i < n; i++) r[i] = targets[i] - now.area[i];
+    // With a law, Newton's step d solves (I + D·H) d = −g, D = κ Π'(τ) A0/A², H the matrix above;
+    // multiplied through by D⁻¹ it is (D⁻¹ + H) d = −D⁻¹ g, symmetric and positive definite.
+    const inv = law ? new Float64Array(n) : null;
+    if (law) {
+      for (let i = 0; i < n; i++) {
+        const A = Math.max(now.area[i], 1e-9);
+        const D = law.kappa * law.dPi(law.A0[i] / A, law.tauMax[i]) * law.A0[i] / (A * A);
+        inv[i] = 1 / Math.max(D, 1e-12);
+        r[i] = -residual(i, now.area[i]) * inv[i];
+      }
+    } else for (let i = 0; i < n; i++) r[i] = targets[i] - now.area[i];
     // Empty cells have no slope: they're left out of the solve and grow on their own below.
     const live = (i) => diag[i] > 1e-12;
     const apply = (v, out) => {
       for (let i = 0; i < n; i++) {
         if (!live(i)) { out[i] = v[i]; continue; }
-        let sum = (diag[i] * (1 + 1e-9) + 1e-12) * v[i];
+        let sum = (diag[i] * (1 + 1e-9) + 1e-12 + (inv ? inv[i] : 0)) * v[i];
         for (const [j, w] of nbr[i]) if (live(j)) sum -= w * v[j];
         out[i] = sum;
       }
@@ -249,7 +268,7 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     // a weight by more than a few times the largest target's own scale.
     let biggest = 0;
     for (let i = 0; i < n; i++) if (Math.abs(x[i]) > biggest) biggest = Math.abs(x[i]);
-    const scale = 4 * Math.max(...targets) / Math.PI;
+    const scale = law ? 4 * Math.max(...R0sq, ...psi) : 4 * Math.max(...targets) / Math.PI;
     if (biggest > scale) for (let i = 0; i < n; i++) x[i] *= scale / biggest;
     const before = psi.slice();
     let t = 1;
@@ -264,7 +283,7 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
         let need = 0;
         for (let j = 0; j < n; j++) if (j !== i) need = Math.max(need, psi[j] - ((sites[j][0] - sites[i][0]) ** 2 + (sites[j][1] - sites[i][1]) ** 2));
         // Part of the step like the rest, so a short enough step always lowers the misfit.
-        psi[i] = before[i] + t * Math.max(0, need + targets[i] / (8 * Math.PI) - before[i]);
+        psi[i] = before[i] + t * Math.max(0, need + (law ? R0sq[i] : targets[i] / Math.PI) / 8 - before[i]);
       }
       tried = solve();
       if (tried.misfit < now.misfit) break;
@@ -281,8 +300,9 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
   }
   cells = now.all.map((c) => c.pts);
   error = 0;
-  for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(now.area[i] - targets[i]) / targets[i]);
-  return { cells, weights: psi, error };
+  if (law) for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(residual(i, now.area[i])) / R0sq[i]);
+  else for (let i = 0; i < n; i++) error = Math.max(error, Math.abs(now.area[i] - targets[i]) / targets[i]);
+  return { cells, weights: psi, error, areas: now.area };
 }
 
 // Pulls a convex polygon in by d along its edges' normals (an inner parallel polygon).
