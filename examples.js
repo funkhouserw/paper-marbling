@@ -581,10 +581,71 @@ colours.forEach((color, i) => {
   settle();
 });
 `,
+  'Tulip (Çiçekli)': `// Tulips (Çiçekli), stroke by stroke as the Turkish ministry's ebru textbooks teach them (MEB Ebru
+// module, unit 6): two green drops one above the other, a stem pulled up from the upper one with a
+// thick awl, the leaves drawn from outside in beside the stem and down through the lower drop (two
+// hearts with a line through them), their tips curled out with a fine awl; then a red drop with a
+// yellow one inside just past the stem, a thick stroke down into it for the heart, and two strokes
+// out and forward for the petals. Necmeddin Okyay made the tulip the emblem of floral ebru.
+viscosity({ value: 1000 });
+bath({ color: '#f2ecdc' });
+// A light ground in two tones of one colour.
+let k = 0;
+for (const [c, q] of [['#dfe3e6', 3.4], ['#cdd5db', 1.0]]) {
+  for (let y = 18; y <= 82; y += 16) for (let x = 6; x <= 94; x += 16) { k++; drop({ x: x + 3 * Math.sin(k * 2.1), y: y + 3 * Math.cos(k * 1.3), quantity: q, color: c, at: k * 0.05 }); }
+  settle();
+}
+const green = '#3d6b3a', yellow = '#e8b13a';
+const q = (r) => (Math.PI * r * r) / 7000; // % of a 1000 × 700 tank at plain size
+// One tulip, stroke by stroke, its lower leaf drop at page (X0, Y0); R is the leaf drops' radius in
+// mm, and the books' tools are scaled with it (S = 1 for their 16 mm drops).
+const tulip = (X0, Y0, R, red) => {
+  const S = R / 16;
+  // mm from the lower leaf drop, x right and y up, to page units.
+  const P = (x, y) => [X0 + x / 10, Y0 - y / 10];
+  const at = (x, y) => { const [px, py] = P(x, y); return { x: px, y: py }; };
+  // 1. Two green drops, one above the other.
+  drop({ ...at(0, 0), quantity: q(R), spreading: 1, dispersion: 20, color: green });
+  settle();
+  drop({ ...at(0, 1.8 * R), quantity: q(R), spreading: 1, dispersion: 20, color: green });
+  settle();
+  // 2. The stem, pulled up from the middle of the upper drop with a thick biz.
+  stylus({ path: [P(0, 1.8 * R), P(0, 4.6 * R)], D: 1.5 * S, speed: 6 * S });
+  settle();
+  // 3. Leaves: from outside, in close to the stem, and down through the lower drop.
+  for (const s of [-1, 1]) {
+    stylus({ path: [P(s * 1.6 * R, 2.6 * R), P(s * 0.2 * R, 1.9 * R), P(s * 0.2 * R, -1.0 * R)], D: 1.2 * S, speed: 6 * S });
+    settle();
+  }
+  // 4. Leaf tips curled outward with a fine biz.
+  for (const s of [-1, 1]) {
+    stylus({ path: [P(s * 0.8 * R, 1.9 * R), P(s * 1.4 * R, 2.4 * R)], D: 0.3 * S, speed: 4 * S });
+    stylus({ path: [P(s * 0.8 * R, 0.1 * R), P(s * 1.4 * R, 0.6 * R)], D: 0.3 * S, speed: 4 * S });
+    settle();
+  }
+  // 5. The flower: red with yellow inside, a few millimetres past the stem's tip.
+  const Rf = 12 * S, fy = 4.6 * R + 5 * S + Rf;
+  drop({ ...at(0, fy), quantity: q(Rf), spreading: 1, dispersion: 20, color: red });
+  settle();
+  drop({ ...at(0, fy), quantity: q(Rf * 0.55), spreading: 1, dispersion: 20, color: yellow });
+  settle();
+  // 6. The heart: a thick biz from outside down to the centre.
+  stylus({ path: [P(0, fy + 1.6 * Rf), P(0, fy)], D: 1.5 * S, speed: 6 * S });
+  settle();
+  // 7. Petals: from inside, outward and forward.
+  for (const s of [-1, 1]) {
+    stylus({ path: [P(s * 0.45 * Rf, fy), P(s * 0.8 * Rf, fy + 1.8 * Rf)], D: 0.8 * S, speed: 6 * S });
+    settle();
+  }
+};
+tulip(36, 68, 17, '#c0352b');
+tulip(50, 63, 17, '#a8234f');
+tulip(64, 68, 17, '#c0352b');
+`,
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic', Spanish: 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic', Spanish: 'classic', 'Tulip (Çiçekli)': 'classic',
   // Written on 1 Nov for the first engine, since retuned for spreading ink: in Classic their drops
   // leave bare bath and Repeating whorls never whorls, so they keep the editor's Wake (fast) (#51).
   'Lapis bullseyes': 'wakefast', 'Blue & gold feather': 'wakefast', 'Emerald peacock': 'wakefast', 'Gilded stone': 'wakefast', 'Oxblood whirl': 'wakefast', 'Library endpaper': 'wakefast', 'Dot garden': 'wakefast', 'Bead field': 'wakefast', 'Repeating whorls': 'wakefast', 'Starry spray': 'wakefast', 'Wave comb': 'wakefast', 'Verdigris waves': 'wakefast',

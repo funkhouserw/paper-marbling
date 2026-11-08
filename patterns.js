@@ -150,6 +150,7 @@ export const PATTERNS = [
     id: 'cicekli', family: 'ebru', names: { tr: 'çiçekli ebru', en: 'floral ebru' }, status: 'verified',
     summary: 'Flowers drawn in the colours, popularised by Necmeddin Okyay (1883–1976).', sources: ['TDV'],
     image: { title: 'Lale Ebru', url: commons('Lale_Ebru.jpg'), licence: 'CC BY-SA 4.0' },
+    example: 'Tulip (Çiçekli)',
   },
   {
     id: 'akkase', family: 'ebru', names: { tr: 'akkâse' }, status: 'verified',
