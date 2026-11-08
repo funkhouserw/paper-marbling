@@ -65,3 +65,23 @@ test('with rising gall a later colour spreads further in Cells, as the gall rule
   // Gall 1.5 against 1 spreads 1.15 times as far (S = 1 + 6 g/(g + 1)).
   assert.ok(second(true) > 1.08 * second(false), `${second(true)} vs ${second(false)}`);
 });
+
+test('a spray over settled Fill dots pushes them aside rather than wiping them out (#31)', async () => {
+  // Ilse's steps on 8026 (dial positions converted as the editor does): Dark Academia, viscosity 60,
+  // Fill dots, then one Spray click in the middle.
+  const { dialToValue } = await import('./api.js');
+  const { PALETTES } = await import('./palettes.js');
+  const m = new Cells({ width: 1000, height: 700, seed: 7 });
+  m.setViscosity({ value: 60 });
+  const pal = PALETTES.find((p) => /academia/i.test(p.name ?? p.id ?? ''));
+  const colors = (pal?.inks ?? pal?.colors ?? ['#4b231a', '#7a3e2c', '#b38a6a']).map((c) => c.color ?? c);
+  const k = m.width / 100;
+  m.fillDots({ count: 70, max: dialToValue(61, 0.5, 30) * k, min: dialToValue(53, 0.1, 5) * k, gap: dialToValue(25, 0, 5) * k, tightness: 0.15, rings: 1, colors });
+  settle(m);
+  const dots = m.polys.slice();
+  const max = dialToValue(95, 0.05, 5) * k;
+  m.spray({ x: 0, y: 0, n: 40, max, min: max * 0.73, radius: dialToValue(72, 1, 60) * k, skew: 0.6, colors });
+  settle(m);
+  const kept = dots.filter((p) => m.polys.includes(p)).length;
+  assert.ok(kept >= 0.95 * dots.length, `${kept} of ${dots.length} settled dots still there`);
+});
