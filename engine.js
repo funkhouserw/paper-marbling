@@ -553,6 +553,10 @@ export class Marble {
   get seamSupported() { return true; }
   get seamsDrawn() { return this.separateOn && this.seamSupported; }
 
+  // How close two outlines must be to count as touching (fronts that met): such edges get a hairline
+  // seam, not the wide channel of a front that stopped short at bare bath.
+  get touchReach() { return 2 * this.seam; }
+
   // Makes the tank a tile that repeats in both directions, so what leaves one edge comes back in
   // at the other. Outlines are never cut at the seam: they stay whole and are drawn at each place
   // they show. Simulators opt in with tileSupported, because all their motion has to repeat too.
@@ -3215,7 +3219,7 @@ export class Marble {
     this._beforeInk(ctx);
     const half = this.seamsDrawn ? this.seam / 2 : 0;
     // Points inside another drop of the same colour aren't pulled in: those drops have merged.
-    const merged = half ? mergedPoints(this.polys) : null;
+    const merged = half ? mergedPoints(this.polys, this.touchReach) : null;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, shimmer } = this.polys[p];
       const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));
@@ -3283,7 +3287,7 @@ export class Marble {
     const { width: w, height: h } = this;
     const paths = [];
     const half = this.seamsDrawn ? this.seam / 2 : 0;
-    const merged = half ? mergedPoints(this.polys) : null;
+    const merged = half ? mergedPoints(this.polys, this.touchReach) : null;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, cell } = this.polys[p];
       const color = squeezedColour(this.polys[p].color, thickness(this.polys[p]));

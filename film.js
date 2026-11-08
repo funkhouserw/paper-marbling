@@ -79,6 +79,10 @@ export class Film extends Marble {
     this._edgeStep();
   }
 
+  // Film's fronts stop up to about a grid cell apart when they meet (what its gap-closing underpaint
+  // covered), so outlines that close count as touching.
+  get touchReach() { return Math.max(2 * this.seam, 1.5 * CLOSE_GAPS); }
+
   // What each outline's edge touches, and how squeezed its ink is there (#33, Ilse's soap-bubble
   // seams): poly.edgeFaces[i] is 0 where point i faces bare bath (a stop-short gap, drawn as a white
   // seam), 1 where it presses on a film of its own colour, 2 on another colour (contact: a darkened

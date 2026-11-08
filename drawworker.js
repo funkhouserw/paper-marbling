@@ -27,7 +27,7 @@ function trace(ctx, points, sx, sy) {
 
 self.onmessage = ({ data: m }) => {
   const start = performance.now();
-  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join, seam = 0, share = 0 } = m;
+  const { width, height, px, W, H, bath, tile, offset, closeGaps, polys, xy, tolPx, join, seam = 0, share = 0, touch = 2 * seam } = m;
   if (!canvas || canvas.width !== width || canvas.height !== height) canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -41,7 +41,7 @@ self.onmessage = ({ data: m }) => {
   const half = seam / 2;
   const whole = polys.map((p) => Float64Array.from(thin(xy, p.off, p.n, tol)));
   // Points inside another drop of the same colour aren't pulled in: those drops have merged.
-  const merged = half ? mergedPoints(polys.map((p, k) => ({ xy: whole[k], n: whole[k].length / 2, color: p.base ?? p.color, group: p.group }))) : null;
+  const merged = half ? mergedPoints(polys.map((p, k) => ({ xy: whole[k], n: whole[k].length / 2, color: p.base ?? p.color, group: p.group })), touch) : null;
   const thinned = polys.map((p, k) => {
     let points = whole[k];
     // Holes (later loops of a group, gall water) are never seamed, as in Marble.draw.

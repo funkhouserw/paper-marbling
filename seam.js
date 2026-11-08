@@ -31,7 +31,7 @@ export function seamed(xy, n, d, inward = true, keep = null, bare = d) {
     // Left normals of the two edges, averaged: the bisector.
     let nx = -ey - fy, ny = ex + fx;
     const len = Math.hypot(nx, ny);
-    const want = !keep ? bare : keep[i] === 1 ? 0 : keep[i] === 2 ? d : bare;
+    const want = !keep ? bare : keep[i] === 1 ? 0 : keep[i] === 2 || keep[i] === 3 ? d : bare;
     let k = want;
     if (len > 1e-9) {
       nx /= len; ny /= len;
@@ -64,10 +64,39 @@ const inside = (xy, n, x, y) => {
 };
 
 // For outlines [{ xy, n, color, group }], where each point lies: 1 inside another outline of the same
-// colour, 2 inside one of another colour, 0 neither (see seamed). An array of Uint8Array marks per
-// outline (null for a hole loop).
-export function mergedPoints(outlines) {
+// colour, 2 inside one of another colour, 3 outside every other outline but within reach (mm) of one
+// (touching: fronts that met, which get a hairline, not a bare channel), 0 facing bare bath (see
+// seamed). An array of Uint8Array marks per outline (null for a hole loop).
+export function mergedPoints(outlines, reach = 0) {
   const boxes = outlines.map((o) => box(o.xy, o.n));
+  // Every outline's edges bucketed on a grid as wide as reach, to find what's within reach.
+  const G = Math.max(reach, 1e-6);
+  const grid = reach > 0 ? new Map() : null;
+  if (grid) {
+    outlines.forEach((o, b) => {
+      if (o.group) return;
+      for (let i = 0, j = o.n - 1; i < o.n; j = i++) {
+        const key = `${Math.floor((o.xy[j * 2] + o.xy[i * 2]) / 2 / G)},${Math.floor((o.xy[j * 2 + 1] + o.xy[i * 2 + 1]) / 2 / G)}`;
+        (grid.get(key) ?? grid.set(key, []).get(key)).push(b, j, i);
+      }
+    });
+  }
+  const near = (a, x, y) => {
+    const gx = Math.floor(x / G), gy = Math.floor(y / G);
+    for (let u = -1; u <= 1; u++) for (let v = -1; v <= 1; v++) {
+      const list = grid.get(`${gx + u},${gy + v}`);
+      if (!list) continue;
+      for (let k = 0; k < list.length; k += 3) {
+        const b = list[k];
+        if (b === a) continue;
+        const q = outlines[b].xy, j = list[k + 1], i = list[k + 2];
+        const ax = q[j * 2], ay = q[j * 2 + 1], ex = q[i * 2] - ax, ey = q[i * 2 + 1] - ay;
+        const t = Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey || 1)));
+        if ((ax + ex * t - x) ** 2 + (ay + ey * t - y) ** 2 < reach * reach) return true;
+      }
+    }
+    return false;
+  };
   return outlines.map((o, a) => {
     if (o.group) return null;
     const b = boxes[a];
@@ -83,6 +112,7 @@ export function mergedPoints(outlines) {
         if (inside(q.xy, q.n, x, y)) marks[i] = same ? 1 : 2;
       }
     }
+    if (grid) for (let i = 0; i < o.n; i++) if (!marks[i] && near(a, o.xy[i * 2], o.xy[i * 2 + 1])) marks[i] = 3;
     return marks;
   });
 }
