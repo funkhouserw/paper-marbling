@@ -9,6 +9,9 @@ import { Marble } from './engine.js';
 export class Cells extends Marble {
   get cellsLayout() { return true; }
 
+  // Cells take the area at which their pressures balance (filmPressure), not asked-for areas.
+  get cellsPressure() { return true; }
+
   // A drop's cell spreads to at most this many times its plain area, times what its gall adds (so
   // with Rising gall each later colour reaches further). A broom throw asks for 25, which on open
   // water let one flick cover several tanks, so its cells came out few and huge.
