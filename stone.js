@@ -165,6 +165,15 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
   const n = sites.length;
   const R0sq = law ? law.A0.map((a) => a / Math.PI) : null;
   const residual = (i, area) => psi[i] - R0sq[i] - law.kappa * (law.Pi(law.A0[i] / Math.max(area, 1e-9), law.tauMax[i]) - (law.background ?? 0));
+  // For the line search: past the cap τ counts only by its logarithm, and each cell's misfit is in
+  // units of its own stiffest pressure, so one empty cell (τ → ∞ at area 0) can't outweigh every
+  // other cell's, while crushing any cell past its cap still costs.
+  const bounded = (i, area) => {
+    const tau = law.A0[i] / Math.max(area, 1e-9), cap = law.tauMax[i];
+    const P = tau <= cap ? law.Pi(tau, cap) : law.Pi(cap, cap) * (1 + Math.log(tau / cap));
+    return psi[i] - R0sq[i] - law.kappa * (P - (law.background ?? 0));
+  };
+  const scale = law ? law.A0.map((a, i) => R0sq[i] + law.kappa * law.Pi(law.tauMax[i], law.tauMax[i])) : null;
   const blocks = obstacles.filter((o) => o.length >= 6).map((pts) => {
     const c = centreOf(pts);
     let r = 0;
@@ -254,7 +263,7 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
     const all = sites.map((_, i) => cellOf(i));
     const area = all.map((c) => (c.pts.length >= 6 ? polygonArea(c.pts) : 0));
     let misfit = 0;
-    if (law) for (let i = 0; i < n; i++) misfit += (residual(i, area[i]) / R0sq[i]) ** 2;
+    if (law) for (let i = 0; i < n; i++) misfit += (bounded(i, area[i]) / scale[i]) ** 2;
     else for (let i = 0; i < n; i++) misfit += (area[i] - targets[i]) ** 2;
     return { all, area, misfit };
   };
