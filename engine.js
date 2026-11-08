@@ -256,7 +256,9 @@ export function filmPressureSlope(tau, tauMax = TAU_MAX) {
 }
 
 // A ring's ink is its outline less the drops inside it: poly.inkArea, where a simulator keeps it.
-export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / ((poly.inkArea ?? outlineArea(poly)) || poly.a0))) : 1);
+// a0 is the area the film's outline enclosed at rest, plus whatever drops have since landed inside it
+// (see _feedHosts), so a drop nested in a ring doesn't count as squeezing it.
+export const thickness = (poly) => (poly.a0 ? Math.max(1, Math.min(poly.tauMax ?? TAU_MAX, poly.a0 / (outlineArea(poly) || poly.a0))) : 1);
 const tintCache = new Map();
 // How dark squeezed ink looks: by √τ, so how far ink squeezes (its area, which sets how much room a
 // later colour gets) and how dark it turns are separate. Photo 31's net is squeezed about 3.5 times
@@ -568,6 +570,16 @@ export class Marble {
     if (drain !== null && drain !== undefined) args.drain = drain;
     if (at !== undefined) args.at = at;
     return this._schedule('coalesce', args, { kind: 'coalesce', on, pressure, drain });
+  }
+
+  // A drop growing inside rested films (a ring round it) adds its area to theirs: a ring's rest area
+  // a0 is what its outline encloses at rest, the newcomer included, so its squeeze τ = a0/area stays
+  // 1 at landing and rises only when the ring is actually pressed (research/2026-11-08-maths-and-
+  // speed.md sec. 5). The films it landed in are found once, as it lands.
+  _feedHosts(op, area) {
+    if (!(area > 0)) return;
+    op.hosts ??= this.shapesAt(op.x, op.y).map((s) => s[0]).filter((p) => p.a0 && !p.group);
+    for (const h of op.hosts) if (h.a0) h.a0 += area;
   }
 
   // Whether this simulator draws seams yet. Simulators that don't ignore the setting.
@@ -2467,6 +2479,7 @@ export class Marble {
     if (da <= 0) return frac >= 1;
     this.growth.push([op.x, op.y, da]);
     if (!op.poly) this.landing.push([op, Math.sqrt(da)]);
+    this._feedHosts(op, Math.PI * da);
     return frac >= 1;
   }
 
@@ -3178,7 +3191,7 @@ export class Marble {
         if (op.stormont && !op.stormont.thrown && op.poly && done) this._throwHoles(op); // once it has spread, so no solid core is left
         if (done && op.cell && op.poly) this._insetCell(op.poly, op.cell);
         if (done && op.poly && !op.poly.a0 && !op.poly.group) {
-          op.poly.a0 = this._inkArea(op.poly);
+          op.poly.a0 = outlineArea(op.poly);
           op.poly.tauMax = Math.max(1, op.spreading ?? TAU_MAX);
         }
         return !done;

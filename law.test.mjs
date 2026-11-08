@@ -85,3 +85,40 @@ test('Cells: two cells of one colour pressed together coalesce; of two colours, 
   assert.equal(run('#3b2b24'), 1, 'one colour: the film between them broke');
   assert.equal(run('#b38a6a'), 2, 'two colours: still two');
 });
+
+for (const Engine of [Marble, Film]) {
+  test(`${Engine.name}: a drop landing in a settled film doesn't count as squeezing it; pressing it does`, async () => {
+    const { thickness } = await import('./engine.js');
+    const m = new Engine({ width: 200, height: 140, seed: 2 });
+    m.drop({ x: 0, y: 0, quantity: 0.4, dispersion: 4, color: '#3b2b24', at: 0 });
+    for (let t = 0; t < 3000 && m.busy; t++) m.step();
+    const host = m.polys[0];
+    m.drop({ x: 0, y: 0, quantity: 0.1, dispersion: 4, color: '#3fa7d6' });
+    for (let t = 0; t < 3000 && m.busy; t++) m.step();
+    assert.ok(thickness(host) < 1.05, `host tau ${thickness(host).toFixed(2)} after a drop landed in it on open water`);
+  });
+}
+
+test('Film, walled: a host pressed by drops landing in it does read as squeezed', async () => {
+  const { thickness } = await import('./engine.js');
+  const m = new Film({ width: 100, height: 70, seed: 3 });
+  m.walls({ on: true, at: 0 });
+  m.drop({ x: 0, y: 0, quantity: 0.6, dispersion: 4, color: '#3b2b24', at: 0 });
+  for (let t = 0; t < 3000 && m.busy; t++) m.step();
+  const host = m.polys[0];
+  for (let k = 0; k < 4; k++) m.drop({ x: (k - 1.5) * 18, y: 0, quantity: 0.12, dispersion: 4, color: '#3fa7d6' });
+  for (let t = 0; t < 3000 && m.busy; t++) m.step();
+  assert.ok(thickness(host) > 1.1, `host tau ${thickness(host).toFixed(2)} in a full walled tank`);
+});
+
+test('Classic, walled: a host with drops nested in it reads as squeezed when the tank is full', async () => {
+  const { thickness } = await import('./engine.js');
+  const m = new Marble({ width: 100, height: 70, seed: 3 });
+  m.walls({ on: true, at: 0 });
+  m.drop({ x: 0, y: 0, quantity: 0.6, color: '#3b2b24', at: 0 });
+  m.runUntilIdle();
+  const host = m.polys[0];
+  for (let k = 0; k < 4; k++) m.drop({ x: (k - 1.5) * 18, y: 0, quantity: 0.12, color: '#3fa7d6' });
+  m.runUntilIdle();
+  assert.ok(thickness(host) > 1.05, `host tau ${thickness(host).toFixed(2)} in a full walled tank`);
+});
