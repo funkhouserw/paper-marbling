@@ -11,7 +11,7 @@
 // Pressure depends only on what's feeding right now, so when feeding stops all motion stops.
 // Close to a drop, the exact radial map from pst-marble (see NOTICE) takes over, so rings stay round below
 // grid size. Tools are unchanged. This is one-phase Hele-Shaw flow with a screened outer region.
-import { Marble, isTranslucent } from './engine.js';
+import { Marble, isTranslucent, filmPressure } from './engine.js';
 import { wrapX, wrapY, tileCell } from './tile.js';
 import { underpaintWidth } from './thin.js';
 
@@ -38,9 +38,6 @@ const NEARLY_ZERO = 1e-9; // keeps the solver well behaved where k would be exac
 const CLOSE_GAPS = 3.5; // mm
 // The compression limit. A film's cap on thickness is its own spreading (poly.tauMax), or this.
 const FILM_TAU_MAX = 4;
-// A drop stops feeding where the film it landed in pushes back this hard: -ln(1 - s) = 3 at s = 0.95,
-// so it stops just short of the film's cap.
-const SQUEEZE_DRIVE = 3;
 // A drop whose gall beats the ink it lands in by this share of its pressure opens to its full spread
 // (gall 1.5 over gall 1 is 0.17).
 const GALL_OPENS = 0.15;
@@ -387,19 +384,21 @@ export class Film extends Marble {
     const floor = op.open > 0 ? op.plain + (op.limit - op.plain) * Math.min(1, op.open / GALL_OPENS) : op.plain;
     const toPlain = Math.max(0, floor - op.area) * rate;
     const toLimit = Math.max(0, op.limit - op.area) * rate * op.head;
-    // The compression limit: a drop landing in a film squeezes it, and the film pushes back the
-    // harder the more it's squeezed, without bound as it nears its cap (a Langmuir-type pressure,
-    // Π = -ln(1 - s), with s how far it is from rest to the cap). The drop feeds only while its own
-    // push beats that, so the film it landed in keeps a dark rim instead of being squeezed away.
+    // Pressure balance (filmPressure, a shifted Volmer law): a drop landing in a film squeezes it, and
+    // the film pushes back with Π(τ) of its own squeeze, without bound near its cap. The drop pushes
+    // with Π of how far short of the area it's spreading to it still is. It feeds only while its push
+    // beats the film's, and comes to rest where the two are equal, so the film it landed in keeps a
+    // rim as thick as the law says instead of being squeezed away, and the drop doesn't stop early.
     op.under ??= this.shapeAt(op.x, op.y)?.[0] ?? false;
     let give = 1;
     const under = op.under;
     // A drop landing in its own colour merges into it rather than squeezing it.
     if (under && under.a0 && under.color !== op.color && this.polys.includes(under)) {
       under.inkArea = this._inkArea(under);
-      const tau = under.a0 / Math.max(1e-9, under.inkArea);
-      const s = Math.max(0, Math.min(0.999, (tau - 1) / (Math.max(1.01, under.tauMax ?? FILM_TAU_MAX) - 1)));
-      give = Math.max(0, 1 - -Math.log(1 - s) / SQUEEZE_DRIVE);
+      const host = filmPressure(under.a0 / Math.max(1e-9, under.inkArea), under.tauMax ?? FILM_TAU_MAX);
+      const target = Math.max(floor, op.area + (op.limit - op.area) * op.head);
+      const own = filmPressure(target / Math.max(1e-9, op.area, op.plain * 0.01), Math.max(1.01, op.spreading ?? FILM_TAU_MAX));
+      give = own > 0 ? Math.max(0, 1 - host / own) : 0;
     }
     op.feed = (Math.max(toPlain, toLimit) * give) / dt;
     if (give === 0) op.squeezedOut = true;
