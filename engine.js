@@ -1366,7 +1366,7 @@ export class Marble {
     const e = (this.time - op.start) / BROOM_SPREAD;
     // Under the pressure law cells go on drifting after they've grown, until the pressures have
     // evened out (or for at most as long again).
-    const done = e >= 1 && (!this.cellsPressure || op.settled || e >= 2);
+    const done = e >= 1 && (!this.cellsPressure || !this.cellDrift || op.settled || e >= 2);
     const grown = e >= 1 ? 1 : Math.max(0.02, e ** 0.75);
     const ownNow = (c) => (c.fresh ? c.own * grown : c.own);
     const W = this.width, H = this.height;
@@ -1404,7 +1404,7 @@ export class Marble {
       // a settled cell pushes back as hard as it's pushed), so a squeezed cell moves into free room.
       // Overdamped, scaled by the cell's size over its perimeter, and at most a tenth of its size a
       // tick, so neighbours never swap.
-      if (!nested) {
+      if (!nested && this.cellDrift) {
         const P = cells.map((c, k) => filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax));
         let most = 0;
         cells.forEach((c, k) => {
