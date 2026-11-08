@@ -231,6 +231,15 @@ const outlineArea = ({ xy, n }) => {
   for (let i = 0, k = n - 1; i < n; k = i++) s += xy[k * 2] * xy[i * 2 + 1] - xy[i * 2] * xy[k * 2 + 1];
   return Math.abs(s) / 2;
 };
+// Whether (x, y) lies inside the first n points of the outline xy (crossing rule).
+const holdsPoint = (xy, n, [x, y]) => {
+  let w = false;
+  for (let i = 0, k = n - 1; i < n; k = i++) {
+    const ay = xy[k * 2 + 1], by = xy[i * 2 + 1];
+    if ((ay > y) !== (by > y) && x < xy[k * 2] + ((y - ay) * (xy[i * 2] - xy[k * 2])) / (by - ay)) w = !w;
+  }
+  return w;
+};
 // τ is capped at the film's own spreading: squeezed back to its landing thickness but not past it.
 // The film's equation of state: its surface pressure when squeezed to thickness τ = A0/A, in units
 // of its stiffness Π₁ = kT/a_rest. Shifted Volmer (research/2026-11-07-broom-pressure-math.md §2.7):
@@ -282,8 +291,9 @@ const REACH_SHARE = 0.5; // a comb tine's pull reaches at most this share of the
 const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
 // How stiff Cells' films are under the pressure law: κ as a share of a typical cell's R0².
 const CELL_STIFFNESS = 1;
-// How readily a squeezed cell drifts into free room, per tick (overdamped).
-const CELL_DRIFT = 0.5;
+// How readily a squeezed cell drifts into free room, per second (overdamped): 0.5 a tick at 30 ticks
+// a second, as it was tuned, so the drift no longer depends on the time step.
+const CELL_DRIFT = 15;
 // The pressure (Π units) at which the film between two same-colour cells breaks and they coalesce,
 // for an ink of cap 2; thinner inks (higher caps) break through sooner.
 const CELL_RUPTURE = 30;
@@ -1284,6 +1294,7 @@ export class Marble {
     op.top = this.polys.filter((p) => laid(p) && !(p.parentCell && laid(p.parentCell)));
     const laidBefore = op.top.length > 0;
     op.start = this.time;
+    op.firstTick = this.tick; // the tick the new drops join the layout: the law converges on it
     const top = op.top;
     const log = this.log;
     const live = this._live;
@@ -1340,11 +1351,17 @@ export class Marble {
       if (!reach.some((d) => Math.hypot(d.x - o.x, d.y - o.y) < size + d.r)) op.fixed.add(c);
       // A cell that moves again starts from where it lies now, not where its drop first landed
       // (which may by now be under a neighbour that stays put), with its weight solved afresh.
-      else if (o.area > 0) { c.site = [o.x, o.y]; c.psi = 0; }
+      // Under the pressure law a weight is R0² + κΠ, thousands of mm² apart from cell to cell, and
+      // means something only beside its own site: a cold restart handed out area by rest size and
+      // crushed small cells past their cap (research/2026-11-08-cells-shatter-analysis.md). So there
+      // a cell keeps both; a site that has slipped outside its drawn outline is pulled just inside.
+      else if (this.cellsPressure && c.site && Number.isFinite(c.psi)) {
+        if (!holdsPoint(c.xy, c.n, c.site)) c.site = keepInside(Array.from(c.xy.subarray(0, c.n * 2)), c.site);
+      } else if (o.area > 0) { c.site = [o.x, o.y]; c.psi = 0; }
     }
     }
     const top = op.top;
-    // New cells grow as fronts spread on a deep layer (area ∝ t^¾, Jensen 1995), each tick a
+    // New cells grow as fronts spread on a deep layer (radius ∝ t^(3/8), so area ∝ t^¾: Jensen 1995, a fixed mass on a deep layer), each tick a
     // settled layout (the films' pressure evens out far faster than the fronts move).
     const e = (this.time - op.start) / BROOM_SPREAD;
     // Under the pressure law cells go on drifting after they've grown, until the pressures have
@@ -1378,7 +1395,9 @@ export class Marble {
       }
       const kappa = CELL_STIFFNESS * A0.reduce((a, b) => a + b, 0) / A0.length / Math.PI;
       const solved = partialTransport(cells.map((c) => c.site), A0, domain, {
-        weights: cells.map((c) => c.psi), iterations: done ? 40 : 4, obstacles,
+        // Converged on the tick new drops join (and once they're done); 20 rounds a tick between.
+        // Stopped at 4, the first tick's iterate was drawn half-solved and its crushed cells stayed so.
+        weights: cells.map((c) => c.psi), iterations: done || this.tick === op.firstTick ? 80 : 20, obstacles,
         law: { A0, tauMax: cells.map((c) => c.tauMax), kappa, background, Pi: filmPressure, dPi: filmPressureSlope },
       });
       cells.forEach((c, k) => { c.psi = solved.weights[k]; });
@@ -1405,7 +1424,9 @@ export class Marble {
             perimeter += Math.hypot(ex, ey);
           }
           const R = Math.sqrt(Math.max(solved.areas[k], 1e-9) / Math.PI);
-          let dx = (CELL_DRIFT * fx * R) / Math.max(perimeter, 1e-9), dy = (CELL_DRIFT * fy * R) / Math.max(perimeter, 1e-9);
+          const rate = CELL_DRIFT * this.dt;
+          let dx = (rate * fx * R) / Math.max(perimeter, 1e-9), dy = (rate * fy * R) / Math.max(perimeter, 1e-9);
+          // At most a tenth of its size a tick (so neighbours never swap), whatever the time step.
           const len = Math.hypot(dx, dy), cap = 0.1 * R;
           if (len > cap) { dx *= cap / len; dy *= cap / len; }
           // Never out of its own cell: a site past a wall or inside a settled neighbour loses its cell.
@@ -1413,7 +1434,7 @@ export class Marble {
           most = Math.max(most, Math.hypot(moved[0] - c.site[0], moved[1] - c.site[1]));
           c.site = moved;
         });
-        op.settled = e >= 1 && most < 0.05;
+        op.settled = e >= 1 && most < 1.5 * this.dt; // slower than 1.5 mm/s: settled
         // Coalescence (Ilse: "allowing cells to combine if they are thin enough"): two cells of one
         // colour pressed together drain the bath between them, and once both are pressed past the
         // rupture pressure that thin film breaks and they become one, as touching bubbles in a foam

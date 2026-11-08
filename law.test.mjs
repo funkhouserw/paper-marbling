@@ -148,3 +148,52 @@ test('Cells, walled: a second colour landing keeps every first-colour cell whole
   }
   assert.ok(worst < 0.3, `a first-colour cell lost ${(worst * 100).toFixed(0)}% of its area in one tick (or vanished)`);
 });
+
+// The same scene with the pressure law and site drift on, over several seeds below capacity
+// (research/2026-11-08-cells-shatter-analysis.md: seeds 2 and 3 of this recipe need ≥ 95 % of the
+// tank at the cap, which no layout under the law allows). Re-laid cells used to restart cold at
+// their centroid, and on the second throw's first tick small cells were crushed to τ 6–7.5: 54–89 %
+// lost in one tick at most seeds, 62 % at seed 11.
+test('Cells, walled, law and drift on: a second colour keeps every first-colour cell whole, over seeds', () => {
+  class LawCells extends Cells { get cellsPressure() { return true; } get cellDrift() { return true; } }
+  const area = (p) => { let a = 0; for (let i = 0, k = p.n - 1; i < p.n; k = i++) a += p.xy[k * 2] * p.xy[i * 2 + 1] - p.xy[i * 2] * p.xy[k * 2 + 1]; return Math.abs(a / 2); };
+  for (const seed of [1, 5, 11]) {
+    const m = new LawCells({ width: 300, height: 200, seed });
+    m.walls({ on: true, at: 0 });
+    m.broom({ n: 25, x: 0, y: 0, w: 260, h: 170, size: 0.02, spread: 0.9, spreading: 12, color: '#3b2b24' });
+    for (let t = 0; t < 2000 && m.busy; t++) m.step();
+    const brown = m.polys.filter((p) => p.cell);
+    const last = new Map(brown.map((p) => [p, area(p)]));
+    m.broom({ n: 25, x: 0, y: 0, w: 260, h: 170, size: 0.012, spread: 0.9, spreading: 12, color: '#3fa7d6' });
+    let worst = 0;
+    for (let t = 0; t < 2000 && m.busy; t++) {
+      m.step();
+      for (const p of brown) {
+        if (!m.polys.includes(p)) { worst = 1; continue; }
+        const a = area(p);
+        worst = Math.max(worst, 1 - a / last.get(p));
+        last.set(p, a);
+      }
+    }
+    assert.ok(worst < 0.3, `seed ${seed}: a first-colour cell lost ${(worst * 100).toFixed(0)}% of its area in one tick (or vanished)`);
+    const blue = m.polys.filter((p) => p.cell && p.color === '#3fa7d6');
+    assert.ok(blue.length >= 10, `seed ${seed}: ${blue.length} blue cells`);
+  }
+});
+
+// The law review (808cd94): the drift step had no time step, so a finer dt drifted half as far a second.
+test('Cells drift is per second: halving the time step lays the same cells out', () => {
+  class LawCells extends Cells { get cellsPressure() { return true; } get cellDrift() { return true; } }
+  const run = (dt) => {
+    const m = new LawCells({ width: 300, height: 200, seed: 11, dt });
+    m.walls({ on: true, at: 0 });
+    m.broom({ n: 25, x: 0, y: 0, w: 260, h: 170, size: 0.02, spread: 0.9, spreading: 12, color: '#3b2b24' });
+    for (let t = 0; t < 4000 && m.busy; t++) m.step();
+    return m.polys.filter((p) => p.cell).map((p) => { let x = 0, y = 0; for (let i = 0; i < p.n; i++) { x += p.xy[i * 2]; y += p.xy[i * 2 + 1]; } return [x / p.n, y / p.n]; });
+  };
+  const a = run(1 / 30), b = run(1 / 60);
+  assert.equal(a.length, b.length);
+  const off = a.map(([x, y], k) => Math.hypot(x - b[k][0], y - b[k][1])).sort((p, q) => p - q);
+  const median = off[off.length >> 1];
+  assert.ok(median < 2, `cells' centres differ by ${median.toFixed(2)} mm (median), ${off.at(-1).toFixed(1)} at most`);
+});
