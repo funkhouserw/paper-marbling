@@ -15,7 +15,11 @@ export class Cells extends Marble {
   // A drop's cell spreads to at most this many times its plain area, times what its gall adds (so
   // with Rising gall each later colour reaches further). A broom throw asks for 25, which on open
   // water let one flick cover several tanks, so its cells came out few and huge.
-  get cellSpreadMax() { return 8; }
+  // In a walled or repeating tank the walls bound the ink, so a drop spreads as far as its ink asks and
+  // the pressure law squeezes what doesn't fit (otherwise small drops stayed small dots near the walls
+  // while the films around them filled the tray). The cap is for open water, where a flick asked for
+  // ×25 would spread over several tanks.
+  get cellSpreadMax() { return this.wallsOn || this.tileOn ? Infinity : 8; }
 
   // Squeezed ink thickens to at most this, so a later colour can take up to ~70% of a cell (photo
   // 31). How dark that looks is softened separately (tintOf).

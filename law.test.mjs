@@ -60,3 +60,14 @@ test('drops of different colours that touch get a hairline, not a bare channel (
   const right = Math.max(...xs);
   assert.ok(right > -0.7, `the dark square's touching edge is at ${right.toFixed(2)} mm (a hairline puts it at -0.55)`);
 });
+
+test('Cells in a walled tank: a broom throw fills the tray instead of leaving small drops stranded', () => {
+  const m = new Cells({ width: 300, height: 200, seed: 11 });
+  m.walls({ on: true, at: 0 });
+  m.broom({ n: 30, x: 0, y: 0, w: 260, h: 170, size: 0.02, spread: 0.9, spreading: 25, color: '#3b2b24' });
+  for (let t = 0; t < 2000 && m.busy; t++) m.step();
+  let cover = 0, tot = 0;
+  for (let x = -147; x < 150; x += 4) for (let y = -97; y < 100; y += 4) { tot++; if (m.shapesAt(x, y).length) cover++; }
+  // Measured 0.91 (0.67 with the open-water spread cap still applied).
+  assert.ok(cover / tot > 0.8, `the first colour covers ${(cover / tot).toFixed(2)} of the tray`);
+});
