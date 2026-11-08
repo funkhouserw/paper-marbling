@@ -61,15 +61,15 @@ export const TOOLS = {
   broom: {
     label: 'Broom straw',
     input: 'click',
-    // The engine's broom keeps each drop its own cell, with a seam of bare bath where cells meet.
-    // Colour per flick is the total: each drop's mean share, corrected for the log-normal's mean.
-    // The engine's broom keeps each drop its own cell, with a seam of bare bath where cells meet.
-    // Colour per flick is the total: each drop's mean share, corrected for the log-normal's mean.
+    // The broom only places drops; how they meet is the simulator's. Colour per flick is the total:
+    // each drop's mean share, corrected for the log-normal's mean. Oil and turpentine (Advanced) go
+    // into every drop, and are only passed when set, so plain flicks log as before.
     act(t) {
       const { m, v, point: [x, y], ink } = t;
       const n = Math.max(1, Math.round(v.count));
       const size = v.quantity / n / Math.exp(v.variation ** 2 / 2);
-      t.place((at) => m.broom({ n, x, y, w: 2 * v.scatter, h: 2 * v.scatter, size, spread: v.variation, spreading: v.spreading, gall: v.gall ?? undefined, ...ink, at }));
+      const extra = { ...(v.oil ? { oil: v.oil } : {}), ...(v.turpentine ? { turpentine: v.turpentine } : {}) };
+      t.place((at) => m.broom({ n, x, y, w: 2 * v.scatter, h: 2 * v.scatter, size, spread: v.variation, spreading: v.spreading, gall: v.gall ?? undefined, ...extra, ...ink, at }));
     },
     hint: 'Click to flick a broom-straw brush: many drops of the colour at once, a few large and many small, over the reach. Throw colour after colour for stone and vein.',
     color: true,
@@ -83,6 +83,8 @@ export const TOOLS = {
       variation: ['Size spread', 0.9, 0, 2, 0.05],
       spreading: ['How far it spreads', 12, 1, 50, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }],
+      oil: ['Oil (shell)', 0, -1, 1, 0.05, undefined, { advanced: true }],
+      turpentine: ['Turpentine (stormont)', 0, 0, 1, 0.05, undefined, { advanced: true }],
     },
   },
   heartDrop: {
@@ -109,7 +111,8 @@ export const TOOLS = {
       // The smallest dot is a share of the largest, so the two sliders can't hide a ×17 range.
       const min = v.max * Math.max(0.01, Math.min(1, v.smallest / 100));
       const skew = { small: 3, even: 1.4, big: 0.6 }[v.sizes] ?? 1.4;
-      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min, max: v.max, skew, colors, gall: v.gall, at }));
+      const extra = { ...(v.oil ? { oil: v.oil } : {}), ...(v.turpentine ? { turpentine: v.turpentine } : {}) };
+      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min, max: v.max, skew, colors, gall: v.gall, ...extra, at }));
     },
     hint: 'Click, or drag, to spray fine dots. They use the colours chosen below.',
     color: true,
@@ -125,6 +128,8 @@ export const TOOLS = {
       max: ['Largest dot', 0.6, 0.05, 5, 0.01],
       smallest: ['Smallest dot (% of largest)', 20, 1, 100, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
+      oil: ['Oil (shell)', 0, -1, 1, 0.05, undefined, { advanced: true }],
+      turpentine: ['Turpentine (stormont)', 0, 0, 1, 0.05, undefined, { advanced: true }],
     },
   },
   fillDots: {
