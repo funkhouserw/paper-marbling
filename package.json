@@ -13,7 +13,9 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "esbuild": "^0.25.0",
+    "pngjs": "^7.0.0",
     "wrangler": "^4.158.0"
   }
 }

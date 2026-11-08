@@ -77,6 +77,8 @@ This writes a static site to `dist/`: the editor at the top, the classic editor 
 
     node --test *.test.mjs
 
+Every example also has a reference picture in `golden/`. `node scripts/golden.mjs` runs each example headless (seed 1, a fixed number of steps) and compares it with its reference by structure, colour areas and line length. It flags the ones that changed a lot, rather than failing them, and writes `golden-out/report.html` with the reference, the new render and the changed pixels side by side. Film and Wake examples take a minute or more each, so run it before a merge or overnight, not on every save. When a change was meant, refresh that example's reference on purpose: `node scripts/golden.mjs --refresh --only "Feather plumes"`.
+
 The editor is React, Tailwind and Vite, in `app/`: `npm run dev` there serves it with live reloading, `npm test` checks that nothing from the classic page was left behind, and `npm run storybook` shows every part on its own. `app/README.md` explains how to add a tool, setting, menu action or panel. The simulators and the classic page need no build: `node server.mjs` serves them as they are. Where to look:
 
 | Files | What's there |
@@ -95,6 +97,7 @@ The editor is React, Tailwind and Vite, in `app/`: `npm run dev` there serves it
 | `app/` | The editor |
 | `classic/` | The original editor, kept as it was |
 | `server.mjs` | The local server and the assistant |
+| `scripts/golden.mjs`, `golden/` | The examples' review against reference pictures |
 
 ## License
 
