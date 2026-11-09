@@ -188,7 +188,7 @@ export const COMMANDS = [
     AT,
   ] },
   { name: 'hearts', group: 'Tools', summary: 'Heart strike (also heartStrike()). Bends every loop that is already round into a heart of the same area and middle, pointing the way angle says; the rings of a target bend together and stay nested, and odd shapes and frozen ink are left alone. style "tine" instead drags a small tine through the middle of each loop, the older way. Follow it with settle() to wait for it. Not available in Grid ink.', params: [
-    ['angle', 'number', 270, 'the way the strike goes, and so the way the points face: 270 is down'],
+    ['angle', 'number', 0, 'the way the points face, as for heartDrop: 0 points down, 90 right, 180 up. Before 2026-11-09 it was the strike\'s direction, 270 down: an old angle a is now a + 90', 'strike'],
     ['style', 'string', 'bend', '"bend" round loops into hearts, or "tine" to drag a tine through each'],
     ['variation', 'number', 0.3, 'bend: 0 to 1, how much each heart differs from the plain one'],
     ['above', 'number', 130, 'tine: where each tine starts, as a percentage of the way from the middle to the edge; 100 is the edge'],
@@ -235,7 +235,7 @@ export const COMMANDS = [
   ] },
   { name: 'air', group: 'Tools', summary: 'A breath of air over the whole bath: a smooth random flow that stretches and swirls the ink without changing its area, so patterns loosen and wander. Works in every simulator, and in Wake it also sets the bath moving. Advances the timeline.', params: [
     size('scale', 20, 'size of the eddies'),
-    SPEED(5),
+    ['strength', 'number', 5, 'how hard the air blows, % of width per second (speed is the old name and still works)', 'w'],
     ['octaves', 'number', 2, 'layers of detail, 1 to 4; each adds eddies half the size'],
     ['duration', 'number', 2, 'seconds'],
     ['seed', 'number', null, 'a whole number; the same seed gives the same breath. Left out, a fresh one is drawn'],
@@ -328,6 +328,12 @@ const paramsOf = (name) => byName.get(name)?.params ?? [];
 // mL covering a share of the tank. The engine's final area is quantity * 1000 / film.
 const mlPerPercent = ({ width, height, film }) => ((width * height) / 100) * film / 1000;
 
+// Heart strike's angle (row 62, item 8): scripts and the tool give it as Heart drop does, 0 pointing
+// down, 90 right, 180 up. The engine (and every saved log) keeps the strike's own direction of
+// travel, 270 down, so saved tanks replay exactly; these convert between the two.
+export const strikeToEngine = (a) => (((a - 90) % 360) + 360) % 360;
+export const strikeFromEngine = (a) => (((a + 90) % 360) + 360) % 360;
+
 // Each unit as [page value to mm, mm to page value]; arrays and points build on these.
 function units(tank) {
   const { width: W, height: H } = tank;
@@ -347,17 +353,25 @@ function units(tank) {
     dy: [(v) => -(v / 100) * H, (v) => -(v / H) * 100],
     q: [(v) => v * mlPerPercent(tank), (v) => v / mlPerPercent(tank)],
     w2: [(v) => v * k * k, (v) => v / (k * k)],
+    strike: [strikeToEngine, strikeFromEngine],
   };
 }
 
 // Fills in defaults and converts one command's options from page units to mm.
+// Script names that differ from the engine's (row 62, item 9): { command: { script name: engine name } }.
+// The old name is still accepted in a script.
+const RENAMED = { air: { strength: 'speed' } };
+
 export function toMm(name, options, tank) {
   const table = units(tank);
   const out = { ...options };
+  const renamed = RENAMED[name] ?? {};
+  for (const [now, old] of Object.entries(renamed)) if (out[now] === undefined && out[old] !== undefined) { out[now] = out[old]; delete out[old]; }
   for (const [key, , def, , unit] of paramsOf(name)) {
     if (out[key] === undefined && def !== null) out[key] = def;
     if (out[key] !== undefined && unit) out[key] = table[unit][0](out[key]);
   }
+  for (const [now, old] of Object.entries(renamed)) if (now in out) { out[old] = out[now]; delete out[now]; }
   return out;
 }
 
@@ -367,6 +381,7 @@ const tidy = (v) => (Array.isArray(v) ? v.map(tidy) : typeof v === 'number' ? Nu
 export function fromMm(name, args, tank) {
   const table = units(tank);
   const out = { ...args };
+  for (const [now, old] of Object.entries(RENAMED[name] ?? {})) if (old in out) { out[now] = out[old]; delete out[old]; }
   for (const [key, , , , unit] of paramsOf(name)) {
     if (out[key] !== undefined && unit) out[key] = tidy(table[unit][1](out[key]));
   }

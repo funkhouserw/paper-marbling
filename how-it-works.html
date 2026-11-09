@@ -140,7 +140,7 @@ bath({ color: water });
 tile({ on: true });
 fillDots({ count: 80, colors: inks, gap: 0.6 });
 settle();
-hearts({ angle: 270 });</code></pre>
+hearts({ angle: 0 }); // points down, as heartDrop</code></pre>
   <dl>
     <dt>Positions</dt><dd>Scripts work on a 0 to 100 page, the way CSS percentages do. <code>x</code> is % of the width from the left and <code>y</code> is % of the height from the top, so <code>50, 50</code> is the centre.</dd>
     <dt>Sizes</dt><dd>% of the width, so circles stay round on any tank. A <code>y</code> step for equal spacing is the <code>x</code> step divided by <code>ASPECT</code>.</dd>

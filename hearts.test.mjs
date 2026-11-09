@@ -281,3 +281,34 @@ test('a bending heart pushes the ink round it aside instead of overlapping it, a
   }
   assert.equal(inside, false, 'the point pushed into the drop rather than over it');
 });
+
+// Row 62, item 8: one angle for hearts. Scripts and the tool give Heart strike's angle as Heart drop
+// does (0 points down); the engine and saved logs keep the strike's direction (270 down), so old saves
+// replay exactly. Item 9: air's strength, with speed still accepted.
+test('Heart strike takes Heart drop\'s angle in scripts, and saved logs are unchanged', async () => {
+  const { Marble: M, runScript: run } = await import('./engine.js');
+  const { strikeToEngine, strikeFromEngine } = await import('./api.js');
+  for (const [page, engine] of [[0, 270], [90, 0], [180, 90], [270, 180]]) {
+    assert.equal(strikeToEngine(page), engine);
+    assert.equal(strikeFromEngine(engine), page);
+  }
+  const m = new M();
+  run(m, 'drop({ x: 50, y: 50 }); settle(); hearts({ angle: 0 }); heartStrike({ angle: 90 }); hearts();');
+  const logged = m.log.filter((e) => e.fn === 'hearts').map((e) => e.args.angle);
+  assert.deepEqual(logged, [270, 0, 270], 'down, right, and the default down');
+  assert.match(m.toScript(), /hearts\(\{"angle":0,/);
+  const { TankController } = await import('./controller.js');
+  const c = new TankController();
+  assert.equal(c.values.hearts.angle, 0, 'the tool starts pointing down');
+  assert.equal(c.inMm('hearts').angle, 270);
+});
+
+test('air takes strength, and the old name speed still works', async () => {
+  const { Marble: M, runScript: run } = await import('./engine.js');
+  const a = new M(), b = new M();
+  run(a, 'air({ scale: 20, strength: 8, seed: 3 });');
+  run(b, 'air({ scale: 20, speed: 8, seed: 3 });');
+  assert.deepEqual(a.log, b.log);
+  assert.equal(a.log[0].args.speed, 80, '8 % of a 1000 mm tank per second');
+  assert.match(a.toScript(), /air\(\{.*"strength":8\b/);
+});

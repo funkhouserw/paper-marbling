@@ -51,7 +51,7 @@ bath({ color: water });
 tile({ on: true });
 fillDots({ count: 80, colors: inks, gap: 0.6 });
 settle();
-hearts({ angle: 270 });
+hearts({ angle: 0 }); // points down, as heartDrop
 ```
 
 Scripts are real JavaScript that runs in the page, so only run ones you trust.

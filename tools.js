@@ -240,9 +240,9 @@ export const TOOLS = {
     choices: { style: ['Style', { bend: 'Bend round loops into hearts', tine: 'Drag a tine through each' }, 'bend'] },
     hint: 'Turns every round dot that isn\'t frozen into a heart, rings and all. The dashed outlines show what each becomes. Then press its button.',
     whole: true,
-    directions: true,
+    directions: 'heart', // 0 points down, as Heart drop
     params: {
-      angle: ['Angle (°)', 270, 0, 360, 1],
+      angle: ['Angle (°)', 0, 0, 360, 1],
       variation: ['Variation', 0.3, 0, 1, 0.05],
       above: ['Start above (%)', 130, 0, 300, 5],
       below: ['End below (%)', 130, 0, 300, 5],

@@ -134,6 +134,8 @@ export function useTank() {
         if (c.values.drop && last.values?.drop?.dispersion === 0.6) c.values.drop.dispersion = null;
         if (c.values.broom && last.values?.broom?.spreading === 12) c.values.broom.spreading = null;
       }
+      // Kept before Heart strike's angle took Heart drop's convention (0 = down; row 62): turn it.
+      if (!last.heartAngles && typeof last.values?.hearts?.angle === 'number') c.values.hearts.angle = (last.values.hearts.angle + 90) % 360;
       if (last.tool && c.values[last.tool]) c.setTool(last.tool);
       if (last.palette) {
         try { c.usePalette(last.palette); } catch { /* a palette that's since been deleted */ }
@@ -170,7 +172,7 @@ export function useTank() {
     if (resetting.current) return;
     try {
       localStorage.setItem(KEPT_KEY, JSON.stringify({
-        settings: c.settings, values: c.values, tool: c.tool, inkProps: 1,
+        settings: c.settings, values: c.values, tool: c.tool, heartAngles: 1, inkProps: 1,
         palette: ui.palette, ink: ui.ink, view: ui.view, page: ui.page, tint: ui.tint,
       }));
     } catch { /* storage full or blocked: nothing to keep */ }

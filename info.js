@@ -167,7 +167,7 @@ export const INFO = {
   'heartDrop.quantity': 'How much ink, and so how big the heart is: the same area a lone drop of this size spreads to.',
   'heartDrop.angle': 'Which way the point faces: 0 is down, 90 right, 180 up.',
   'heartDrop.variation': 'How much each heart differs from the plain one, so a row of them looks hand-made. 0 makes them all the same.',
-  'hearts.angle': 'The way the strike goes, which is the way the points face. 270 is down.',
+  'hearts.angle': 'Which way the points face, as for Heart drop: 0 is down, 90 right, 180 up. The strike runs that way through each loop.',
   'hearts.above': 'For Drag a tine: where each tine starts, measured from the middle of its dot: 0 is the middle, 100 is the edge, and more is outside the dot.',
   'hearts.below': 'For Drag a tine: where each tine ends, measured the same way. Going past the edge draws out the point.',
   'hearts.pull': 'For Drag a tine: how widely each tine pulls, as a percentage of its own dot\'s radius, so big and small dots get the same shape.',
