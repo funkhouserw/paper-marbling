@@ -71,7 +71,7 @@ export const SHORT_LABELS = {
   'Drops per click': 'Per click', 'Dots per spray': 'Per spray', 'Space between dots': 'Spacing',
   'Colours per dot': 'Colours', 'Space between teeth': 'Spacing',
   'Start above (%)': 'Starts (%)', 'Wave direction (°)': 'Direction (°)',
-  'Starts turning': 'Turns first', 'Only loops from': 'Loops from', 'Only loops up to': 'Loops to', 'Swirl strength': 'Strength',
+  'Starts turning': 'Turns first', 'Gall in the colour': 'Gall', 'Paint: thick ↔ thin': 'Thin paint', 'Only loops from': 'Loops from', 'Only loops up to': 'Loops to', 'Swirl strength': 'Strength',
 };
 export const shortLabel = (label) => SHORT_LABELS[label] ?? label;
 
