@@ -3,7 +3,7 @@
 // that lost their plumes (fewer lines, all one way) are flagged and say why.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { features, distances, judge } from './scripts/golden-metrics.mjs';
+import { features, distances, judge, spreadOf } from './scripts/golden-metrics.mjs';
 
 const W = 400, H = 300;
 const poly = (pts, color) => ({ xy: Float64Array.from(pts.flat()), n: pts.length, color });
@@ -43,4 +43,15 @@ test('outlines off the tank do not count, and an empty tank has no lines', () =>
   const off = features([poly([[1000, 1000], [1100, 1000], [1100, 1100]], '#000')], W, H);
   assert.equal(off.length, 0);
   assert.equal(features([], W, H).length, 0);
+});
+
+test('the spread over several seeds is the median pair, so one odd seed does not set it', () => {
+  const look = [0, 1.3, 2.1, 0.7].map((phase) => features(bands(20, { wiggle: 6, phase }), W, H));
+  const odd = features(bands(20, { wiggle: 14, waves: 9 }), W, H); // a seed that came out unlike the rest
+  const two = spreadOf([look[0], odd]).spread;
+  const { spread, range } = spreadOf([look[0], look[1], look[2], odd]);
+  assert.deepEqual(spreadOf([look[0], look[1]]).spread.orient, distances(look[0], look[1]).orient);
+  assert.ok(spread.orient < two.orient, `${spread.orient} vs ${two.orient}`);
+  assert.ok(range.orient[1] >= spread.orient && range.orient[0] <= spread.orient);
+  assert.equal(judge(look[0], look[3], spread).flagged, false, judge(look[0], look[3], spread).why.join());
 });

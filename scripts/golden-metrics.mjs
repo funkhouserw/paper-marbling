@@ -103,6 +103,23 @@ export function distances(a, b) {
   };
 }
 
+// An example's own spread from several seeds of it: for each measure, the median distance over every
+// pair of seeds (with 2 seeds, just their distance). One unusual seed moves the median little, where
+// it would set the whole spread with two. `range` keeps the smallest and largest pair, for people.
+export function spreadOf(all) {
+  const pairs = [];
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) pairs.push(distances(all[i], all[j]));
+  const spread = {}, range = {};
+  for (const k of Object.keys(FLOOR)) {
+    const order = [...pairs].sort((x, y) => x[k] - y[k]);
+    const mid = (order.length - 1) / 2;
+    spread[k] = (order[Math.floor(mid)][k] + order[Math.ceil(mid)][k]) / 2;
+    range[k] = [order[0][k], order.at(-1)[k]];
+    if (k === 'tileOrient' || k === 'tileLength') spread[`${k}At`] = order[Math.floor(mid)][`${k}At`];
+  }
+  return { spread, range };
+}
+
 // The smallest spread each measure is allowed, so an example whose two seeds happen to agree closely
 // isn't flagged for noise: 0.02 of a histogram, 5% of a length or count, a tenth of a decade of size.
 export const FLOOR = { orient: 0.02, length: Math.log(1.05), shapes: Math.log(1.15), colours: 0.02, sizes: 0.1, tileOrient: 0.04, tileLength: Math.log(1.1) };
