@@ -1,5 +1,7 @@
-// Optional timing for slow tanks. While on, it totals where the time goes and sends a summary
-// every couple of seconds. server.mjs appends those to ../profiles/marbler-profile.jsonl.
+// Optional timing for slow tanks. While on, it totals where the time goes and, every couple of
+// seconds, hands a summary to onSummary (the editor shows it on screen with ?profile=1) and posts it
+// to /api/profile, which the local server appends to a file (the static site has no server, so there
+// the post just fails quietly).
 const WATCHED = ['_tine', '_tineBody', '_map', '_refine', '_simplify', '_compact', '_cutFilaments', '_stepFlow', '_flushGrowth', '_measureCoverage',
   '_absorbOutlines', '_refreshInk', '_renderInk', '_advanceMaps', '_advanceMapsGL', '_project'];
 const EVERY_MS = 2000;
@@ -14,11 +16,12 @@ function machine() {
   return out;
 }
 
-export function makeProfiler(describe) {
+export function makeProfiler(describe, { onSummary = null, post = true } = {}) {
   let on = false;
   let now = empty();
   let next = 0;
   let sentMachine = false;
+  let lastMachine = null;
 
   // Wraps a tank's own methods, which disappear with it. Time in one method can include another:
   // _map runs inside _tine, for example.
@@ -49,14 +52,17 @@ export function makeProfiler(describe) {
       frames: now.frames, frameMax: round(now.frameMax), methods,
     };
     sentMachine = true;
+    lastMachine = body.machine ?? lastMachine;
     now = empty();
     next = at + EVERY_MS;
-    fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+    onSummary?.({ ...body, machine: lastMachine });
+    if (post) fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
   };
 
   return {
     set on(value) { on = value; now = empty(); next = performance.now() + EVERY_MS; sentMachine = false; },
     get on() { return on; },
+    get machine() { return lastMachine; },
     watch(marble) { if (on) watch(marble); },
     tick(ms) { if (on) { now.ticks++; now.tickMs += ms; now.tickMax = Math.max(now.tickMax, ms); } },
     draw(ms) { if (on) { now.draws++; now.drawMs += ms; now.drawMax = Math.max(now.drawMax, ms); } },

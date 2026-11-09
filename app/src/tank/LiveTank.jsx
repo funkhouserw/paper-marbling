@@ -4,7 +4,13 @@
 // into undo. tankview holds a touch back for a moment, so a second finger never leaves a mark.
 import { useEffect, useRef, useState } from 'react';
 import { mountTank } from '../../../tankview.js';
+import { makeProfiler } from '../../../profile.js';
+import { benchmarkInWorker, drawBenchmark } from '../../../bench.js';
 import { cx } from '../ui/widgets.jsx';
+
+// ?profile=1: time the tank and show the numbers on screen, so a phone can be measured without a
+// server (#54). Off otherwise: nothing is wrapped or timed.
+const PROFILING = typeof location !== 'undefined' && new URLSearchParams(location.search).get('profile') === '1';
 
 const MAX_ZOOM = 5;
 const TAP_MS = 250;   // a two-finger tap is quicker than this
@@ -18,6 +24,8 @@ export function LiveTank({ tank, className, onMenu }) {
   const menu = useRef(onMenu);
   menu.current = onMenu;
   const [zoomed, setZoomed] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [bench, setBench] = useState(PROFILING ? 'running' : null);
 
   // Pan and zoom, kept here and written straight to the box's transform while fingers move.
   const zoom = useRef({ scale: 1, x: 0, y: 0 });
@@ -31,7 +39,17 @@ export function LiveTank({ tank, className, onMenu }) {
   const resetZoom = () => { zoom.current = { scale: 1, x: 0, y: 0 }; apply(); };
 
   useEffect(() => {
+    const canvasSize = () => { const cv = box.current?.querySelector('canvas'); return cv ? { width: cv.width, height: cv.height } : null; };
+    const profiler = PROFILING ? makeProfiler(() => {
+      const m = c.marble;
+      return {
+        simulator: c.settings.simulator, busy: m.busy, shapes: m.polys?.length ?? 0,
+        points: (m.polys ?? []).reduce((s, p) => s + (p.n ?? 0), 0), canvas: canvasSize(), snapshots: c.snapshotting(),
+      };
+    }, { onSummary: setSummary }) : null;
+    if (profiler) { profiler.on = true; c.onTick = (ms) => profiler.tick(ms); }
     const v = mountTank(box.current, c, {
+      profiler,
       leftOnly: true,
       touchGestures: true,
       onStats: tank.onStats,
@@ -61,7 +79,13 @@ export function LiveTank({ tank, className, onMenu }) {
     // The same console handles as the old page, for looking at the tank and for browser tests.
     window.marble = () => c.marble;
     window.marbler = { controller: c, view: v };
-    return () => { v.destroy(); tank.setView(null); view.current = null; };
+    // Once the canvas has its real size (it's sized after the first layout), time a draw at that size.
+    // Stepping is timed in a worker; the draw on this page's thread, where the tank really draws.
+    const benchSoon = PROFILING ? setTimeout(() => benchmarkInWorker({}).then((r) => {
+      if (!r) { setBench('failed'); return; }
+      setBench({ ...r, draw: drawBenchmark({ canvas: canvasSize(), steps: r.steps }) });
+    }), 1500) : null;
+    return () => { clearTimeout(benchSoon); v.destroy(); tank.setView(null); view.current = null; if (profiler) c.onTick = null; };
     // The tank and its view live as long as the page.
   }, [c]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -140,6 +164,28 @@ export function LiveTank({ tank, className, onMenu }) {
           {Math.round(zoom.current.scale * 100)}% · Fit
         </button>
       )}
+      {PROFILING && <ProfileReadout summary={summary} bench={bench} />}
     </div>
+  );
+}
+
+// The ?profile=1 numbers, small, in a corner, for a screenshot: what the device scored on the
+// startup benchmark, then the last two seconds of stepping and drawing.
+function ProfileReadout({ summary: s, bench: b }) {
+  const per = (ms, n) => (n ? (ms / n).toFixed(1) : '–');
+  const mc = s?.machine;
+  const lines = [
+    typeof b === 'object' && b
+      ? `bench: step ${b.stepMs} ms (${b.realTime}× real time), draw ${b.draw ? `${b.draw.ms} ms at ${b.draw.width}×${b.draw.height}` : 'n/a'}`
+      : `bench: ${b ?? '–'}`,
+    s ? `${s.simulator}${s.busy ? ', moving' : ''}${s.snapshots ? ', snapshots' : ''}: ${s.frames / s.seconds} fps, frame max ${s.frameMax} ms` : 'waiting for the first 2 s…',
+    s ? `step ${per(s.tickMs, s.ticks)} ms × ${s.ticks} (max ${s.tickMax}), draw ${per(s.drawMs, s.draws)} ms × ${s.draws} (max ${s.drawMax})` : '',
+    s ? `${s.shapes} shapes, ${s.points} points, canvas ${s.canvas ? `${s.canvas.width}×${s.canvas.height}` : '?'}` : '',
+    mc ? `dpr ${mc.pixelRatio}, ${mc.cores ?? '?'} cores, ${mc.memoryGB ?? '?'} GB, ${mc.gpu}` : '',
+  ].filter(Boolean);
+  return (
+    <pre aria-label="Profile" className="pointer-events-none absolute left-2 top-2 z-10 max-w-[95%] whitespace-pre-wrap rounded bg-black/75 px-2 py-1 font-mono text-[10px] leading-tight text-white">
+      {lines.join('\n')}
+    </pre>
   );
 }
