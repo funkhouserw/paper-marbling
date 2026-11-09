@@ -45,7 +45,7 @@ export const TOOLS = {
     hint: 'Click to place drops. Each click can be a different quantity and colour. Keys 1 to 9 pick a palette ink.',
     color: true,
     params: {
-      quantity: ['Drop size', 1.5, 0.05, 30, 0.05],
+      quantity: ['Ink amount', 1.5, 0.05, 30, 0.05],
       dispersion: ['Spread speed', 0.6, 0.05, 5, 0.05],
       count: ['Drops per click', 1, 1, 60, 1],
       scatter: ['Scatter', 0, 0, 40, 0.5],
@@ -61,7 +61,7 @@ export const TOOLS = {
   broom: {
     label: 'Broom straw',
     input: 'click',
-    // The broom only places drops; how they meet is the simulator's. Colour per flick is the total:
+    // The broom only places drops; how they meet is the simulator's. Ink amount is the whole flick's:
     // each drop's mean share, corrected for the log-normal's mean. Oil and turpentine (Advanced) go
     // into every drop, and are only passed when set, so plain flicks log as before.
     act(t) {
@@ -78,8 +78,8 @@ export const TOOLS = {
       // 26–27): about half the bath at first, near 90% after two or three flicks (measured
       // 2026-11-07), rather than flooding the tank at once.
       count: ['Drops', 60, 3, 300, 1],
-      quantity: ['Colour per flick', 2.5, 0.5, 100, 0.5],
-      scatter: ['Reach', 25, 2, 80, 0.5],
+      quantity: ['Ink amount', 2.5, 0.5, 100, 0.5],
+      scatter: ['Scatter', 25, 2, 80, 0.5],
       variation: ['Size spread', 0.9, 0, 2, 0.05],
       spreading: ['How far it spreads', 12, 1, 50, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }],
@@ -97,7 +97,7 @@ export const TOOLS = {
     hint: 'Click to place a heart of ink. It pushes the ink round it aside, then keeps its shape and its fine point until a tool moves it.',
     color: true,
     params: {
-      quantity: ['Size', 1.5, 0.05, 30, 0.05],
+      quantity: ['Ink amount', 1.5, 0.05, 30, 0.05],
       angle: ['Angle (°)', 0, -180, 180, 1],
       variation: ['Variation', 0.3, 0, 1, 0.05],
     },
@@ -124,7 +124,7 @@ export const TOOLS = {
       // Defaults give a spatter like a broom flicked over the size (stone video, photo 36): a range
       // of dot sizes, not dust.
       n: ['Dots per spray', 120, 10, 600, 10],
-      radius: ['Spray width', 15, 1, 60, 0.5],
+      radius: ['Scatter', 15, 1, 60, 0.5],
       max: ['Largest dot', 0.6, 0.05, 5, 0.01],
       smallest: ['Smallest dot (% of largest)', 20, 1, 100, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
@@ -159,7 +159,7 @@ export const TOOLS = {
       max: ['Largest dot', 6, 0.5, 30, 0.1],
       gap: ['Space between dots', 0.3, 0, 5, 0.05],
       tightness: ['Tightness', 0.6, 0, 1, 0.05],
-      rings: ['Rings in each dot', 1, 1, 5, 1],
+      rings: ['Colours per dot', 1, 1, 5, 1],
       gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
     },
   },
@@ -238,8 +238,8 @@ export const TOOLS = {
       above: ['Start above (%)', 130, 0, 300, 5],
       below: ['End below (%)', 130, 0, 300, 5],
       pull: ['Pull (%)', 25, 5, 100, 1],
-      min: ['Smallest dot', 0.02, 0.02, 60, 0.01],
-      max: ['Largest dot', 60, 0.02, 60, 0.01],
+      min: ['Only loops from', 0.02, 0.02, 60, 0.01],
+      max: ['Only loops up to', 60, 0.02, 60, 0.01],
       speed: ['Speed', 20, 1, 80, 1],
     },
   },
@@ -341,7 +341,7 @@ export const TOOLS = {
       rings: ['Rings', 3, 1, 12, 1],
       ringSpacing: ['Ring spacing', 10, 1, 30, 0.5],
       degrees: ['Turn (°)', 180, 10, 1080, 10],
-      rate: ['Rate (°/s)', 60, 5, 360, 5],
+      rate: ['Speed (°/s)', 60, 5, 360, 5],
       D: ['Pull', 3, 0.2, 10, 0.1],
     },
   },
