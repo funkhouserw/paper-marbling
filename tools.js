@@ -363,7 +363,7 @@ export const TOOLS = {
     whole: true,
     params: {
       scale: ['Swirl size', 20, 3, 60, 0.5],
-      speed: ['Strength', 5, 0.5, 30, 0.1],
+      strength: ['Strength', 5, 0.5, 30, 0.1],
       octaves: ['Fine detail', 2, 1, 4, 1],
       duration: ['Duration (s)', 2, 0.2, 10, 0.1],
     },
@@ -402,7 +402,7 @@ export const TOOLS = {
 };
 
 export const PAGE_UNITS = {
-  quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
+  quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', strength: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
   gap: 'w', width: 'w', wobble: 'w', scale: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2', overhang: 'w',
 };
 

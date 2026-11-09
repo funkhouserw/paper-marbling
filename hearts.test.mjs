@@ -309,6 +309,10 @@ test('air takes strength, and the old name speed still works', async () => {
   run(a, 'air({ scale: 20, strength: 8, seed: 3 });');
   run(b, 'air({ scale: 20, speed: 8, seed: 3 });');
   assert.deepEqual(a.log, b.log);
-  assert.equal(a.log[0].args.speed, 80, '8 % of a 1000 mm tank per second');
-  assert.match(a.toScript(), /air\(\{.*"strength":8\b/);
+  assert.equal(a.log[0].args.strength, 80, '8 % of a 1000 mm tank per second');
+  assert.match(a.toScript(), /air\(\{"scale":20,"strength":8,/);
+  // A session saved before the rename, logged with speed, replays the same.
+  const old = new M();
+  old.replay([{ fn: 'air', args: { scale: 200, speed: 80, octaves: 2, duration: 2, seed: 3, at: 0 } }]);
+  assert.deepEqual(old.log, a.log);
 });
