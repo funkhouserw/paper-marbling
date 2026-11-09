@@ -780,10 +780,48 @@ fullRake({ angle: 0, teeth: 7, offset: -2.5, speed: 25, D: 0.5, waveShape: 'zigz
 fullRake({ angle: 0, teeth: 7, offset: 2.5, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, at: 0.2 });
 settle();
 `,
+  'Brown Shell': `// Brown Shell (Large Brown Shell, or French), Woolnough (1881) Example No. 26, plate p. 139: red,
+// yellow and blue sprinkled first, then the brown shell colour, with gall and a few drops of oil,
+// sprinkled evenly over all, "driving those three colours up into veins". The oil makes each shell
+// darker in the middle than round its edge; later, smaller shells land inside the first.
+viscosity({ value: 100 });
+bath({ color: '#efe9dc' });
+gall({ on: true, start: 1, step: 0.4 });
+// Red, yellow and blue veins sprinkled first.
+broom({ n: 300, size: 0.03, spread: 0.8, spreading: 2, color: '#6e1f2a' });
+broom({ n: 300, size: 0.03, spread: 0.8, spreading: 2, color: '#d9962a' });
+broom({ n: 300, size: 0.03, spread: 0.8, spreading: 2, color: '#1f2f80' });
+settle();
+// The brown shell colour, with a few drops of oil, sprinkled evenly over all: it drives the three up
+// into veins, each shell darker in the middle.
+broom({ n: 150, size: 0.6, spread: 0.6, spreading: 2, oil: 0.45, bands: 8, color: '#8d8270' });
+settle();
+// Later, smaller shells inside the first, and a few white pin spots.
+broom({ n: 160, size: 0.04, spread: 0.7, spreading: 2, oil: 0.45, bands: 5, color: '#8d8270' });
+settle();
+for (let i = 0; i < 60; i++) drop({ x: random() * 100, y: random() * 100, quantity: 0.003 + 0.01 * random(), color: '#f2ede2' });
+settle();
+`,
+  'Large Fawn': `// Large Fawn, Woolnough (1881) Example No. 27, plate p. 141: black and blue veins first, then fawn,
+// pure burnt Oxford ochre with gall water and a little oil, in big ringed shells that drive the two
+// up into veins side by side. Small Fawn (No. 28) is the same beaten on finer, with a blue vein only.
+viscosity({ value: 100 });
+bath({ color: '#f1ead9' });
+gall({ on: true, start: 1, step: 0.4 });
+// Black and blue veins first.
+broom({ n: 300, size: 0.045, spread: 0.8, spreading: 2, color: '#1b1a1c' });
+broom({ n: 300, size: 0.045, spread: 0.8, spreading: 2, color: '#24479a' });
+settle();
+// Fawn: burnt Oxford ochre with gall water and a little oil, in big ringed shells.
+broom({ n: 90, size: 1.7, spread: 0.6, spreading: 2, oil: 0.5, bands: 7, color: '#c4743c' });
+settle();
+broom({ n: 260, size: 0.12, spread: 0.7, spreading: 2, oil: 0.5, bands: 4, color: '#c4743c' });
+settle();
+`,
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic', Spanish: 'classic', 'Tulip (Çiçekli)': 'classic', 'Carnation (Çiçekli)': 'classic', 'Antique zigzag': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic', Spanish: 'classic', 'Tulip (Çiçekli)': 'classic', 'Carnation (Çiçekli)': 'classic', 'Antique zigzag': 'classic', 'Brown Shell': 'classic', 'Large Fawn': 'classic',
   // Written on 1 Nov for the first engine, since retuned for spreading ink: in Classic their drops
   // leave bare bath and Repeating whorls never whorls, so they keep the editor's Wake (fast) (#51).
   'Lapis bullseyes': 'wakefast', 'Blue & gold feather': 'wakefast', 'Emerald peacock': 'wakefast', 'Gilded stone': 'wakefast', 'Oxblood whirl': 'wakefast', 'Library endpaper': 'wakefast', 'Dot garden': 'wakefast', 'Bead field': 'wakefast', 'Repeating whorls': 'wakefast', 'Starry spray': 'wakefast', 'Wave comb': 'wakefast', 'Verdigris waves': 'wakefast',
