@@ -127,7 +127,7 @@ fullRake({ angle: 90, teeth: 8, speed: 24, D: 0.7 });
 fullRake({ angle: 270, teeth: 8, offset: 6.25, speed: 24, D: 0.7 });
 fullRake({ angle: 0, teeth: 40, speed: 30, D: 0.3 });`,
   'Ribbons': `// Stripes combed back and forth with a few wide teeth, until they stretch into ribbons.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
 bath({ color: '#c8d8c0' });
 stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
@@ -136,14 +136,14 @@ for (let i = 0; i < 3; i++) {
   fullRake({ angle: 270, teeth: 4, offset: 12.5, speed: 40, D: 2 });
 }`,
   'Big waves': `// One slow, very wide pass each way bends stripes into broad waves.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
 bath({ color: '#c8d8c0' });
 stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
 fullRake({ angle: 90, teeth: 3, speed: 60, D: 3 });
 fullRake({ angle: 270, teeth: 3, offset: 16.7, speed: 60, D: 3 });`,
   'Flames': `// Wide combing up and down, twice, draws stripes out into flames.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
@@ -200,7 +200,7 @@ fullRake({ angle: 90, teeth: 5, speed: 30, D: 1 });
 fullRake({ angle: 270, teeth: 5, offset: 10, speed: 30, D: 1 });
 settle();`,
   'Italian marble': `// One breath of air over stripes, with no comb at all.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
@@ -264,7 +264,7 @@ fullRake({ angle: 0, teeth: 14, speed: 28, D: 0.5 });
 // so it opens and squeezes the colours into veins between the clear cells. Passes interleave on a
 // jittered grid, settling in between, so the cells come out even instead of bursting outwards.
 // The clear is real gall water: it cuts holes showing the bath, so it's never tinted.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 const water = '#f3eee0';
 bath({ color: water });
 const inks = palette('Old Dutch').inks;
@@ -289,7 +289,7 @@ for (let p = 0; p < passes; p++) {
 // so it opens and squeezes the colours into veins between the clear cells. Passes interleave on a
 // jittered grid, settling in between, so the cells come out even instead of bursting outwards.
 // The clear is real gall water: it cuts holes showing the bath, so it's never tinted.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 const water = '#f3eee0';
 bath({ color: water });
 const inks = palette('Old Dutch').inks;
@@ -344,7 +344,7 @@ settle();
   'Broom-straw stone': `// Broom-straw stone, after a marbler's video: a broom flicks the first colour until it covers most of
 // the bath, then the second colour, which opens inside the first and squeezes it into a thin dark net.
 // Each drop keeps its own cell, so bare size shows as pale channels between them.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 bath({ color: '#f4efe2' });
 broom({ n: 160, size: 0.08, spread: 0.8, spreading: 6, color: '#8a6a4a' });
 settle();
@@ -353,7 +353,7 @@ settle();
 `,
   'Stormont': `// Stormont: a stone ground thrown with the broom, then a last colour with turpentine in it. As that
 // colour spreads, the turpentine thins it into a lace of fine holes showing the bare size.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 bath({ color: '#f4efe2' });
 broom({ n: 600, size: 0.08, spread: 0.8, spreading: 2, color: '#7a2e24' });
 settle();
@@ -366,7 +366,7 @@ settle();
 // covers most of the bath (distinct cells, bare channels), blue opening inside it and squeezing it
 // into veins, then a few big yellow cells, then lilac and a scatter of red. Rising gall gives each
 // colour a little more than the last, so each opens over the ones before.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 bath({ color: '#e9e6df' });
 separate({ on: true });
 gall({ on: true, start: 1, step: 0.5 });
@@ -381,7 +381,7 @@ flick(50, 50, '#e2574c', 0.0034, 20);
   'Stone veins (Thin film)': `// Stone veins in Thin film: the four-colour broom recipe, in the simulator whose films leave the most
 // bare size between them, so every colour sits in a lace of pale veins. Rising gall gives each colour
 // a little more than the last; Keep cells separate keeps same-colour cells apart.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 bath({ color: '#e9e6df' });
 separate({ on: true });
 gall({ on: true, start: 1, step: 0.5 });
@@ -397,7 +397,7 @@ flick(50, 50, '#e2574c', 0.0034, 20);
 // flick, so the colours cover more of the bath and the veins are fewer and finer. Thin film's films leave the most
 // bare size between them, so every colour sits in a lace of pale veins. Rising gall gives each colour
 // a little more than the last; Keep cells separate keeps same-colour cells apart.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 bath({ color: '#e9e6df' });
 separate({ on: true });
 gall({ on: true, start: 1, step: 0.5 });
@@ -413,7 +413,7 @@ flick(50, 50, '#e2574c', 0.0075, 20);
 // geometry. Each colour nests in the cell it lands in and squeezes it (up to twice as thick), and the
 // first throw leaves bare channels between its cells. Rising gall gives each colour a little more
 // than the last.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 bath({ color: '#e9e6df' });
 separate({ on: true });
 gall({ on: true, start: 1, step: 2, most: 15 });
@@ -429,7 +429,7 @@ flick(50, 50, '#e2574c', 0.0034, 20);
 // clear gall water in three passes. In Cells each clear drop takes its own cell and squeezes the
 // colours into thin veins between big pale cells. (The same recipe as Italian vein, in Cells.)
 // The clear is real gall water: it cuts holes showing the bath, so it's never tinted.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 const water = '#f3eee0';
 bath({ color: water });
 const inks = palette('Old Dutch').inks;
@@ -450,7 +450,7 @@ for (let p = 0; p < passes; p++) {
 `,
   'French Shell': `// French Shell: a stone ground, then a colour with oil in it. Each oiled drop spreads dark in the
 // middle with a lighter outer ring, its "shell" (Jaffer's fitted walnut-oil profile at oil 0.75).
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 bath({ color: '#efe8da' });
 separate({ on: true });
 broom({ n: 60, x: 30, y: 40, w: 60, h: 60, size: 0.028, spread: 0.9, spreading: 25, color: '#6b2f2a' });
@@ -495,7 +495,7 @@ settle();
   'Hatip hearts': `// Hatip (yürek, "hearts"), after a Turkish ebru: a pale stone ground, then rows of hearts, each an
 // orange heart with a dark one landed inside it, so the orange stays as a rim. Named after Hatip
 // Mehmed Efendi (d. 1773), whose motifs are built from drops placed inside one another.
-viscosity({ value: 1000 });
+viscosity({ value: 300 });
 bath({ color: '#e9e6d6' });
 broom({ n: 70, x: 50, y: 50, w: 100, h: 100, size: 0.16, spread: 0.9, spreading: 25, color: '#c9cfa0' });
 settle();
@@ -579,7 +579,7 @@ for (const x0 of [8, 38, 68]) {
 // the size, so the colour takes in diagonal bands, light and dark, like folded cloth: Spanish names a
 // way of laying the paper, not a colour layout. This example turns on Paper › Spanish (rock the
 // paper) for you: Pull a print to see the bands, and try Bands, Angle, Rocking and Creases.
-viscosity({ value: 1000 });
+viscosity({ value: 100 });
 bath({ color: '#efe8da' });
 const colours = ['#2c3e66', '#9c3b2e', '#d8b25a'];
 let k = 0;
