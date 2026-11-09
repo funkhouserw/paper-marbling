@@ -16,7 +16,7 @@ export const TOOLS = Object.fromEntries(Object.entries(RAW_TOOLS).map(([id, t]) 
   whole: Boolean(t.whole) || t.input === 'whole',
   input: t.input ?? null,
   color: Boolean(t.color),
-  directions: Boolean(t.directions),
+  directions: t.directions || false, // true, or 'heart' for arrows that follow Heart drop's angle (0 = down)
   text: Boolean(t.text),
   // Size-like settings show a 0 to 100 dial (further with `over`) instead of page units, as the old page did.
   // A 7th entry carries flags: advanced (Advanced view only) and auto (a value of null means the
