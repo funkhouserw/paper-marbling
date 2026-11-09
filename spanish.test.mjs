@@ -1,7 +1,7 @@
 // Spanish as a Pull option: Jaffer's transfer map for rocking the paper as it's laid.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spanishMap } from './paper.js';
+import { spanishMap, spanishWave } from './paper.js';
 
 test('with no rocking the map is the identity, and the paper takes paint evenly', () => {
   const map = spanishMap({ wavelength: 20 });
@@ -40,4 +40,34 @@ test('too much rocking is clamped, so the contact line never goes backwards', ()
     assert.ok(a >= last - 1e-9, 'a keeps moving forward');
     last = a;
   }
+});
+
+// #65: on a repeating tank a Spanish pull must still repeat. The band wave has to come back onto
+// itself over every lattice step of the tile (a whole number of waves along each), for a plain,
+// brick or half-drop repeat; then the map commutes with the tile's shifts and the print tiles.
+test('on a repeating tank the Spanish bands fit the tile, for every repeat', () => {
+  const w = 2400, h = 1680;
+  const steps = { plain: [[w, 0], [0, h]], brick: [[w, 0], [w / 2, h]], halfDrop: [[0, h], [w, h / 2]] };
+  for (const [name, gens] of Object.entries(steps)) {
+    for (const angle of [0, 30, 45, 90, 137, 200]) {
+      for (const bands of [1, 7, 30, 80]) {
+        const { ux, uy, wavelength } = spanishWave(w, h, { bands, angle }, { offset: name === 'plain' ? null : name });
+        assert.ok(Math.abs(Math.hypot(ux, uy) - 1) < 1e-9 && wavelength > 0);
+        for (const [gx, gy] of gens) {
+          const waves = (ux * gx + uy * gy) / wavelength;
+          assert.ok(Math.abs(waves - Math.round(waves)) < 1e-9, `${name} ${angle}° ${bands}: ${waves} waves over (${gx}, ${gy})`);
+        }
+        // Close to what was asked: the snapped wavelength within a band's worth of the wanted one.
+        const t = (angle * Math.PI) / 180;
+        const want = (Math.abs(w * Math.cos(t)) + Math.abs(h * Math.sin(t))) / bands;
+        if (bands >= 7) assert.ok(Math.abs(wavelength - want) / want < 0.25, `${name} ${angle}° ${bands}: ${wavelength} vs ${want}`);
+      }
+    }
+  }
+});
+
+test('a pull from a tank that does not repeat keeps its bands as asked', () => {
+  const { ux, uy, wavelength } = spanishWave(2400, 1680, { bands: 30, angle: 45 });
+  assert.ok(Math.abs(ux - Math.SQRT1_2) < 1e-12 && Math.abs(uy - Math.SQRT1_2) < 1e-12);
+  assert.ok(Math.abs(wavelength - (2400 + 1680) * Math.SQRT1_2 / 30) < 1e-9);
 });

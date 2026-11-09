@@ -48,7 +48,7 @@ export const INFO = {
   baseColour: 'A background colour under the ink. Off, an empty tank shows a faint grid, and exports have a transparent background. Print uses it as the paper colour.',
   imperfection: 'How imperfect a pull is: uneven pickup, grain, air bubbles and a hesitation line.',
   spanish: 'Spanish marbling: the marbler rocks the paper to and fro as it is laid. Where the paper runs ahead it takes a thicker layer of paint and prints darker; where it is pushed back, thinner and lighter. That gives light and dark bands across whatever pattern is in the tank, after Aubrey Jaffer\'s model of pigment transfer. It changes only the print, not the tank.',
-  spanishBands: 'How many waves of rocking run across the sheet.',
+  spanishBands: 'How many waves of rocking run across the sheet. On a repeating tank the count and the angle shift a little, to the nearest that join up at the tile\'s edges, so the pulled sheet still repeats.',
   spanishAngle: 'The direction the paper is laid in: 45 lays it corner first, so the bands run diagonally.',
   spanishStrength: 'How far the paper moves to and fro as it is laid, as a share of the most it can without the contact line going backwards. More gives stronger light and dark bands.',
   spanishCreases: 'Moving the paper sideways as well turns the dark bands into sharp creases with broad light crests between them.',

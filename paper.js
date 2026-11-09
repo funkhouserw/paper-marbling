@@ -1,4 +1,5 @@
 // Pulling a sheet of paper off the tank: the print, the sweep animation and the gallery.
+import { wrapX, wrapY } from './tile.js';
 
 export const TINTS = {
   'Warm white': '#f7f1e3',
@@ -116,22 +117,56 @@ export function spanishMap({ wavelength, along = 0, across = 0 }) {
   };
 }
 
-// Prints the ink canvas through spanishMap: bands across the lay direction (angle in degrees, 0 laid
-// left to right), wavelength in pixels, strength 0-1 of the largest A, creases 0-1 for B.
-function spanishTransfer(ctx, w, h, { bands = 30, angle = 45, strength = 0.6, creases = 0 } = {}) {
+// The band direction and wavelength for a pull: angle in degrees (0 laid left to right), bands across
+// the sheet. On a repeating tank (#65) the wave must come back onto itself across every edge of the
+// tile, so its wave vector is snapped to the nearest one that repeats over the tile's lattice: a whole
+// number of waves along each of the lattice's two steps (plain (W, 0) and (0, H); brick (W, 0) and
+// (W/2, H); half-drop (0, H) and (W, H/2)). Returns the unit lay direction and the wavelength.
+export function spanishWave(w, h, { bands = 30, angle = 45 } = {}, tile = null) {
   const t = (angle * Math.PI) / 180;
-  const ux = Math.cos(t), uy = Math.sin(t);
+  let ux = Math.cos(t), uy = Math.sin(t);
   const span = Math.abs(w * ux) + Math.abs(h * uy);
-  const wavelength = span / Math.max(1, bands);
+  let wavelength = span / Math.max(1, bands);
+  if (!tile) return { ux, uy, wavelength };
+  const offset = tile.offset ?? null;
+  const g1 = offset === 'halfDrop' ? [0, h] : [w, 0];
+  const g2 = offset === 'brick' ? [w / 2, h] : offset === 'halfDrop' ? [w, h / 2] : [0, h];
+  // Waves per lattice step for the wanted wave vector (ux, uy) / wavelength, rounded to whole numbers.
+  let m1 = Math.round((ux * g1[0] + uy * g1[1]) / wavelength), m2 = Math.round((ux * g2[0] + uy * g2[1]) / wavelength);
+  if (!m1 && !m2) Math.abs(ux * g1[0] + uy * g1[1]) >= Math.abs(ux * g2[0] + uy * g2[1]) ? (m1 = Math.sign(ux * g1[0] + uy * g1[1]) || 1) : (m2 = Math.sign(ux * g2[0] + uy * g2[1]) || 1);
+  // Solve k · g1 = m1, k · g2 = m2 for k (waves per pixel).
+  const det = g1[0] * g2[1] - g1[1] * g2[0];
+  const kx = (m1 * g2[1] - m2 * g1[1]) / det, ky = (g1[0] * m2 - g2[0] * m1) / det;
+  const k = Math.hypot(kx, ky);
+  ux = kx / k; uy = ky / k; wavelength = 1 / k;
+  return { ux, uy, wavelength };
+}
+
+// Prints the ink canvas through spanishMap: bands across the lay direction (angle in degrees, 0 laid
+// left to right), wavelength in pixels, strength 0-1 of the largest A, creases 0-1 for B. On a
+// repeating tank (tile = { offset }), the bands fit the tile and the lookup wraps round its edges, so
+// the pulled sheet still repeats; otherwise the lookup stops at the sheet's edge.
+function spanishTransfer(ctx, w, h, { bands = 30, angle = 45, strength = 0.6, creases = 0 } = {}, tile = null) {
+  const { ux, uy, wavelength } = spanishWave(w, h, { bands, angle }, tile);
   const map = spanishMap({ wavelength, along: Math.max(0, Math.min(1, strength)) * (0.95 * wavelength) / Math.PI, across: Math.max(0, creases) * wavelength * 0.5 });
   const src = ctx.getImageData(0, 0, w, h);
   const out = ctx.createImageData(w, h);
   const s = src.data, d = out.data;
+  const offset = tile?.offset ?? null;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const p = x * ux + y * uy, q = -x * uy + y * ux;
       const [a, b, gamma] = map(p, q);
-      const bx = Math.min(w - 1, Math.max(0, Math.round(a * ux - b * uy))), by = Math.min(h - 1, Math.max(0, Math.round(a * uy + b * ux)));
+      const fx = a * ux - b * uy, fy = a * uy + b * ux;
+      let bx, by;
+      if (tile) {
+        const dx = fx - w / 2, dy = fy - h / 2;
+        bx = Math.floor(wrapX(dx, dy, w, h, offset) + w / 2) % w;
+        by = Math.floor(wrapY(dx, dy, w, h, offset) + h / 2) % h;
+      } else {
+        bx = Math.min(w - 1, Math.max(0, Math.round(fx)));
+        by = Math.min(h - 1, Math.max(0, Math.round(fy)));
+      }
       const i = (by * w + bx) * 4, o = (y * w + x) * 4;
       // Thicker paint where γ > 1: the squeeze tint with τ multiplied by γ (the tint goes by √τ).
       const e = 1 / Math.sqrt(Math.max(0.05, gamma));
@@ -193,7 +228,7 @@ export function pullPrint(marble, { tint = TINTS['Warm white'], imperfection = 0
     airBubbles(ictx, w, h, imperfection, random);
     hesitationLine(ictx, w, h, imperfection, random);
   }
-  if (spanish) spanishTransfer(ictx, w, h, spanish);
+  if (spanish) spanishTransfer(ictx, w, h, spanish, marble.tileOn ? { offset: marble.tileOffset ?? null } : null);
 
   const sheet = paperSheet(w, h, tint, random);
   const print = canvas(w, h);
