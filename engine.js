@@ -287,6 +287,15 @@ function seeded(seed) {
 // Thin ribbons. Stretching makes ink ever longer and thinner, and past a certain width it can't be
 // seen but still costs points, so every outline simulator cuts ribbons narrower than THINNEST.
 const THINNEST = 0.5; // mm
+// Fine combs (see _combAuto): the arch, as a share of the gap between tines, that stylus tines give at
+// the reach cap (2.3 mm on a 4 mm comb, research/2026-11-08-fine-comb-analysis.md), and the most a
+// very fine comb gives: 1.5, read by eye off the 1826 Commons endpaper
+// (research/references/commons-nonpareil-endpaper-1826.jpg: each boundary runs 1.3-1.7 tine gaps from
+// an arch's back to its cusp); provisional until fitted on 10-20 arches. Lu's falloff λ as a share
+// of the gap.
+const COMB_ARCH_AT_SWITCH = 0.57;
+const COMB_ARCH_MOST = 1.5;
+const COMB_SHARPNESS = 0.15;
 const COMB_TABLE = 256; // samples over half a pitch of the comb shear's smooth part
 const COMB_ROOM = 0.8; // share of the point limit a comb's spacing may plan to fill
 const COMB_SAMPLES = 12; // points along an edge piece to measure the curve the comb will give it
@@ -1738,21 +1747,17 @@ export class Marble {
   // paddle; more lets a fine or wavy comb drag further (column grounds, Peacock's fans).
   // ease: seconds the comb takes to come up to speed at the start and to slow to a stop at the end
   // (0, the default, starts and stops at full speed). It covers the same path, ease seconds longer.
-  // arch (mm, full rakes only): a straight comb with evenly spaced teeth drags each tine's line this far, and the
-  // lines between tines less, by Lu et al.'s comb shear (see _combShear). Fine combs then make
-  // nonpareil arches. falloff (mm): how fast the drag falls off away from a tine (Lu's λ; a point
-  // that far from its tine moves half as far). Left out, arch is off and the tines pull as styluses.
+  // fullSpan (set by fullRake): straight teeth across the whole tank. A fine one, whose tines' drag
+  // would reach past each other (see _combAuto), moves ink by a comb shear instead of tine by tine.
   rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
          waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach = REACH_SHARE, ease = 0,
-         arch = 0, falloff, at, fullSpan = false } = {}) {
+         at, fullSpan = false } = {}) {
     const points = path ?? [from, to];
     const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
     const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength, waveShape, width };
     if (reach !== REACH_SHARE) args.reach = reach;
     if (ease > 0) args.ease = ease;
-    if (arch > 0) args.arch = arch;
-    if (arch > 0 && falloff !== undefined) args.falloff = falloff;
-    if (arch > 0 && fullSpan) args.fullSpan = true; // set by fullRake: the teeth cover the tank
+    if (fullSpan) args.fullSpan = true; // set by fullRake: the teeth cover the tank
     if (at !== undefined) args.at = at;
 
     const segs = [];
@@ -1774,14 +1779,15 @@ export class Marble {
     // tile), or a thin bath lets one small comb drag the whole sheet; and a comb's tines mustn't
     // reach through each other, or they move the sheet as one paddle.
     op.L = Math.min(op.L, Math.min(this.width, this.height) / 14);
+    const L0 = op.L; // before the reach cap: how far the tines' drag would reach on its own
     if (offs.length > 1) {
       const sorted = [...offs].sort((a, b) => a - b);
       let gap = Infinity;
       for (let k = 1; k < sorted.length; k++) gap = Math.min(gap, sorted[k] - sorted[k - 1]);
       if (gap > 0) op.L = Math.max(0.25, Math.min(op.L, gap * Math.max(0.05, reach)));
     }
-    if (arch > 0 && fullSpan) {
-      op.shear = this._combShearFor(segs, offs, waveAmp, width, arch, falloff);
+    if (fullSpan) {
+      op.shear = this._combAuto(segs, offs, waveAmp, width, L0, reach);
       if (op.shear) op.shear.whole = !!(this.tileWanted ?? this.tileOn);
     }
     // Too short a stroke to reach full speed eases over all of it.
@@ -2131,7 +2137,7 @@ export class Marble {
 
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
-  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach = REACH_SHARE, ease = 0, arch = 0, falloff, at } = {}) {
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach = REACH_SHARE, ease = 0, at } = {}) {
     // How far the teeth start and end past the tank's edges. On a repeating tank anything past one
     // edge is raked again at the other, so there it defaults to none.
     overhang ??= (this.tileWanted ?? this.tileOn) ? 0 : 20;
@@ -2152,7 +2158,7 @@ export class Marble {
     const offsets = Array.from({ length: teeth }, (_, i) => wrap((i + 0.5) * spacing + offset) - across / 2);
     return this.rake({
       from: [-c * along, -s * along], to: [c * along, s * along],
-      offsets, speed, D, waveAmp, waveLength, waveShape, width, reach, ease, arch, falloff, at, fullSpan: true,
+      offsets, speed, D, waveAmp, waveLength, waveShape, width, reach, ease, at, fullSpan: true,
     });
   }
 
@@ -2681,6 +2687,44 @@ export class Marble {
   // Simulators whose tines drive a flow of their own (Grid ink) keep their tines.
   get combShearSupported() { return true; }
 
+  // A straight full rake's comb shear, chosen by the engine, never asked for. A tine's drag reaches about
+  // L₀ = speed·D²/ν (Jaffer's stylus). While that is under reach × the gap between tines (ρ ≤ 1) the
+  // tines pull as styluses, exactly as before. Past it the stylus field can only move the sheet as one
+  // (its orbits are closed: off-line drag is O(L), so summed tines saturate at arches of about half the
+  // gap), yet real fine combs make tall cusped nonpareil arches. There the comb moves ink by Lu's
+  // kernel: EMPIRICAL, not derived. Lu et al. 2012 give α and λ no physical dependence. λ is
+  // COMB_SHARPNESS × the gap; α is set so the arch stands h = gap × (COMB_ARCH_AT_SWITCH +
+  // (COMB_ARCH_MOST − COMB_ARCH_AT_SWITCH)(1 − e^(1 − ρ))), the stylus comb's own arch at the switch
+  // rising towards COMB_ARCH_MOST for very fine, fast or thick tines (researcher's proposal,
+  // research/2026-11-09-f1-review.md). COMB_ARCH_MOST is provisional until calibrated on the 1826
+  // sheet; a drag kernel derived from the physics (a 1/d tail) is a research item ("B").
+  // The switch reads the bath's viscosity, which the viscosity study (#36) finds 10-60× too high at
+  // ν = 1000; at a realistic ν (~100) real nonpareil combs (1-2 mm pins at moderate speed) cross it on
+  // their own, as marblers see. Until #36 lands the Nonpareil example uses fat, fast tines instead,
+  // and its D and speed should come back down when it does.
+  // combArch = { arch, falloff } on a tank (tests only) puts Lu's kernel on any straight full rake
+  // with those values, for before-and-after comparisons.
+  _combAuto(segs, offs, waveAmp, width, L0, reach) {
+    const test = this.combArch;
+    if (test) return this._combShearFor(segs, offs, waveAmp, width, test.arch, test.falloff);
+    const unit = this._combShearFor(segs, offs, waveAmp, width, 1, undefined);
+    if (!unit) return null;
+    const rho = L0 / (Math.max(0.05, reach) * unit.s);
+    if (!(rho > 1)) return null;
+    const { atSwitch, most, sharpness } = this.combCalibration;
+    const share = atSwitch + (most - atSwitch) * (1 - Math.exp(1 - rho));
+    // The composed height is in proportion to α.
+    const shape = this._combShearFor(segs, offs, waveAmp, width, 1, sharpness * unit.s);
+    return this._combShearFor(segs, offs, waveAmp, width, (share * unit.s) / shape.height, sharpness * unit.s);
+  }
+
+  // A fine comb's calibration (see _combAuto), per simulator (#59: tools may carry physics rules,
+  // tuned per simulator; never a user setting): the arch at the switch and at most, as shares of the
+  // gap between tines, and Lu's falloff λ as a share of it. Provisional: most = 1.5 read by eye off the
+  // 1826 sheet and confirmed by the researcher's fit of 11 arches (median 1.5-1.6, range 1.2-2.2; tips
+  // give λ/gap 0.13-0.27, so 0.15), research/2026-11-09-f1-review.md.
+  get combCalibration() { return { atSwitch: COMB_ARCH_AT_SWITCH, most: COMB_ARCH_MOST, sharpness: COMB_SHARPNESS }; }
+
   // Lu et al. 2012's comb (Eq. 1, p. 3): one tine moves a point at distance d from its line along
   // the stroke by f(d) = α·λ/(d + λ). A comb is every tine's stroke composed; the shifts add, as they
   // depend only on d. Only for a straight full rake with evenly spaced point tines; anything else (a
@@ -2698,7 +2742,7 @@ export class Marble {
     if (!(s > 0)) return null;
     for (let k = 2; k < sorted.length; k++) if (Math.abs(sorted[k] - sorted[k - 1] - s) > s * 1e-6) return null;
     const alpha = arch;
-    const lambda = Math.max(falloff ?? 0.15 * s, 1e-3);
+    const lambda = Math.max(falloff ?? COMB_SHARPNESS * s, 1e-3);
     const sh = { alpha, lambda, s, phase: ((sorted[0] % s) + s) % s };
     // G(d) for d from 0 to s/2 (d is the distance to the nearest tine) is f(d) + rest(d); rest is smooth,
     // so it comes from a table. Its terms fall off as 1/k³.
