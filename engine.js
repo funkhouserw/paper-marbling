@@ -2284,6 +2284,20 @@ export class Marble {
     });
   }
 
+  // Two bars of teeth fastened together, the hind bar's teeth in the middle of the front bar's gaps and
+  // gap behind it (Woolnough's Antique zigzag, Nos. 18-19; Peacock's double comb): two full rakes, the
+  // second half a pitch over and starting gap / speed later, so with a weave its tines follow the
+  // front ones' loops. Logged as the two rakes; follow it with settle().
+  doubleComb({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, ease = 0, gap = 25, at } = {}) {
+    const c = Math.cos(angle * DEG), s = Math.sin(angle * DEG);
+    const pitch = (Math.abs(s) * this.width + Math.abs(c) * this.height) / teeth;
+    const start = at ?? this._now;
+    const bar = { angle, teeth, speed, D, waveAmp, waveLength, waveShape, width, overhang, ease };
+    const front = this.fullRake({ ...bar, offset: offset - pitch / 4, at });
+    this.fullRake({ ...bar, offset: offset + pitch / 4, at: start + gap / speed });
+    return front;
+  }
+
   // Outline points past which fine detail starts to reduce.
   get detailBudget() { return this.pointBudget ?? DETAIL_BUDGET; }
 
