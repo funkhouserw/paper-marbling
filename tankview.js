@@ -12,6 +12,7 @@ import { PULL_SECONDS, LAY_SECONDS, pullPrint, drawSweep } from './paper.js';
 
 const GLINT_MS = 33;
 const SLOW_DRAW_MS = 25;
+const DENSITY_REST_MS = 500; // how long the tank rests before a capped canvas goes back to full density (#54 b)
 const SNAPSHOT_EVERY_MS = 2000;
 const LOADED_FRAME_MS = 28;  // average frame gap that counts as the page falling behind
 const BEHIND_FRAME_MS = 40;  // ...and that slows tank redraws too
@@ -60,11 +61,29 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
 
   // ---- Layout -------------------------------------------------------------
 
+  // Canvas pixels per CSS pixel. The screen's full density, except on a device whose startup
+  // benchmark found drawing slow (#54 b): there, while ink moves, the canvas drops to densityCap
+  // (fewer pixels to fill each frame) and goes back to full density once the tank is at rest.
+  let densityCap = Infinity;
+  let capped = false;
+  let restSince = 0;
+  const ratio = () => Math.min(devicePixelRatio || 1, capped ? densityCap : Infinity);
+  view.setDensityCap = (cap) => { densityCap = cap > 0 ? cap : Infinity; if (capped) resize(); };
+  view.densityCap = () => (Number.isFinite(densityCap) ? densityCap : null);
+  // Called each frame: cap as soon as ink moves, uncap after half a second at rest.
+  function followDensity(busy, now) {
+    if (!Number.isFinite(densityCap) || densityCap >= (devicePixelRatio || 1)) { if (capped) { capped = false; resize(); } return; }
+    if (busy) restSince = 0;
+    else if (!restSince) restSince = now;
+    const want = busy || now - restSince < DENSITY_REST_MS;
+    if (want !== capped) { capped = want; resize(); }
+  }
+
   function resize() {
     // The box's own layout size, not its on-screen rectangle: a pinch zoom scales the box with a
     // transform, and measuring that would size the canvas past the space it has.
     const box = { width: wrap.clientWidth, height: wrap.clientHeight };
-    const dpr = devicePixelRatio || 1;
+    const dpr = ratio();
     const cssScale = Math.max(0.01, Math.min(box.width / c.marble.width, box.height / c.marble.height));
     pxPerMm = cssScale * dpr;
     for (const el of [tank, overlay]) {
@@ -199,7 +218,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
   function drawHeartLines() {
     const m = c.marble;
     if (c.tool !== 'hearts' || !m.heartPaths || m.busy) return;
-    const px = devicePixelRatio || 1;
+    const px = ratio();
     octx.save();
     octx.lineWidth = px;
     octx.setLineDash([5 * px, 4 * px]);
@@ -265,7 +284,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     const m = c.marble;
     if (!m.polys.some((p) => p.frozen)) return;
     const masked = c.tool === 'fullRake' || c.freezeMode !== 'off';
-    const px = devicePixelRatio || 1;
+    const px = ratio();
     octx.save();
     octx.lineWidth = px;
     octx.setLineDash([5 * px, 4 * px]);
@@ -292,7 +311,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     const loops = c.freezeTarget(view.hover);
     if (!loops) return;
     octx.save();
-    octx.lineWidth = 2 * (devicePixelRatio || 1);
+    octx.lineWidth = 2 * ratio();
     octx.strokeStyle = c.freezeMode === 'freeze' ? '#ff3058' : '#fff';
     octx.stroke(pathFor(loops));
     octx.restore();
@@ -367,7 +386,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
       previewLayer.width = overlay.width;
       previewLayer.height = overlay.height;
     }
-    const px = devicePixelRatio || 1;
+    const px = ratio();
     lctx.clearRect(0, 0, previewLayer.width, previewLayer.height);
     lctx.lineWidth = px;
     lctx.setLineDash([5, 4]);
@@ -456,7 +475,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     }
     const { tool, stroke } = c;
     if (tool === 'text' && view.hover) drawTextPreview();
-    octx.lineWidth = devicePixelRatio || 1;
+    octx.lineWidth = ratio();
     if (stroke && stroke.length > 1) {
       octx.strokeStyle = guideColor(0.7);
       octx.beginPath();
@@ -596,6 +615,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     if (pull) stepPull(now);
     else c.advance(wall, start);
     const marble = c.marble;
+    if (!pull) followDensity(marble.busy || c.finishing, now);
     // A new tank (cleared, an example, another simulator) starts with no draw time of its own, so a
     // slow draw of the tank before doesn't turn low framerate on (row 61).
     if (marble !== drawnMarble) { drawnMarble = marble; lastDrawMs = 0; }

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mountTank } from '../../../tankview.js';
 import { makeProfiler } from '../../../profile.js';
-import { benchmarkInWorker, drawBenchmark } from '../../../bench.js';
+import { benchmarkInWorker, drawBenchmark, densityCapFor } from '../../../bench.js';
 import { cx } from '../ui/widgets.jsx';
 
 // ?profile=1: time the tank and show the numbers on screen, so a phone can be measured without a
@@ -81,11 +81,17 @@ export function LiveTank({ tank, className, onMenu }) {
     window.marbler = { controller: c, view: v };
     // Once the canvas has its real size (it's sized after the first layout), time a draw at that size.
     // Stepping is timed in a worker; the draw on this page's thread, where the tank really draws.
-    const benchSoon = PROFILING ? setTimeout(() => benchmarkInWorker({}).then((r) => {
-      if (!r) { setBench('failed'); return; }
-      setBench({ ...r, draw: drawBenchmark({ canvas: canvasSize(), steps: r.steps }) });
-    }), 1500) : null;
-    return () => { clearTimeout(benchSoon); v.destroy(); tank.setView(null); view.current = null; if (profiler) c.onTick = null; };
+    // On every device (#54 b): the measured draw decides whether the canvas thins out while ink moves.
+    let gone = false;
+    const benchSoon = setTimeout(() => benchmarkInWorker({}).then((r) => {
+      if (gone) return;
+      if (!r) { if (PROFILING) setBench('failed'); return; }
+      const draw = drawBenchmark({ canvas: canvasSize(), steps: r.steps });
+      const cap = densityCapFor(draw, devicePixelRatio || 1);
+      if (cap) v.setDensityCap(cap);
+      if (PROFILING) setBench({ ...r, draw, densityCap: cap });
+    }), 1500);
+    return () => { gone = true; clearTimeout(benchSoon); v.destroy(); tank.setView(null); view.current = null; if (profiler) c.onTick = null; };
     // The tank and its view live as long as the page.
   }, [c]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -176,7 +182,7 @@ function ProfileReadout({ summary: s, bench: b }) {
   const mc = s?.machine;
   const lines = [
     typeof b === 'object' && b
-      ? `bench: step ${b.stepMs} ms (${b.realTime}× real time), draw ${b.draw ? `${b.draw.ms} ms at ${b.draw.width}×${b.draw.height}` : 'n/a'}`
+      ? `bench: step ${b.stepMs} ms (${b.realTime}× real time), draw ${b.draw ? `${b.draw.ms} ms at ${b.draw.width}×${b.draw.height}` : 'n/a'}, density cap ${b.densityCap ?? 'none'}`
       : `bench: ${b ?? '–'}`,
     s ? `${s.simulator}${s.busy ? ', moving' : ''}${s.snapshots ? ', snapshots' : ''}: ${s.frames / s.seconds} fps, frame max ${s.frameMax} ms` : 'waiting for the first 2 s…',
     s ? `step ${per(s.tickMs, s.ticks)} ms × ${s.ticks} (max ${s.tickMax}), draw ${per(s.drawMs, s.draws)} ms × ${s.draws} (max ${s.drawMax})` : '',

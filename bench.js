@@ -92,3 +92,14 @@ export function benchmarkInWorker(options = {}) {
     w.postMessage(options);
   });
 }
+
+// #54 (b): how dense the tank's canvas may be while ink moves on this device, from the startup
+// draw benchmark at the canvas's full size (never from what the device says it is). A draw that fits
+// DRAW_BUDGET_MS needs no cap (null). Otherwise fill time goes with the pixel count, so the density is
+// scaled by √(budget / measured), in quarter steps, never below 1 or above the screen's own.
+export const DRAW_BUDGET_MS = 12;
+export function densityCapFor(draw, dpr) {
+  if (!draw?.ms || !(dpr > 1) || draw.ms <= DRAW_BUDGET_MS) return null;
+  const cap = Math.max(1, Math.floor(dpr * Math.sqrt(DRAW_BUDGET_MS / draw.ms) * 4) / 4);
+  return cap < dpr ? cap : null;
+}
