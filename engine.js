@@ -1742,7 +1742,8 @@ export class Marble {
 
   // A rake: `teeth` tines `spacing` mm apart (or explicit `offsets`), moving along
   // from -> to (or a `path`). waveAmp/waveLength make it weave as it travels.
-  // reach: how far each tine's pull may reach, as a share of the gap between neighbouring tines.
+  // reach: how far each tine's pull may reach, as a share of the gap between neighbouring tines. Not a
+  // user setting (#60): left out, the simulator's own rule (reachShare); scripts may still set it.
   // 0.5 (the default) keeps tines from reaching through each other and moving the sheet as one
   // paddle; more lets a fine or wavy comb drag further (column grounds, Peacock's fans).
   // ease: seconds the comb takes to come up to speed at the start and to slow to a stop at the end
@@ -1750,12 +1751,13 @@ export class Marble {
   // fullSpan (set by fullRake): straight teeth across the whole tank. A fine one, whose tines' drag
   // would reach past each other (see _combAuto), moves ink by a comb shear instead of tine by tine.
   rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
-         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach = REACH_SHARE, ease = 0,
+         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach, ease = 0,
          at, fullSpan = false } = {}) {
     const points = path ?? [from, to];
     const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
     const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength, waveShape, width };
-    if (reach !== REACH_SHARE) args.reach = reach;
+    if (reach !== undefined && reach !== null) args.reach = reach;
+    reach ??= this.reachShare;
     if (ease > 0) args.ease = ease;
     if (fullSpan) args.fullSpan = true; // set by fullRake: the teeth cover the tank
     if (at !== undefined) args.at = at;
@@ -2137,7 +2139,7 @@ export class Marble {
 
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
-  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach = REACH_SHARE, ease = 0, at } = {}) {
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach, ease = 0, at } = {}) {
     // How far the teeth start and end past the tank's edges. On a repeating tank anything past one
     // edge is raked again at the other, so there it defaults to none.
     overhang ??= (this.tileWanted ?? this.tileOn) ? 0 : 20;
@@ -2683,6 +2685,11 @@ export class Marble {
       }, Math.min(bx, ex), Math.min(by, ey), Math.max(bx, ex), Math.max(by, ey));
     }
   }
+
+  // How far a tine's pull may reach, as a share of the gap to the next tine, when a rake doesn't say
+  // (#60: a rule of the simulator, not a tool setting). Past about 1 the teeth move the sheet as one
+  // paddle. Straight full combs past this reach switch to the comb shear (see _combAuto).
+  get reachShare() { return REACH_SHARE; }
 
   // Simulators whose tines drive a flow of their own (Grid ink) keep their tines.
   get combShearSupported() { return true; }
