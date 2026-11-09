@@ -267,6 +267,12 @@ export const TOOLS = {
       // null is Auto: none on a repeating tank, where anything past an edge is raked again at the
       // other, and 2 cm otherwise. Only in Advanced view.
       overhang: ['Overhang', null, 0, 6, 0.1, undefined, { advanced: true, auto: 'Auto' }],
+      // Lu's comb shear (F1): null is Off, and the teeth pull as styluses. On, each tooth drags its line
+      // this far, for the tight arches of a nonpareil; about 1.5 times the gap between teeth. Straight
+      // full combs only (a weave or a tine width falls back to styluses). Only in Advanced view.
+      arch: ['Arches (comb shear)', null, 0, 10, 0.05, undefined, { advanced: true, auto: 'Off' }],
+      // With arches: a line this far from its tooth moves half as far. Auto is 0.15 of the gap.
+      falloff: ['Arch sharpness', null, 0, 2, 0.01, undefined, { advanced: true, auto: 'Auto' }],
     },
   },
   // A whole rake dragged freehand. Its teeth stay in the line set by the first direction you move

@@ -491,6 +491,22 @@ test('Full rake overhang on Auto stays Auto in mm, and a set value is scaled lik
   assert.equal(c.inMm('fullRake').overhang, 20);
 });
 
+test('Full rake arches are Off by default and reach the engine in mm when set (F1 on the tool)', () => {
+  const c = fresh();
+  assert.equal(c.values.fullRake.arch, null);
+  assert.equal(c.values.fullRake.falloff, null);
+  c.setTool('fullRake');
+  c.applyTool();
+  const off = c.marble.log.at(-1);
+  assert.ok(!('arch' in (off.args ?? off)), JSON.stringify(off).slice(0, 200));
+  c.values.fullRake.arch = 0.6;
+  assert.equal(c.inMm('fullRake').arch, 6);
+  assert.equal(c.inMm('fullRake').falloff, null);
+  c.applyTool();
+  const on = c.marble.log.at(-1);
+  assert.equal((on.args ?? on).arch, 6);
+});
+
 test('Reset tools to defaults puts every tool back as shipped and keeps the ink and the tool (#48)', () => {
   const c = fresh();
   const shipped = JSON.parse(JSON.stringify(c.values));
