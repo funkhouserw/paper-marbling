@@ -20,7 +20,7 @@ test('everyday wording finds the right answer', () => {
     'how do I make it repeat seamlessly': 'How do I make a seamless repeating pattern?',
     'how do I write code': /script/,
     'gold ink': 'Can I use metallic or gold ink?',
-    'what does the spray width do': 'Spray: Spray width',
+    'what does the spray scatter do': 'Spray: Scatter',
     'save a picture': 'How do I save my work?',
   };
   for (const [q, want] of Object.entries(cases)) {

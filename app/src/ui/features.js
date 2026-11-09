@@ -94,7 +94,6 @@ export const SECTIONS = [
       { id: 'flowPush', kind: 'number', label: 'Rake push', info: 'flowPush', value: 1, min: 0, max: 20, step: 0.5, when: 'flow', view: 'advanced' },
       { id: 'flowFriction', kind: 'number', label: 'Floor drag', info: 'flowFriction', value: 0.25, min: 0, max: 10, step: 0.05, when: 'flow', view: 'advanced' },
       { id: 'flowCoast', kind: 'number', label: 'Longest coast (s)', info: 'flowCoast', value: 25, min: 1, max: 600, step: 5, when: 'flow', view: 'advanced' },
-      { id: 'flowCell', kind: 'number', label: 'Flow grid (mm)', info: 'flowCell', value: 7, min: 1.5, max: 20, step: 0.5, when: 'flow', view: 'advanced' },
       // Ox gall for the whole bath: each new colour gets a little more than the last (Woolnough's rule).
       { id: 'gallHeading', kind: 'heading', label: 'Ox gall', info: 'gall', view: 'advanced' },
       { id: 'gall', kind: 'toggle', label: 'Rising gall for each colour', info: 'gall', value: false, view: 'advanced' },
@@ -107,7 +106,6 @@ export const SECTIONS = [
       { id: 'separate', kind: 'toggle', label: 'Keep cells separate', info: 'separate', value: true },
       { id: 'seam', kind: 'number', label: 'Seam width (mm)', info: 'seam', value: '', placeholder: '0.6', min: 0.1, max: 5, step: 0.1, showIf: { separate: true }, view: 'advanced' },
       { id: 'channel', kind: 'number', label: 'Bare channel (% of cell)', info: 'channel', value: '', placeholder: '3', min: 0, max: 15, step: 0.5, showIf: { separate: true }, view: 'advanced' },
-      { id: 'ribbonCut', kind: 'toggle', label: 'Cut hairline ink', info: 'ribbonCut', value: true, view: 'advanced' },
       { id: 'toolsWait', kind: 'toggle', label: 'Tools wait for ink to settle', info: 'toolsWait', value: true, view: 'advanced' },
       { id: 'queueMode', kind: 'choice', label: 'While paused, add', info: 'queueMode', value: 'together', options: { together: 'All at once', order: 'In order', settled: 'Each after the last settles' }, view: 'advanced' },
       { id: 'queueGap', kind: 'number', label: 'Gap (s)', value: 0.5, min: 0, max: 30, step: 0.1, showIf: { queueMode: 'order' }, replaces: ['queueGapLabel'], view: 'advanced' },
@@ -123,11 +121,14 @@ export const SECTIONS = [
     ],
   },
   {
-    id: 'detail', label: 'Detail', icon: 'gauge', info: 'pointLimit', desktop: 'panel', phone: 'menu', view: 'advanced',
+    // Settings about accuracy and speed, not marbling (settings audit item 10, row 62): out of the artist's way.
+    id: 'detail', label: 'Accuracy and speed', icon: 'gauge', info: 'pointLimit', desktop: 'panel', phone: 'menu', view: 'advanced',
     controls: [
       { id: 'detailPreset', kind: 'choice', label: 'Point limit', info: 'pointLimit', value: '400000', options: { 400000: 'Standard: smooth live play', 2000000: 'High', 5000000: 'Very high', 10000000: 'Extreme', custom: 'Custom' } },
       { id: 'pointLimit', kind: 'number', label: 'Points', value: 400000, min: 50000, max: 20000000, step: 50000, showIf: { detailPreset: 'custom' } },
       { id: 'gridCell', kind: 'number', label: 'Grid ink cell (mm)', info: 'gridCell', value: 2, min: 0.5, max: 10, step: 0.5, when: 'gridink' },
+      { id: 'flowCell', kind: 'number', label: 'Flow grid (mm)', info: 'flowCell', value: 7, min: 1.5, max: 20, step: 0.5, when: 'flow' },
+      { id: 'ribbonCut', kind: 'toggle', label: 'Cut hairline ink', info: 'ribbonCut', value: true },
       { id: 'profiling', kind: 'toggle', label: 'Record timings', info: 'profiling', value: false, when: 'local' },
     ],
   },

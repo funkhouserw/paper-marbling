@@ -30,7 +30,7 @@ export const INFO = {
   // Performance
   pointLimit: 'Outlines are made of points, and stretched ink needs more of them to stay smooth. This is the most the tank will use. More keeps fine curls crisp but runs slower and uses more memory. Standard is tuned for smooth live play, and low framerate takes over when higher settings get slow. As a rough guide, each million points adds about 16 to 32 MB per copy, and undo keeps copies. Takes effect straight away.',
   // Moving bath
-  flowPreset: 'How much life the bath has in the Wake simulator. Each preset also sets the viscosity. It takes effect straight away, on everything from here on, without clearing the tank. Higher settings make far more points. If the tank reaches the point limit, the bath stops so that the picture stays smooth, and a higher limit in Detail lets it run longer.',
+  flowPreset: 'How much life the bath has in the Wake simulator. Each preset also sets the viscosity. It takes effect straight away, on everything from here on, without clearing the tank. Higher settings make far more points. If the tank reaches the point limit, the bath stops so that the picture stays smooth, and a higher limit under Accuracy and speed lets it run longer.',
   flowPush: 'How hard each tine shoves the water, as a multiple of normal. About 3 makes wakes roll up into whorls, and 10 is chaos.',
   flowFriction: 'Drag from the tank floor. Lower lets the water keep swirling for longer. Very thick baths add their own drag on top.',
   flowCoast: 'The longest the water keeps moving after a tool stops, whatever else is going on.',
@@ -123,7 +123,7 @@ export const INFO = {
   'drop.scatter': 'How far from your click the drops can land.',
   'spray.sprayColors': 'Use every ink in the palette at random, or only the chosen one.',
   'spray.n': 'How many dots each burst makes. Dragging adds bursts as you go.',
-  'spray.radius': 'How wide the burst is.',
+  'spray.radius': 'How far around the click the dots land: the width of the burst.',
   'spray.smallest': 'The tiniest dots, as a percentage of the largest: 100 makes every dot the same size, 5 gives fine dust among them.',
   'spray.max': 'The size of the largest dots.',
   'spray.sizes': 'The mix of sizes between the smallest and largest: mostly small (fine spatter with a few big drops), an even mix, or mostly big.',
@@ -167,8 +167,8 @@ export const INFO = {
   'hearts.above': 'For Drag a tine: where each tine starts, measured from the middle of its dot: 0 is the middle, 100 is the edge, and more is outside the dot.',
   'hearts.below': 'For Drag a tine: where each tine ends, measured the same way. Going past the edge draws out the point.',
   'hearts.pull': 'For Drag a tine: how widely each tine pulls, as a percentage of its own dot\'s radius, so big and small dots get the same shape.',
-  'hearts.min': 'Dots smaller than this are left alone. The dashed outlines show which dots it will change.',
-  'hearts.max': 'Dots larger than this are left alone. All the way up reaches even a dot as big as the tank.',
+  'hearts.min': 'Only round loops at least this big become hearts; smaller dots are left alone. The dashed outlines show which dots it will change.',
+  'hearts.max': 'Only round loops up to this big become hearts; larger ones are left alone. All the way up reaches even a dot as big as the tank.',
   'hearts.speed': 'For Drag a tine: how fast the tines travel. Small dots finish first.',
   freeze: 'Holds chosen ink still, like a mask. Choose Freeze and click any ink, or Unfreeze and click it to let it go, and Clear all to let everything go. Frozen ink shows in red while Full rake is open, and with a dashed outline in other tools. Nothing moves it, whichever tool you use, and raked ink passes underneath it. Not available in Grid ink.',
   'fullRake.teeth': `${TEETH} They spread evenly across the page.`,
