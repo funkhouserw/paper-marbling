@@ -2,8 +2,8 @@
 // Examples menu runs it (its own simulator, a fresh tank), for at most a fixed number of steps, and
 // its outlines are summed up as features (golden-metrics.mjs: line directions and length, shape
 // count, colour shares, shape sizes, overall and per tile). The reference for an example is its
-// features on seed 1, plus how far seed 2 lands from seed 1: that spread is the example's own
-// tolerance. An example that moves more than 3× its spread is FLAGGED, not failed, and the review
+// features on seed 1, plus how far apart seeds 1 to 4 land (the median over every pair, measure by
+// measure): that spread is the example's own tolerance. An example that moves more than 3× its spread is FLAGGED, not failed, and the review
 // puts its reference and new picture side by side for a person to decide. Only hard errors fail (an
 // exception, no ink, still moving at the step limit).
 //
@@ -11,7 +11,7 @@
 //   node scripts/golden.mjs --only "Feather plumes,Stormont"
 //   node scripts/golden.mjs --jobs 4 --out /tmp/review
 //   node scripts/golden.mjs --refresh --only Stormont   make the current look the reference, on
-//                                                      purpose, after a change you meant (two seeds)
+//                                                      purpose, after a change you meant (seeds 1–4)
 //   node scripts/golden.mjs --unpinned classic        examples with no simulator of their own, in Classic
 //   node scripts/golden.mjs --root /tmp/old-worktree --only "Feather plumes" --out /tmp/at-old
 //                                                      render another checkout (to bisect), compared
@@ -82,6 +82,9 @@ const missing = only?.filter((n) => !(n in EXAMPLES)) ?? [];
 if (missing.length) { console.error(`No example called: ${missing.join(', ')}`); process.exit(2); }
 const names = Object.keys(EXAMPLES).filter((n) => !only || only.includes(n));
 const refresh = args.includes('--refresh');
+// A refresh renders seeds 1 to --seeds (4 by default); an example whose seeds 1 and 2 come out the
+// same has no random layout, so it skips the rest.
+const SEEDS = Math.max(2, Number(opt('--seeds') ?? 4));
 const seeds = refresh ? [1, 2] : [1];
 const jobs = Number(opt('--jobs') ?? Math.max(1, Math.floor(availableParallelism() / 2)));
 const out = opt('--out') ?? join(here, 'golden-out');
@@ -104,8 +107,7 @@ const run = (name, seed) => new Promise((done) => {
 });
 
 const runs = [];
-const queue = names.flatMap((name) => seeds.map((seed) => [name, seed]));
-await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => {
+const runAll = (queue) => Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => {
   while (queue.length) {
     const [name, seed] = queue.shift();
     const r = await run(name, seed);
@@ -113,22 +115,31 @@ await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () 
     console.log(`${r.error ? '✖' : '·'} ${name}${refresh ? ` (seed ${seed})` : ''}: ${r.seconds} s${r.steps !== undefined ? `, ${r.steps} steps, ${r.shapes} shapes` : ''}${r.error ? `: ${r.error}` : ''}`);
   }
 }));
+await runAll(names.flatMap((name) => seeds.map((seed) => [name, seed])));
 const runOf = (name, seed) => runs.find((r) => r.name === name && r.seed === seed);
+const { distances, judge, spreadOf } = await import('./golden-metrics.mjs');
+const seedsOf = (name) => runs.filter((r) => r.name === name).sort((a, b) => a.seed - b.seed);
+if (refresh && SEEDS > 2) {
+  const random = names.filter((name) => {
+    const a = runOf(name, 1), b = runOf(name, 2);
+    return !a.error && !b.error && JSON.stringify(a.features) !== JSON.stringify(b.features);
+  });
+  await runAll(random.flatMap((name) => Array.from({ length: SEEDS - 2 }, (_, k) => [name, k + 3])));
+}
 
 let commit = null;
 try { commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root }).toString().trim(); } catch { /* not a checkout */ }
-const { distances, judge } = await import('./golden-metrics.mjs');
 const hardErrors = runs.filter((r) => r.error);
 
 if (refresh) {
   mkdirSync(GOLDEN, { recursive: true });
   for (const name of names) {
-    const a = runOf(name, 1), b = runOf(name, 2);
-    if (a.error || b.error) { console.log(`not refreshed, it failed: ${name}`); continue; }
-    const spread = distances(a.features, b.features);
+    const all = seedsOf(name), a = all[0];
+    if (all.some((r) => r.error)) { console.log(`not refreshed, it failed: ${name}`); continue; }
+    const { spread, range } = spreadOf(all.map((r) => r.features));
     writeFileSync(join(GOLDEN, `${slug(name)}.json`), `${JSON.stringify({
       name, commit, date: new Date().toISOString().slice(0, 10), simulator: a.simulator, steps: a.steps, shapes: a.shapes,
-      grid: a.grid, spread, features: a.features,
+      grid: a.grid, seeds: all.length, spread, range, features: a.features,
     })}\n`);
     copyFileSync(join(out, `${slug(name)}.s1.png`), join(GOLDEN, `${slug(name)}.png`));
   }
