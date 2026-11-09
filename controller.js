@@ -154,6 +154,8 @@ const FINISH_BUDGET_MS = 24; // Finish now asks for speed, so it gets more
 const SNAPSHOT_STEP_MS = 150; // simulation per frame in low framerate mode
 const SLOW_STEP_MS = 66;      // a tick this slow can't reach half of real time
 const SLOW_TANK_DRAW_MS = 150;
+const RECOVER_SHARE = 0.6;   // low framerate goes off below this share of both limits...
+const RECOVER_MS = 3000;     // ...held this long
 
 // Normalises #rgb, #rgba, #rrggbb and #rrggbbaa, with or without the #. Null if invalid.
 export function parseHex(text) {
@@ -237,7 +239,8 @@ export class TankController {
     this.finishing = false;
     this.owed = 0;
     this.stepMs = 0;            // smoothed time for one tick
-    this.autoSnapshots = false; // ticks got too slow, so low framerate is on until the tank settles
+    this.autoSnapshots = false; // ticks or draws got too slow, so low framerate is on (noteLoad)
+    this.fastSince = null;      // when ticks and draws last became comfortably fast again
 
     // The first tank is the chosen simulator's, with its id, so undo back to the start finds it.
     this.newTank();
@@ -1141,12 +1144,29 @@ export class TankController {
     }
   }
 
-  // Ticks or redraws too slow to keep up turn low framerate on, until the tank settles.
-  noteLoad(lastDrawMs) {
-    if (this.marble.busy && (this.stepMs > SLOW_STEP_MS || lastDrawMs > SLOW_TANK_DRAW_MS)) this.autoSnapshots = true;
-    if (!this.marble.busy) {
+  // Ticks or redraws too slow to keep up turn low framerate on. It goes off again when the tank
+  // settles, or once ticks and redraws have been comfortably fast (RECOVER_SHARE of the limits) for
+  // RECOVER_MS in a row (row 61: one slow spike, or a slow draw left over from the tank before, kept
+  // it on for a whole long movement). The gap between the two limits keeps it from flickering.
+  noteLoad(lastDrawMs, now = performance.now()) {
+    const m = this.marble;
+    if (!m.busy) {
       this.autoSnapshots = false;
       this.stepMs = 0;
+      this.fastSince = null;
+      return;
+    }
+    if (this.stepMs > SLOW_STEP_MS || lastDrawMs > SLOW_TANK_DRAW_MS) {
+      this.autoSnapshots = true;
+      this.fastSince = null;
+    } else if (this.autoSnapshots && this.stepMs < SLOW_STEP_MS * RECOVER_SHARE && lastDrawMs < SLOW_TANK_DRAW_MS * RECOVER_SHARE) {
+      this.fastSince ??= now;
+      if (now - this.fastSince >= RECOVER_MS) {
+        this.autoSnapshots = false;
+        this.fastSince = null;
+      }
+    } else {
+      this.fastSince = null;
     }
   }
 }
