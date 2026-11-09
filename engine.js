@@ -287,6 +287,8 @@ function seeded(seed) {
 // Thin ribbons. Stretching makes ink ever longer and thinner, and past a certain width it can't be
 // seen but still costs points, so every outline simulator cuts ribbons narrower than THINNEST.
 const THINNEST = 0.5; // mm
+const COMB_TABLE = 256; // samples over half a pitch of the comb shear's smooth part
+const COMB_TERMS = 4000; // tine pairs summed for it (the terms fall off as 1/k³)
 const REACH_SHARE = 0.5; // a comb tine's pull reaches at most this share of the gap to its neighbour
 const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
 // How stiff Cells' films are under the pressure law: κ as a share of a typical cell's R0².
@@ -1734,13 +1736,21 @@ export class Marble {
   // paddle; more lets a fine or wavy comb drag further (column grounds, Peacock's fans).
   // ease: seconds the comb takes to come up to speed at the start and to slow to a stop at the end
   // (0, the default, starts and stops at full speed). It covers the same path, ease seconds longer.
+  // arch (mm, full rakes only): a straight comb with evenly spaced teeth drags each tine's line this far, and the
+  // lines between tines less, by Lu et al.'s comb shear (see _combShear). Fine combs then make
+  // nonpareil arches. falloff (mm): how fast the drag falls off away from a tine (Lu's λ; a point
+  // that far from its tine moves half as far). Left out, arch is off and the tines pull as styluses.
   rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
-         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach = REACH_SHARE, ease = 0, at } = {}) {
+         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach = REACH_SHARE, ease = 0,
+         arch = 0, falloff, at, fullSpan = false } = {}) {
     const points = path ?? [from, to];
     const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
     const args = { path: points, offsets: offs, speed, D, waveAmp, waveLength, waveShape, width };
     if (reach !== REACH_SHARE) args.reach = reach;
     if (ease > 0) args.ease = ease;
+    if (arch > 0) args.arch = arch;
+    if (arch > 0 && falloff !== undefined) args.falloff = falloff;
+    if (arch > 0 && fullSpan) args.fullSpan = true; // set by fullRake: the teeth cover the tank
     if (at !== undefined) args.at = at;
 
     const segs = [];
@@ -1767,6 +1777,10 @@ export class Marble {
       let gap = Infinity;
       for (let k = 1; k < sorted.length; k++) gap = Math.min(gap, sorted[k] - sorted[k - 1]);
       if (gap > 0) op.L = Math.max(0.25, Math.min(op.L, gap * Math.max(0.05, reach)));
+    }
+    if (arch > 0 && fullSpan) {
+      op.shear = this._combShearFor(segs, offs, waveAmp, width, arch, falloff);
+      if (op.shear) op.shear.whole = !!(this.tileWanted ?? this.tileOn);
     }
     // Too short a stroke to reach full speed eases over all of it.
     op.ease = Math.max(0, Math.min(ease, total / speed));
@@ -2115,7 +2129,7 @@ export class Marble {
 
   // A rake across the whole tank: teeth spread evenly, travelling along angle
   // (0 is +x, 90 is +y, 180 is -x, 270 is -y). offset slides the teeth sideways in mm, wrapping at the edges.
-  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach = REACH_SHARE, ease = 0, at } = {}) {
+  fullRake({ angle = 0, teeth = 10, offset = 0, speed = 200, D = 10, waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, overhang, reach = REACH_SHARE, ease = 0, arch = 0, falloff, at } = {}) {
     // How far the teeth start and end past the tank's edges. On a repeating tank anything past one
     // edge is raked again at the other, so there it defaults to none.
     overhang ??= (this.tileWanted ?? this.tileOn) ? 0 : 20;
@@ -2136,7 +2150,7 @@ export class Marble {
     const offsets = Array.from({ length: teeth }, (_, i) => wrap((i + 0.5) * spacing + offset) - across / 2);
     return this.rake({
       from: [-c * along, -s * along], to: [c * along, s * along],
-      offsets, speed, D, waveAmp, waveLength, waveShape, width, reach, ease, at,
+      offsets, speed, D, waveAmp, waveLength, waveShape, width, reach, ease, arch, falloff, at, fullSpan: true,
     });
   }
 
@@ -2662,6 +2676,238 @@ export class Marble {
     }
   }
 
+  // Simulators whose tines drive a flow of their own (Grid ink) keep their tines.
+  get combShearSupported() { return true; }
+
+  // Lu et al. 2012's comb (Eq. 1, p. 3): one tine moves a point at distance d from its line along
+  // the stroke by f(d) = α·λ/(d + λ). A comb is every tine's stroke composed; the shifts add, as they
+  // depend only on d. Only for a straight full rake with evenly spaced point tines; anything else (a
+  // path, a weave, wide tines, one tine) keeps _tine.
+  // Lu's cheaper rigid comb keeps only the nearest tine, which puts a kink halfway between tines (a
+  // pointed arch back); the full sum is smooth there. Summed over an endless comb it grows without
+  // bound, so each pair of tines (one each side) is counted from its value halfway, which converges.
+  // The mean over a pitch is taken away, so the comb carries no net ink along the tank, as in a tank
+  // with end walls (the paper's plane has none). Arches then stand h = G(0) above the lines halfway
+  // between tines, a little under Lu's nearest-tine α·(s/2)/(s/2 + λ).
+  _combShearFor(segs, offs, waveAmp, width, arch, falloff) {
+    if (!this.combShearSupported || segs.length !== 1 || waveAmp || width > 0 || offs.length < 2) return null;
+    const sorted = [...offs].sort((a, b) => a - b);
+    const s = sorted[1] - sorted[0];
+    if (!(s > 0)) return null;
+    for (let k = 2; k < sorted.length; k++) if (Math.abs(sorted[k] - sorted[k - 1] - s) > s * 1e-6) return null;
+    const alpha = arch;
+    const lambda = Math.max(falloff ?? 0.15 * s, 1e-3);
+    const sh = { alpha, lambda, s, phase: ((sorted[0] % s) + s) % s };
+    // G(d) for d from 0 to s/2 (d is the distance to the nearest tine) is f(d) + rest(d); rest is smooth,
+    // so it comes from a table. Its terms fall off as 1/k³.
+    const f = (x) => (alpha * lambda) / (x + lambda);
+    const M = COMB_TABLE;
+    const rest = new Float64Array(M + 1);
+    // combNearestTine (tests only): Lu's cheaper rigid comb, the nearest tine alone, for comparison.
+    for (let i = 0; i <= M && !this.combNearestTine; i++) {
+      const d = (i / M) * (s / 2);
+      let sum = f(s - d) - 2 * f(s / 2);
+      for (let k = 1; k <= COMB_TERMS; k++) sum += f(d + k * s) + f(s - d + k * s) - 2 * f(s / 2 + k * s);
+      rest[i] = sum;
+    }
+    sh.rest = rest;
+    // The mean of G over half a pitch: f's in closed form, rest's by the trapezoid rule.
+    let restMean = (rest[0] + rest[M]) / 2;
+    for (let i = 1; i < M; i++) restMean += rest[i];
+    restMean /= M;
+    sh.mean = ((2 * alpha * lambda) / s) * Math.log(1 + s / (2 * lambda)) + restMean;
+    sh.height = f(0) + rest[0] - (f(s / 2) + rest[M]);
+    sh.most = Math.max(f(0) + rest[0] - sh.mean, sh.mean - f(s / 2) - rest[M]);
+    // The shift comes in over a ramp of length w centred on the comb line. It must be over 1.5 times
+    // the largest shift for the ramp to be undone exactly (see _combShear); 3 times keeps the passing
+    // squeeze to at most half.
+    sh.w = Math.max(3 * sh.most, s);
+    // The teeth span this band across the stroke; past it (off the tank) nothing needs refining.
+    sh.span = [sorted[0] - s / 2, sorted[sorted.length - 1] + s / 2];
+    return sh;
+  }
+
+  // The comb's shift for a point at distance d across the comb (from the stroke's line).
+  _combShift(sh, d) {
+    const m = (((d - sh.phase) % sh.s) + sh.s) % sh.s;
+    const near = Math.min(m, sh.s - m);
+    const u = (near / (sh.s / 2)) * COMB_TABLE;
+    const i = Math.min(COMB_TABLE - 1, Math.floor(u));
+    const rest = sh.rest[i] + (sh.rest[i + 1] - sh.rest[i]) * (u - i);
+    return (sh.alpha * sh.lambda) / (near + sh.lambda) + rest - sh.mean;
+  }
+
+  // Where the comb shear's line is when the rake has gone dist along its path. The line runs
+  // pad = w/2 + most further at each end than the teeth do, so that it starts where nothing has
+  // moved yet and ends where everything has moved all of its shift, however short the overhang.
+  _combLine(op, dist) {
+    const pad = op.shear.w / 2 + op.shear.most;
+    return -pad + (dist * (op.total + 2 * pad)) / op.total;
+  }
+
+  // Moves the comb from dist d0 to d1 along its path. A point whose start (before this comb) was a0
+  // along the stroke sits at a0 + Δ·g((F − a0)/w + ½), F the line (_combLine), g a smoothstep, so it
+  // has moved all of Δ once the line is w/2 past it. Each tick undoes the ramp at F0 by Newton (the
+  // slope is ≥ ½) and applies it at F1, so the stroke's total is exactly the comb's shift whatever the
+  // ticks.
+  // On a repeating tank a point the comb has passed can wrap round onto one it hasn't reached, so
+  // where a point started can't be told from where it is. There the whole sheet shears together as
+  // the comb goes (Δ·g(d/total)): a shear along the stroke, the same in every tile, with no seam.
+  _combShear(op, d0, d1) {
+    const sh = op.shear;
+    const g = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
+    const { ax, ay, bx, by, len } = op.segs[0];
+    const mx = (bx - ax) / len, my = (by - ay) / len;
+    const [nx, ny] = op.perp;
+    if (sh.whole) {
+      const p0 = g(d0 / op.total), p1 = g(d1 / op.total);
+      this._combRefine(op, -Infinity, Infinity, (a, D) => D * (1 - p1));
+      this._map((px, py, out) => {
+        const move = this._combShift(sh, (px - ax) * nx + (py - ay) * ny) * (p1 - p0);
+        out[0] = px + mx * move;
+        out[1] = py + my * move;
+      });
+      return;
+    }
+    const F0 = this._combLine(op, d0), F1 = this._combLine(op, d1);
+    const { w } = sh;
+    const lo = F0 - w / 2 - sh.most - 1e-9;
+    const hi = F1 + w / 2 + sh.most + 1e-9;
+    this._combRefine(op, lo, hi + w, (a, D) => D * (1 - g((F1 - a) / w + 0.5)));
+    const dg = (u) => (u <= 0 || u >= 1 ? 0 : 6 * u * (1 - u));
+    this._map((px, py, out) => {
+      out[0] = px;
+      out[1] = py;
+      const rx = px - ax, ry = py - ay;
+      const a = rx * mx + ry * my;
+      if (a < lo || a > hi) return;
+      const D = this._combShift(sh, rx * nx + ry * ny);
+      let a0 = a - D * g((F0 - a) / w + 0.5);
+      for (let it = 0; it < 8; it++) {
+        const u = (F0 - a0) / w + 0.5;
+        const f = a0 + D * g(u) - a;
+        if (Math.abs(f) < 1e-10) break;
+        a0 -= f / (1 - (D * dg(u)) / w);
+      }
+      const move = a0 + D * g((F1 - a0) / w + 0.5) - a;
+      out[0] = px + mx * move;
+      out[1] = py + my * move;
+    });
+  }
+
+  // While a comb shear runs, where a point (x, y) lies: 2 where the shear is still to move it, or has
+  // refined it ahead of the line, or on a tine line (an arch's tip); 1 where the comb has been;
+  // 0 elsewhere. Null when no comb shear is running.
+  // Simplifying keeps every point marked 2: ahead of the line they look straight (the shear hasn't
+  // reached them yet), and simplifying one point after another can take a cusp for a straight run
+  // when the last point kept is far down a flank. Where the comb has been it simplifies as it would
+  // with no detail budget, which would otherwise flatten the arches' backs; _compact thins at rest.
+  // The thin-ink cut (Ilse's Ribbon cut setting) leaves both alone while the comb runs: an arch's tip
+  // is a needle under THINNEST wide, and cutting it tangles the tip. Once the comb stops it cuts as
+  // before, whenever another tool moves ink.
+  _combBands() {
+    const bands = [];
+    for (const op of this.active) {
+      const sh = op.kind === 'rake' && op.shear;
+      if (!sh) continue;
+      const { ax, ay, bx, by, len } = op.segs[0];
+      const mx = (bx - ax) / len, my = (by - ay) / len;
+      const [nx, ny] = op.perp;
+      const F = this._combLine(op, op.dist);
+      if (sh.whole) bands.push([ax, ay, mx, my, nx, ny, -Infinity, Infinity, sh]);
+      else bands.push([ax, ay, mx, my, nx, ny, F - sh.w / 2 - sh.most, F + (3 * sh.w) / 2 + sh.most, sh]);
+    }
+    if (!bands.length) return null;
+    return (x, y) => {
+      let where = 0;
+      for (const [ax, ay, mx, my, nx, ny, lo, hi, sh] of bands) {
+        const a = (x - ax) * mx + (y - ay) * my;
+        if (a > hi) continue;
+        if (a >= lo) return 2;
+        const d = (x - ax) * nx + (y - ay) * ny;
+        if (Math.abs(d - (sh.phase + Math.round((d - sh.phase) / sh.s) * sh.s)) < 1e-9 * sh.s) return 2;
+        where = 1;
+      }
+      return where;
+    };
+  }
+
+  // Point spacing where the comb is (F2): edges near the comb line are split so that, where the
+  // comb will put them, no piece is longer than an eighth of the pitch, and every edge that crosses
+  // a tine line gets a point on it, which the shear keeps on the line: the arch's tip.
+  // Inside the comb's band this ignores the detail budget, though not maxVertices.
+  _combRefine(op, lo, hi, remaining) {
+    const sh = op.shear;
+    const { ax: ox, ay: oy, bx, by, len } = op.segs[0];
+    const mx = (bx - ox) / len, my = (by - oy) / len;
+    const [nx, ny] = op.perp;
+    const lim = sh.s / 8;
+    const { s, phase } = sh;
+    let total = 0;
+    for (const poly of this.polys) total += poly.n;
+    let room = this.maxVertices - total;
+    const extra = [];
+    for (const poly of this.polys) {
+      if (room <= 0) { this.capped = true; break; }
+      if (poly.frozen) continue;
+      const { xy, n } = poly;
+      let out = null;
+      let wr = 0;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const pax = xy[i * 2], pay = xy[i * 2 + 1], pbx = xy[j * 2], pby = xy[j * 2 + 1];
+        const aa = (pax - ox) * mx + (pay - oy) * my, ab = (pbx - ox) * mx + (pby - oy) * my;
+        let cuts = null;
+        const da = (pax - ox) * nx + (pay - oy) * ny, db = (pbx - ox) * nx + (pby - oy) * ny;
+        if (room > 0 && Math.max(aa, ab) >= lo && Math.min(aa, ab) <= hi && Math.max(da, db) >= sh.span[0] && Math.min(da, db) <= sh.span[1]) {
+          // The tine lines this edge crosses, and the lines halfway between them (the shift has a
+          // kink there too: the arch's back), as fractions along it.
+          const ts = [];
+          if (Math.abs(db - da) > 1e-12) {
+            const h = s / 2;
+            const k0 = Math.ceil((Math.min(da, db) - phase) / h), k1 = Math.floor((Math.max(da, db) - phase) / h);
+            for (let k = k0; k <= k1 && ts.length < 4096; k++) {
+              const t = (phase + k * h - da) / (db - da);
+              if (t > 1e-6 && t < 1 - 1e-6) ts.push(t);
+            }
+          }
+          ts.sort((a, b) => a - b);
+          ts.push(1);
+          let t0 = 0;
+          for (const t1 of ts) {
+            // Where the comb will put this piece's ends.
+            const at = (t) => {
+              const d = da + (db - da) * t, a = aa + (ab - aa) * t;
+              return [a + remaining(a, this._combShift(sh, d)), d];
+            };
+            const [fa, fd] = at(t0), [fb, fe] = at(t1);
+            const parts = Math.min(4096, Math.ceil(Math.hypot(fb - fa, fe - fd) / lim));
+            for (let k = 1; k < parts; k++) (cuts ??= []).push(t0 + ((t1 - t0) * k) / parts);
+            if (t1 < 1) (cuts ??= []).push(t1);
+            t0 = t1;
+          }
+          if (cuts && cuts.length > room) cuts = null;
+        }
+        if (cuts && !out) {
+          out = new Float64Array(n * 4 + 128);
+          out.set(xy.subarray(0, i * 2 + 2));
+          wr = i * 2 + 2;
+        } else if (out) {
+          if (wr + 2 + (cuts?.length ?? 0) * 2 > out.length) { const big = new Float64Array((wr + (cuts?.length ?? 0) * 2) * 2 + 64); big.set(out.subarray(0, wr)); out = big; }
+          out[wr++] = pax;
+          out[wr++] = pay;
+        }
+        if (cuts) {
+          if (wr + cuts.length * 2 > out.length) { const big = new Float64Array((wr + cuts.length * 2) * 2 + 64); big.set(out.subarray(0, wr)); out = big; }
+          for (const t of cuts) { out[wr++] = pax + (pbx - pax) * t; out[wr++] = pay + (pby - pay) * t; }
+          room -= cuts.length;
+        }
+      }
+      if (out) extra.push([poly, out, wr / 2]);
+    }
+    for (const [poly, out, m] of extra) { poly.xy = out; poly.n = m; }
+  }
+
   // A tine that takes up space: ink ahead of it bulges aside and closes up behind it, by the
   // flow around a moving cylinder of radius a.
   _tineBody(bx, by, ex, ey, a) {
@@ -2741,6 +2987,11 @@ export class Marble {
       op.elapsed = (op.elapsed ?? 0) + dt;
       next = Math.min(this._easedDistance(op, op.elapsed), op.total);
     } else next = Math.min(op.dist + op.speed * dt, op.total);
+    if (op.shear) {
+      this._combShear(op, op.dist, next);
+      op.dist = next;
+      return next >= op.total;
+    }
     // A weave is a curve, so it needs short straight pieces however fast the rake goes.
     const pieces = op.waveAmp ? Math.max(1, Math.ceil(((next - op.dist) * WEAVE_POINTS) / op.waveLength)) : 1;
     for (let k = 0; k < pieces; k++) {
@@ -3062,6 +3313,9 @@ export class Marble {
     const tol = this.maxEdge * 0.024 * this.detail;
     const reach = this.maxEdge * 0.9 * this.detail;
     this._cullOutside();
+    const combing = this._combBands();
+    const tol1 = this.maxEdge * 0.024;
+    const reach1 = this.maxEdge * 0.9;
     for (const poly of this.polys) {
       const { xy, n } = poly;
       if (n <= 24) continue;
@@ -3074,7 +3328,9 @@ export class Marble {
         const off = chord > 0 ? Math.abs((nx - px) * (y - py) - (ny - py) * (x - px)) / chord : 0;
         const hidden = !this._inView(x, y) && !this._inView(px, py) && !this._inView(nx, ny);
         const scale = hidden ? 20 : 1;
-        if (chord < reach * scale && off < tol * scale) continue;
+        const combed = combing ? combing(x, y) : 0;
+        const drop = combed === 2 ? false : combed === 1 ? chord < reach1 && off < tol1 : chord < reach * scale && off < tol * scale;
+        if (drop) continue;
         xy[w++] = x;
         xy[w++] = y;
         px = x;
@@ -3352,15 +3608,16 @@ export class Marble {
     const cell = Math.max(4, this.maxEdge * this.detail * 1.5);
     const key = (x, y) => (Math.floor(x / cell) + 2048) * 4096 + Math.floor(y / cell) + 2048;
     const out = [];
+    const combed = this._combBands();
     for (const poly of this.polys) {
       if (poly.group || poly.n < 64 || poly.shaping) { out.push(poly); continue; } // shaping: a heart landing or bending
-      const pieces = this._cutOutline(poly, cell, key);
+      const pieces = this._cutOutline(poly, cell, key, combed);
       for (const piece of pieces) out.push(piece);
     }
     if (out.length !== this.polys.length || out.some((p, i) => p !== this.polys[i])) this.polys = out;
   }
 
-  _cutOutline(poly, cell, key) {
+  _cutOutline(poly, cell, key, combed = null) {
     const { xy, n } = poly;
     const tau = thickness(poly);
     const buckets = new Map();
@@ -3383,6 +3640,7 @@ export class Marble {
       const x = xy[i * 2];
       const y = xy[i * 2 + 1];
       let best = -1;
+      if (combed && combed(x, y)) return best;
       for (let a = -1; a <= 1; a++) {
         for (let b = -1; b <= 1; b++) {
           const list = buckets.get(key(x + a * cell, y + b * cell));
@@ -3392,6 +3650,7 @@ export class Marble {
             if (j <= i + MIN_CUT || n - (j - i) <= MIN_CUT || j + 1 >= n) continue;
             const ax = xy[j * 2];
             const ay = xy[j * 2 + 1];
+            if (combed && combed(ax, ay)) continue;
             const dx = xy[j * 2 + 2] - ax;
             const dy = xy[j * 2 + 3] - ay;
             const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
