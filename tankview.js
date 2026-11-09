@@ -467,7 +467,24 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     if (previewHasContent) octx.drawImage(previewLayer, 0, 0);
   }
 
+  // The overlay is cleared and redrawn only when something it shows could have changed (#54 d): at
+  // rest, with the same tool, settings, stroke and pointer, the last frame's overlay still stands,
+  // which spares a phone two full-canvas operations every frame. While ink moves (tines, hearts) or a
+  // sheet is being pulled, it redraws every frame as before.
+  let overlayKey = null;
+  function overlayState() {
+    const m = c.marble;
+    if (pull || m.busy || c.dirty) return null;
+    const { hover } = view;
+    const last = c.stroke?.at(-1);
+    return [c.tool, JSON.stringify(c.values[c.tool] ?? null), c.stroke?.length ?? 0, last?.[0], last?.[1], hover?.[0], hover?.[1],
+      c.freezeMode, c.playing, m.seed, m.log.length, m.queued.length, m.polys.length, c.settings.bath, c.settings.tile, c.settings.tileOffset, overlay.width, overlay.height].join('|');
+  }
+
   function drawOverlay() {
+    const key = overlayState();
+    if (key !== null && key === overlayKey) return;
+    overlayKey = key;
     octx.clearRect(0, 0, overlay.width, overlay.height);
     if (pull) {
       drawSweep(octx, pull, (performance.now() - pull.start) / 1000);
