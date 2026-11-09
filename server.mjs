@@ -9,6 +9,7 @@
 import { createServer } from 'node:http';
 import { access, appendFile, mkdir, readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { renderReference } from './api.js';
 import { PALETTES, validPalette, cleanPalette, isBuiltInPalette, MAX_INKS } from './palettes.js';
@@ -319,9 +320,15 @@ export const server = createServer(async (req, res) => {
         if (raw.length > MAX_BODY) return json(res, 413, { error: 'Request too large' });
       }
       const line = JSON.stringify(JSON.parse(raw));
-      await mkdir(PROFILE_DIR, { recursive: true });
-      await appendFile(join(PROFILE_DIR, 'marbler-profile.jsonl'), `${line}\n`);
-      return json(res, 200, { ok: true });
+      // ../profiles next to the checkout, or the system's temp folder where that can't be written.
+      for (const dir of [PROFILE_DIR, join(tmpdir(), 'marbler-profiles')]) {
+        try {
+          await mkdir(dir, { recursive: true });
+          await appendFile(join(dir, 'marbler-profile.jsonl'), `${line}\n`);
+          return json(res, 200, { ok: true, file: join(dir, 'marbler-profile.jsonl') });
+        } catch { /* try the next place */ }
+      }
+      return json(res, 500, { error: 'Nowhere to write the profile' });
     }
     // The editor is the new interface, built with `npm run build` in app/, at /. The original page
     // is kept, unchanged, at /classic/. Both ask for files by relative paths, so each needs its
