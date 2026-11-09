@@ -190,3 +190,64 @@ test('a big arch on a plain tank moves points near the ends of the stroke all th
     assert.ok(Math.abs(x - x0 - want) < 1e-9, `x ${x0}, y ${y}: moved ${(x - x0).toFixed(4)}, want ${want.toFixed(4)}`);
   }
 });
+
+test('near the point limit the comb plans a coarser spacing for the whole stroke, and every arch keeps its tip', () => {
+  const m = new Marble({ width: W, height: H, viscosity: 1000, seed: 1, maxVertices: 9000 });
+  m.stripes({ angle: 90, count: 70, colors: ['#1f4e79', '#c9a227'], variation: 0, wobble: 0, slivers: 0 });
+  for (let t = 0; m.busy && t < 5000; t++) m.step();
+  const op = m.fullRake({ angle: 0, teeth: 15, speed: 30, D: 1.6, arch: 6, falloff: 0.6 });
+  let peak = 0;
+  for (let t = 0; m.busy && t < 5000; t++) { m.step(); peak = Math.max(peak, m.polys.reduce((a, p) => a + p.n, 0)); }
+  // Planned, not run out of: coarser than pitch/8, the same everywhere, and under the limit.
+  assert.ok(op.shear.lim > 0.5, `spacing ${op.shear.lim}`);
+  assert.ok(peak < 9000, `peak ${peak}`);
+  // Every stripe edge crossing a tine line inside the tank has a point on it, as with no limit
+  // (119 here: two edges a stripe, less the ends); only edges off the tank's ends cross without one.
+  for (let k = 3; k < 12; k++) {
+    const y = -H / 2 + (k + 0.5) * 4;
+    let on = 0, without = 0;
+    for (const p of m.polys) {
+      for (let i = 0; i < p.n; i++) {
+        const j = (i + 1) % p.n, y0 = p.xy[2 * i + 1], y1 = p.xy[2 * j + 1];
+        if (Math.abs(p.xy[2 * i]) > W / 2 - 30) continue;
+        if (Math.abs(y0 - y) < 1e-9) on++;
+        else if (Math.abs(y1 - y) >= 1e-9 && (y0 - y) * (y1 - y) < 0) without++;
+      }
+    }
+    assert.equal(on, 119, `line y=${y}`);
+    assert.equal(without, 0, `line y=${y}`);
+  }
+  assert.ok(op.shear);
+});
+
+test('a full-size Nonpareil of 200 stripes at the default point limit: under the limit, arches wall to wall', () => {
+  // As the example: 1000 × 700 mm, 175 teeth at 4 mm, arch 6, falloff 0.6, the default 400k points.
+  const m = new Marble({ width: 1000, height: 700, viscosity: 1000, seed: 1 });
+  assert.equal(m.maxVertices, 400000);
+  m.stripes({ angle: 90, count: 200, colors: ['#1f3a5f', '#c9a227', '#8c2f39', '#e8e1cf'], variation: 0.2, slivers: 0 });
+  for (let t = 0; m.busy && t < 5000; t++) m.step();
+  m.fullRake({ angle: 0, teeth: 175, speed: 300, D: 1.6, arch: 6, falloff: 0.6 });
+  let peak = 0;
+  for (let t = 0; m.busy && t < 5000; t++) { m.step(); peak = Math.max(peak, m.polys.reduce((a, p) => a + p.n, 0)); }
+  assert.ok(peak < 400000 && !m.capped, `peak ${peak}`);
+  // In each third of the tank, as many arch tips on three tine lines (a point on the line where an
+  // edge crosses it), and no edge crossing a line without one.
+  const lines = [40, 87, 130].map((k) => -350 + (k + 0.5) * 4);
+  const tips = [[-450, -300], [-75, 75], [300, 450]].map(([x0, x1]) => {
+    let on = 0, without = 0;
+    for (const p of m.polys) {
+      for (let i = 0; i < p.n; i++) {
+        const j = (i + 1) % p.n, x = p.xy[2 * i], y0 = p.xy[2 * i + 1], y1 = p.xy[2 * j + 1];
+        if (x < x0 || x > x1) continue;
+        for (const y of lines) {
+          if (Math.abs(y0 - y) < 1e-9) on++;
+          else if (Math.abs(y1 - y) >= 1e-9 && (y0 - y) * (y1 - y) < 0) without++;
+        }
+      }
+    }
+    assert.ok(without <= 2, `x ${x0}..${x1}: ${without} crossings without a tip`);
+    return on;
+  });
+  // 150 mm of 200 stripes on 3 lines: about 2 edges × 30 stripes × 3 lines.
+  for (const n of tips) assert.ok(n > 150 && n < 190, `tips ${tips}`);
+});

@@ -288,6 +288,8 @@ function seeded(seed) {
 // seen but still costs points, so every outline simulator cuts ribbons narrower than THINNEST.
 const THINNEST = 0.5; // mm
 const COMB_TABLE = 256; // samples over half a pitch of the comb shear's smooth part
+const COMB_ROOM = 0.8; // share of the point limit a comb's spacing may plan to fill
+const COMB_SAMPLES = 12; // points along an edge piece to measure the curve the comb will give it
 const COMB_TERMS = 4000; // tine pairs summed for it (the terms fall off as 1/k³)
 const REACH_SHARE = 0.5; // a comb tine's pull reaches at most this share of the gap to its neighbour
 const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
@@ -2761,6 +2763,7 @@ export class Marble {
     const [nx, ny] = op.perp;
     if (sh.whole) {
       const p0 = g(d0 / op.total), p1 = g(d1 / op.total);
+      if (!sh.lined) this._combBudget(op);
       this._combRefine(op, -Infinity, Infinity, (a, D) => D * (1 - p1));
       this._map((px, py, out) => {
         const move = this._combShift(sh, (px - ax) * nx + (py - ay) * ny) * (p1 - p0);
@@ -2771,17 +2774,14 @@ export class Marble {
     }
     const F0 = this._combLine(op, d0), F1 = this._combLine(op, d1);
     const { w } = sh;
+    // First, a point on every line the comb will make a tip or back on, all along the stroke, before
+    // anything else can use up the room left under the point limit.
+    if (!sh.lined) this._combBudget(op);
     const lo = F0 - w / 2 - sh.most - 1e-9;
     const hi = F1 + w / 2 + sh.most + 1e-9;
-    this._combRefine(op, lo, hi + w, (a, D) => D * (1 - g((F1 - a) / w + 0.5)));
     const dg = (u) => (u <= 0 || u >= 1 ? 0 : 6 * u * (1 - u));
-    this._map((px, py, out) => {
-      out[0] = px;
-      out[1] = py;
-      const rx = px - ax, ry = py - ay;
-      const a = rx * mx + ry * my;
-      if (a < lo || a > hi) return;
-      const D = this._combShift(sh, rx * nx + ry * ny);
+    // Where a point at a, with shift D, was before this comb (the ramp at F0 undone).
+    const start = (a, D) => {
       let a0 = a - D * g((F0 - a) / w + 0.5);
       for (let it = 0; it < 8; it++) {
         const u = (F0 - a0) / w + 0.5;
@@ -2789,6 +2789,18 @@ export class Marble {
         if (Math.abs(f) < 1e-10) break;
         a0 -= f / (1 - (D * dg(u)) / w);
       }
+      return a0;
+    };
+    // What the comb has still to move a point: all of D less what the ramp at F0 has given it.
+    this._combRefine(op, lo, hi + w, (a, D) => D * (1 - g((F0 - start(a, D)) / w + 0.5)));
+    this._map((px, py, out) => {
+      out[0] = px;
+      out[1] = py;
+      const rx = px - ax, ry = py - ay;
+      const a = rx * mx + ry * my;
+      if (a < lo || a > hi) return;
+      const D = this._combShift(sh, rx * nx + ry * ny);
+      const a0 = start(a, D);
       const move = a0 + D * g((F1 - a0) / w + 0.5) - a;
       out[0] = px + mx * move;
       out[1] = py + my * move;
@@ -2796,7 +2808,8 @@ export class Marble {
   }
 
   // While a comb shear runs, where a point (x, y) lies: 2 where the shear is still to move it, or has
-  // refined it ahead of the line, or on a tine line (an arch's tip); 1 where the comb has been;
+  // refined it ahead of the line, or on a tine line or halfway between two (an arch's tip or back,
+  // put there before the stroke); 1 where the comb has been;
   // 0 elsewhere. Null when no comb shear is running.
   // Simplifying keeps every point marked 2: ahead of the line they look straight (the shear hasn't
   // reached them yet), and simplifying one point after another can take a cusp for a straight run
@@ -2821,11 +2834,12 @@ export class Marble {
     return (x, y) => {
       let where = 0;
       for (const [ax, ay, mx, my, nx, ny, lo, hi, sh] of bands) {
+        const d = (x - ax) * nx + (y - ay) * ny;
+        const h = sh.s / 2;
+        if (Math.abs(d - (sh.phase + Math.round((d - sh.phase) / h) * h)) < 1e-9 * sh.s) return 2;
         const a = (x - ax) * mx + (y - ay) * my;
         if (a > hi) continue;
         if (a >= lo) return 2;
-        const d = (x - ax) * nx + (y - ay) * ny;
-        if (Math.abs(d - (sh.phase + Math.round((d - sh.phase) / sh.s) * sh.s)) < 1e-9 * sh.s) return 2;
         where = 1;
       }
       return where;
@@ -2836,16 +2850,48 @@ export class Marble {
   // comb will put them, no piece is longer than an eighth of the pitch, and every edge that crosses
   // a tine line gets a point on it, which the shear keeps on the line: the arch's tip.
   // Inside the comb's band this ignores the detail budget, though not maxVertices.
+  // The comb's first tick: a point on every line it will make a tip or back on, all along the stroke,
+  // before anything else can use up the room under the point limit; then the spacing between them.
+  // pitch/8 where it fits; otherwise as fine as the room left allows, the same everywhere, so a
+  // ground of many fine stripes gets even, coarser arches from wall to wall instead of fine ones
+  // that stop where the points run out. The points a spacing needs are counted, not estimated: the
+  // same pass, over the whole stroke, with every point where the comb will put it.
+  _combBudget(op) {
+    const sh = op.shear;
+    sh.lined = true;
+    this._combRefinePass(op, -Infinity, Infinity, () => 0, true);
+    let total = 0;
+    for (const poly of this.polys) total += poly.n;
+    const room = COMB_ROOM * this.maxVertices - total;
+    const all = (a, D) => D;
+    const need = (lim) => { sh.lim = lim; return this._combRefinePass(op, -Infinity, Infinity, all, false, true); };
+    const fine = sh.s / 8;
+    if (need(fine) <= room) { sh.lim = fine; return; }
+    if (room <= 0) { sh.lim = Infinity; return; }
+    let lo = fine, hi = fine;
+    while (need(hi) > room && hi < 1e4) hi *= 2;
+    for (let k = 0; k < 12; k++) { const mid = Math.sqrt(lo * hi); if (need(mid) > room) lo = mid; else hi = mid; }
+    sh.lim = hi;
+  }
+
   _combRefine(op, lo, hi, remaining) {
+    // Near the point limit the lines come first: a tip or back left without its point is lost.
+    this._combRefinePass(op, lo, hi, remaining, true);
+    this._combRefinePass(op, lo, hi, remaining, false);
+  }
+
+  // With count, only says how many points it would add.
+  _combRefinePass(op, lo, hi, remaining, linesOnly, count = false) {
     const sh = op.shear;
     const { ax: ox, ay: oy, bx, by, len } = op.segs[0];
     const mx = (bx - ox) / len, my = (by - oy) / len;
     const [nx, ny] = op.perp;
-    const lim = sh.s / 8;
+    const lim = sh.lim ?? sh.s / 8;
     const { s, phase } = sh;
     let total = 0;
     for (const poly of this.polys) total += poly.n;
-    let room = this.maxVertices - total;
+    let room = count ? Infinity : this.maxVertices - total;
+    let counted = 0;
     const extra = [];
     for (const poly of this.polys) {
       if (room <= 0) { this.capped = true; break; }
@@ -2880,14 +2926,35 @@ export class Marble {
               const d = da + (db - da) * t, a = aa + (ab - aa) * t;
               return [a + remaining(a, this._combShift(sh, d)), d];
             };
-            const [fa, fd] = at(t0), [fb, fe] = at(t1);
-            const parts = Math.min(4096, Math.ceil(Math.hypot(fb - fa, fe - fd) / lim));
-            for (let k = 1; k < parts; k++) (cuts ??= []).push(t0 + ((t1 - t0) * k) / parts);
+            if (!linesOnly) {
+              // The piece's length where the comb will put it, along the curve it will make (an arch's
+              // flank is curved: split by its chord, the pieces' chords add up to more, and the next
+              // pass would split them again). Cut at equal lengths along it, so every piece ends up
+              // no longer than the spacing. Only pieces well over the spacing are split, so a piece
+              // measured again from points partway up the ramp doesn't split again.
+              let [px0, py0] = at(t0);
+              const run = [0];
+              for (let k = 1; k <= COMB_SAMPLES; k++) {
+                const [x, y] = at(t0 + ((t1 - t0) * k) / COMB_SAMPLES);
+                run.push(run[k - 1] + Math.hypot(x - px0, y - py0));
+                px0 = x;
+                py0 = y;
+              }
+              const length = run[COMB_SAMPLES];
+              const parts = length <= 1.5 * lim ? 1 : Math.min(4096, Math.ceil(length / lim));
+              for (let k = 1, q = 0; k < parts; k++) {
+                const want = (length * k) / parts;
+                while (run[q + 1] < want) q++;
+                const f = (want - run[q]) / Math.max(1e-12, run[q + 1] - run[q]);
+                (cuts ??= []).push(t0 + ((t1 - t0) * (q + f)) / COMB_SAMPLES);
+              }
+            }
             if (t1 < 1) (cuts ??= []).push(t1);
             t0 = t1;
           }
           if (cuts && cuts.length > room) cuts = null;
         }
+        if (count) { counted += cuts?.length ?? 0; continue; }
         if (cuts && !out) {
           out = new Float64Array(n * 4 + 128);
           out.set(xy.subarray(0, i * 2 + 2));
@@ -2905,7 +2972,10 @@ export class Marble {
       }
       if (out) extra.push([poly, out, wr / 2]);
     }
-    for (const [poly, out, m] of extra) { poly.xy = out; poly.n = m; }
+    if (count) return counted;
+    let added = 0;
+    for (const [poly, out, m] of extra) { added += m - poly.n; poly.xy = out; poly.n = m; }
+    return added;
   }
 
   // A tine that takes up space: ink ahead of it bulges aside and closes up behind it, by the
