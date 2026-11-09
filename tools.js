@@ -26,6 +26,10 @@ const FAR_DRAG = { top: 200, value: 6 };
 //     should start (undefined: behind a settle point) and returns what fn did.
 // Adding a tool: its engine method, an entry here, its (i) text in info.js, and its script
 // command in api.js if scripts should use it. An interface gives it a place and an icon.
+// What Auto means for the spread overrides (row 62): the tools' own values before the rule.
+const DROP_OPENING = 0.6;
+const BROOM_SPREAD = 12;
+
 export const TOOLS = {
   drop: {
     input: 'click',
@@ -37,7 +41,7 @@ export const TOOLS = {
         const jitter = v.count > 1 ? m.random() * 0.5 : 0;
         t.place((at) => m.drop({
           x: x + r * Math.cos(a), y: y + r * Math.sin(a),
-          quantity: v.quantity, dispersion: v.dispersion, gall: v.gall, oil: v.oil, bands: v.bands, turpentine: v.turpentine, evaporation: v.evaporation, ...ink,
+          quantity: v.quantity, dispersion: v.dispersion ?? DROP_OPENING, gall: v.gall, thin: v.thin, oil: v.oil, bands: v.bands, turpentine: v.turpentine, evaporation: v.evaporation, ...ink,
           at: at === undefined || t.queueMode !== 'together' ? at : at + jitter,
         }));
       }
@@ -46,14 +50,16 @@ export const TOOLS = {
     color: true,
     params: {
       quantity: ['Ink amount', 1.5, 0.05, 30, 0.05],
-      dispersion: ['Spread speed', 0.6, 0.05, 5, 0.05],
+      gall: ['Gall in the colour', null, 0, 5, 0.05, undefined, { auto: 'Bath' }], // null: the bath's
+      thin: ['Paint: thick ↔ thin', 0.5, 0, 1, 0.05],
       count: ['Drops per click', 1, 1, 60, 1],
       scatter: ['Scatter', 0, 0, 40, 0.5],
       oil: ['Oil (shell)', 0, -1, 1, 0.05],
       bands: ['Shell rings', 5, 2, 12, 1, undefined, { advanced: true }],
       turpentine: ['Turpentine (stormont)', 0, 0, 1, 0.05],
       evaporation: ['Holes close over (s)', 0, 0, 20, 0.5, undefined, { advanced: true }],
-      gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
+      // Override of the engine's rule (row 62): Auto is the drop's own opening speed.
+      dispersion: ['Opening speed (override)', null, 0.05, 5, 0.05, undefined, { advanced: true, auto: 'Auto' }],
     },
   },
   // A flick of a broom-straw brush: many drops of one colour landing at once, a few large and many
@@ -69,7 +75,7 @@ export const TOOLS = {
       const n = Math.max(1, Math.round(v.count));
       const size = v.quantity / n / Math.exp(v.variation ** 2 / 2);
       const extra = { ...(v.oil ? { oil: v.oil } : {}), ...(v.turpentine ? { turpentine: v.turpentine } : {}) };
-      t.place((at) => m.broom({ n, x, y, w: 2 * v.scatter, h: 2 * v.scatter, size, spread: v.variation, spreading: v.spreading, gall: v.gall ?? undefined, ...extra, ...ink, at }));
+      t.place((at) => m.broom({ n, x, y, w: 2 * v.scatter, h: 2 * v.scatter, size, spread: v.variation, spreading: v.spreading ?? BROOM_SPREAD, gall: v.gall ?? undefined, thin: v.thin, ...extra, ...ink, at }));
     },
     hint: 'Click to flick a broom-straw brush: many drops of the colour at once, a few large and many small, over the reach. Throw colour after colour for stone and vein.',
     color: true,
@@ -81,10 +87,12 @@ export const TOOLS = {
       quantity: ['Ink amount', 2.5, 0.5, 100, 0.5],
       scatter: ['Scatter', 25, 2, 80, 0.5],
       variation: ['Size spread', 0.9, 0, 2, 0.05],
-      spreading: ['How far it spreads', 12, 1, 50, 1],
-      gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }],
+      gall: ['Gall in the colour', null, 0, 5, 0.05, undefined, { auto: 'Bath' }],
+      thin: ['Paint: thick ↔ thin', 0.5, 0, 1, 0.05],
       oil: ['Oil (shell)', 0, -1, 1, 0.05, undefined, { advanced: true }],
       turpentine: ['Turpentine (stormont)', 0, 0, 1, 0.05, undefined, { advanced: true }],
+      // Override of the engine's rule (row 62): Auto lets the gall decide how far the flick opens.
+      spreading: ['Spread (override)', null, 1, 50, 1, undefined, { advanced: true, auto: 'Auto' }],
     },
   },
   heartDrop: {
@@ -112,7 +120,7 @@ export const TOOLS = {
       const min = v.max * Math.max(0.01, Math.min(1, v.smallest / 100));
       const skew = { small: 3, even: 1.4, big: 0.6 }[v.sizes] ?? 1.4;
       const extra = { ...(v.oil ? { oil: v.oil } : {}), ...(v.turpentine ? { turpentine: v.turpentine } : {}) };
-      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min, max: v.max, skew, colors, gall: v.gall, ...extra, at }));
+      t.place((at) => m.spray({ x, y, radius: v.radius, n: Math.max(1, Math.round(v.n * share)), min, max: v.max, skew, colors, gall: v.gall, thin: v.thin, ...extra, at }));
     },
     hint: 'Click, or drag, to spray fine dots. They use the colours chosen below.',
     color: true,
@@ -127,7 +135,8 @@ export const TOOLS = {
       radius: ['Scatter', 15, 1, 60, 0.5],
       max: ['Largest dot', 0.6, 0.05, 5, 0.01],
       smallest: ['Smallest dot (% of largest)', 20, 1, 100, 1],
-      gall: ['Gall', null, 0, 5, 0.05, undefined, { advanced: true, auto: 'Bath' }], // null: the bath's
+      gall: ['Gall in the colour', null, 0, 5, 0.05, undefined, { auto: 'Bath' }], // null: the bath's
+      thin: ['Paint: thick ↔ thin', 0.5, 0, 1, 0.05],
       oil: ['Oil (shell)', 0, -1, 1, 0.05, undefined, { advanced: true }],
       turpentine: ['Turpentine (stormont)', 0, 0, 1, 0.05, undefined, { advanced: true }],
     },

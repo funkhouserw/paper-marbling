@@ -45,6 +45,24 @@ const GALL_MOST = 7;
 export const gallPressure = (g) => g / (g + GALL_HALF);
 const gallSpread = (g, most = GALL_MOST) => 1 + (most - 1) * gallPressure(g);
 
+// Paint thick ↔ thin (row 62, items 5–7): water in a colour. FIRST VERSION, a monotone table that is
+// neutral at 0.5 (today's paint), so nothing made before changes; the physical rule is driver's to
+// write (TODO row 62: gall ratio → Marangoni spreading, thinness → opening; research notes
+// 2026-11-09 from the researcher). Its shape follows the physics we have: water dilutes the gall in
+// the colour (thin 0 → twice the gall, 1 → half), so a thinner drop opens a little less over the
+// same surface; how far follows the gall's saturating pressure (gallSpread), and how fast follows
+// the pressure contrast (√ of the spread ratio here), never the paint's own viscosity; and thinner
+// paint carries less pigment per area, so it prints lighter (the τ tint law, squeezedColour).
+export const THIN_NEUTRAL = 0.5;
+export function paintThinness(thin, gall, most = GALL_MOST) {
+  const t = Math.min(1, Math.max(0, thin ?? THIN_NEUTRAL));
+  if (t === THIN_NEUTRAL) return null;
+  const dilution = 2 ** (1 - 2 * t);
+  const g0 = gall ?? 1;
+  const spread = gallSpread(g0 * dilution, most) / gallSpread(g0, most);
+  return { spread, speed: Math.sqrt(spread), tau: Math.sqrt(dilution) };
+}
+
 // Shell (oil in a colour): Jaffer's pigment profile across a drop that landed with radius r is
 // τ(a) = exp(−ζa²/r²)·ζe^ζ/(e^ζ − 1), thickest in the middle for ζ > 0 (Jaffer 2019, §6; ζ ≈ 2.25
 // matched walnut-oil shells). A shell drop lands as k bands of equal area, and band j, which covers
@@ -967,7 +985,7 @@ export class Marble {
   // skew shapes the mix of sizes between min and max: 3 (the default) makes most dots tiny, 1 spreads
   // them evenly on a log scale, below 1 favours big ones.
   // turpentine, evaporation, oil and bands are passed on to every drop, as drop() takes them.
-  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, skew = 3, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, gall, turpentine = 0, evaporation = 0, oil = 0, bands = 5, at } = {}) {
+  spray({ x = 0, y = 0, radius = 150, n = 150, min = 0.5, max = 6, skew = 3, colors = ['#1f4e79'], dispersion = 4, stagger = 0.4, gall, thin, turpentine = 0, evaporation = 0, oil = 0, bands = 5, at } = {}) {
     const start = at ?? this._now;
     const growth = this.spreadFactor;
     for (let i = 0; i < n; i++) {
@@ -980,6 +998,7 @@ export class Marble {
         quantity: ((Math.PI * r * r) / growth) * this.film / 1000,
         dispersion,
         gall,
+        thin,
         turpentine,
         evaporation,
         oil,
@@ -1008,10 +1027,18 @@ export class Marble {
   // round), in bands of equal area, thrown one after another at the same spot.
   // turpentine (0 to 1) makes a Stormont: as the colour spreads it breaks into a lace of holes,
   // more and finer with more turpentine. evaporation (seconds) lets them partly close again.
-  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, gall, oil = 0, bands = 5, turpentine = 0, evaporation = 0, color = '#1f4e79', shimmer = 0, at } = {}) {
+  drop({ x = 0, y = 0, quantity = 1, dispersion = 0.8, spreading = 4, gall, thin, oil = 0, bands = 5, turpentine = 0, evaporation = 0, color = '#1f4e79', shimmer = 0, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color); // a palette ink
     const args = { x, y, quantity, dispersion, spreading, color, shimmer };
     if (gall !== undefined && gall !== null) args.gall = gall;
+    // Logged as given; the drop itself uses the thinned spread, speed and colour.
+    if (thin !== undefined && thin !== null && thin !== THIN_NEUTRAL && color !== 'clear') {
+      args.thin = thin;
+      // The bath's gall is looked up by the colour as thrown, before thinning shades it.
+      gall ??= this._bathGall(color);
+      const paint = paintThinness(thin, gall, this.gallMost);
+      if (paint) { spreading *= paint.spread; dispersion *= paint.speed; color = squeezedColour(color, paint.tau); }
+    }
     if (turpentine > 0) Object.assign(args, { turpentine, evaporation });
     if (oil) {
       args.oil = oil;
@@ -1286,13 +1313,20 @@ export class Marble {
   // seam is kept for older logs and the Cells simulator.
   // turpentine, evaporation, oil and bands are passed on to every drop, as drop() takes them (a whole
   // flick of turpentined colour, as in neftli battal; an oiled flick of Shells).
-  broom({ n = 60, x = 0, y = 0, w = this.width, h = this.height, size = 0.15, spread = 1, spreading = 25, dispersion = 1.5, gall, seam = 1.5, color = '#1f4e79', shimmer = 0, turpentine = 0, evaporation = 0, oil = 0, bands = 5, at } = {}) {
+  broom({ n = 60, x = 0, y = 0, w = this.width, h = this.height, size = 0.15, spread = 1, spreading = 25, dispersion = 1.5, gall, thin, seam = 1.5, color = '#1f4e79', shimmer = 0, turpentine = 0, evaporation = 0, oil = 0, bands = 5, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color);
     const args = { n, x, y, w, h, size, spread, spreading, dispersion, seam, color, shimmer };
     if (gall !== undefined && gall !== null) args.gall = gall;
     if (turpentine > 0) Object.assign(args, { turpentine, evaporation });
     if (oil) Object.assign(args, { oil, bands });
     if (at !== undefined) args.at = at;
+    // Paint thick ↔ thin (row 62): every drop of the flick alike.
+    if (thin !== undefined && thin !== null && thin !== THIN_NEUTRAL) {
+      args.thin = thin;
+      gall ??= this._bathGall(color); // by the colour as thrown, before thinning shades it
+      const paint = paintThinness(thin, gall, this.gallMost);
+      if (paint) { spreading *= paint.spread; dispersion *= paint.speed; color = squeezedColour(color, paint.tau); }
+    }
     // Where the drops land and how much ink each carries are drawn now, so a replay matches.
     const gauss = () => Math.sqrt(-2 * Math.log(1 - this.random())) * Math.cos(2 * Math.PI * this.random());
     const drops = Array.from({ length: n }, () => ({

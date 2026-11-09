@@ -129,6 +129,11 @@ export function useTank() {
       for (const [tool, values] of Object.entries(last.values ?? {})) {
         if (c.values[tool]) Object.assign(c.values[tool], pick(values, c.values[tool]));
       }
+      // Kept before the spread settings became overrides (row 62): their old defaults mean Auto now.
+      if (!last.inkProps) {
+        if (c.values.drop && last.values?.drop?.dispersion === 0.6) c.values.drop.dispersion = null;
+        if (c.values.broom && last.values?.broom?.spreading === 12) c.values.broom.spreading = null;
+      }
       if (last.tool && c.values[last.tool]) c.setTool(last.tool);
       if (last.palette) {
         try { c.usePalette(last.palette); } catch { /* a palette that's since been deleted */ }
@@ -165,7 +170,7 @@ export function useTank() {
     if (resetting.current) return;
     try {
       localStorage.setItem(KEPT_KEY, JSON.stringify({
-        settings: c.settings, values: c.values, tool: c.tool,
+        settings: c.settings, values: c.values, tool: c.tool, inkProps: 1,
         palette: ui.palette, ink: ui.ink, view: ui.view, page: ui.page, tint: ui.tint,
       }));
     } catch { /* storage full or blocked: nothing to keep */ }

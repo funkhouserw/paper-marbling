@@ -8,6 +8,7 @@ const WEAVE_LENGTH = 'How far the rake travels for one full swing of the weave. 
 const EASE = 'How long the teeth take to come up to speed at the start and to slow to a stop at the end, as a hand does. The path is the same; the stroke just takes this much longer. 0 starts and stops at full speed, as before.';
 const TEETH = 'How many teeth the rake has.';
 const DURATION = 'How long the motion takes.';
+const THIN = 'How much water is in the paint. Water thins the gall in the colour too, so thinner paint opens a little less and prints lighter, with less pigment over the same area; thicker paint is the reverse. The middle is ordinary paint.';
 const COLOURS = 'The inks of the current palette. Keys 1 to 9 pick them while this tool is chosen. The square at the end picks any colour.';
 
 export const INFO = {
@@ -112,13 +113,15 @@ export const INFO = {
   'drop.bands': 'How many rings a Shell drop is made of. More look smoother but cost more points.',
   'drop.turpentine': 'Turpentine in the colour makes a Stormont: as the drop spreads it breaks into a lace of holes, mostly tiny, with the bare bath showing through. More turpentine, more and finer holes. Only this colour gets holes.',
   'drop.evaporation': 'As the turpentine evaporates the holes partly close again, over this many seconds. 0 leaves them open.',
-  'drop.gall': 'This drop\'s own ox gall, instead of the bath\'s. More spreads further, and opens over weaker ink.',
-  'spray.gall': 'Ox gall for these dots, instead of the bath\'s.',
+  'drop.gall': 'Ox gall mixed into the colour, as a marbler does. More gall spreads the drop further, and a colour opens over the ink it lands on only if it has more gall than that ink; with less it stays a dot. Bath gives each colour the bath\'s rising gall, if it\'s on.',
+  'drop.thin': THIN,
+  'spray.gall': 'Ox gall mixed into the colour, as a marbler does. More gall spreads the drop further, and a colour opens over the ink it lands on only if it has more gall than that ink; with less it stays a dot. Bath gives each colour the bath\'s rising gall, if it\'s on.',
+  'spray.thin': THIN,
   'spray.oil': 'Oil in every drop, as in the Drop tool: each lands as a shell of rings, darker in the middle. Below 0 the middle is pale instead.',
   'spray.turpentine': 'Turpentine in every drop, as in the Drop tool: each breaks into a lace of fine holes as it spreads (Stormont).',
   'fillDots.gall': 'Ox gall for these dots, instead of the bath\'s.',
   'drop.quantity': 'How much ink, and so how big the drop ends up. Alone on clear water a drop reaches the same size on every simulator; in Film, Wake and Spreading one landing on ink stays smaller.',
-  'drop.dispersion': 'How quickly a drop reaches its full size. It doesn\'t change the final size.',
+  'drop.dispersion': 'Sets how quickly the drop opens, instead of the simulator\'s own rule (Auto), in which a colour with more gall than the surface it lands on opens faster. It doesn\'t change the final size.',
   'drop.count': 'How many drops each click places, using Scatter to spread them.',
   'drop.scatter': 'How far from your click the drops can land.',
   'spray.sprayColors': 'Use every ink in the palette at random, or only the chosen one.',
@@ -139,9 +142,10 @@ export const INFO = {
   'broom.count': 'How many drops one flick throws.',
   'broom.quantity': 'How much colour one flick carries in all, shared out among its drops by size.',
   'broom.scatter': 'How far around the click the drops land.',
-  'broom.spreading': 'How many times its landing size each drop can grow on open water before it meets other ink. Lower keeps the cells small and leaves more bare bath, higher lets one flick cover more. 12 gives distinct cells in the pressure simulators; Classic looks closest to a broom-straw sheet nearer 16 to 25.',
+  'broom.spreading': 'Sets how many times its landing size each drop can grow on open water, instead of letting the gall decide (Auto). Lower keeps the cells small and leaves more bare bath, higher lets one flick cover more. Auto is 12, distinct cells in the pressure simulators.',
   'broom.variation': 'How unequal the drops are: 0 makes them all the same, higher gives a few large drops among many small ones.',
-  'broom.gall': 'Ox gall for this flick. Bath uses the bath\'s rising gall, if it\'s on.',
+  'broom.gall': 'Ox gall mixed into the colour, as a marbler does. More gall spreads the drop further, and a colour opens over the ink it lands on only if it has more gall than that ink; with less it stays a dot. Bath gives each colour the bath\'s rising gall, if it\'s on.',
+  'broom.thin': THIN,
   'broom.oil': 'Oil in every drop, as in the Drop tool: each lands as a shell of rings, darker in the middle. Below 0 the middle is pale instead.',
   'broom.turpentine': 'Turpentine in every drop, as in the Drop tool: each breaks into a lace of fine holes as it spreads (Stormont).',
   'rake.teeth': TEETH,
