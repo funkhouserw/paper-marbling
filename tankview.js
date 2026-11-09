@@ -572,6 +572,7 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
   let nextDraw = 0;
   let nextGlint = 0;
   let lastDrawMs = 0;
+  let drawnMarble = null; // the tank lastDrawMs belongs to
   let nextStats = 0;
   let frameGap = 16;      // smoothed time between frames; canvas work mostly lands here, not in draw()
   let glintResting = null; // the tank state the glint gave up on, until something changes
@@ -595,6 +596,9 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     if (pull) stepPull(now);
     else c.advance(wall, start);
     const marble = c.marble;
+    // A new tank (cleared, an example, another simulator) starts with no draw time of its own, so a
+    // slow draw of the tank before doesn't turn low framerate on (row 61).
+    if (marble !== drawnMarble) { drawnMarble = marble; lastDrawMs = 0; }
     // Metallic inks glint, but not under load. If the page can't keep up even when the
     // sim has settled, the glint rests until the tank next changes.
     const underLoad = c.finishing || c.snapshotting() || c.owed > 0.1 || lastDrawMs > SLOW_DRAW_MS || frameGap > LOADED_FRAME_MS;
