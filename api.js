@@ -356,20 +356,18 @@ function units(tank) {
 }
 
 // Fills in defaults and converts one command's options from page units to mm.
-// Script names that differ from the engine's (row 62, item 9): { command: { script name: engine name } }.
-// The old name is still accepted in a script.
-const RENAMED = { air: { strength: 'speed' } };
+// Options renamed (row 62, item 9): { command: { old name: new name } }. A script or saved session
+// with the old name still works.
+const RENAMED = { air: { speed: 'strength' } };
 
 export function toMm(name, options, tank) {
   const table = units(tank);
   const out = { ...options };
-  const renamed = RENAMED[name] ?? {};
-  for (const [now, old] of Object.entries(renamed)) if (out[now] === undefined && out[old] !== undefined) { out[now] = out[old]; delete out[old]; }
+  for (const [was, now] of Object.entries(RENAMED[name] ?? {})) if (out[now] === undefined && out[was] !== undefined) { out[now] = out[was]; delete out[was]; }
   for (const [key, , def, , unit] of paramsOf(name)) {
     if (out[key] === undefined && def !== null) out[key] = def;
     if (out[key] !== undefined && unit) out[key] = table[unit][0](out[key]);
   }
-  for (const [now, old] of Object.entries(renamed)) if (now in out) { out[old] = out[now]; delete out[now]; }
   return out;
 }
 
@@ -378,8 +376,9 @@ const tidy = (v) => (Array.isArray(v) ? v.map(tidy) : typeof v === 'number' ? Nu
 // The reverse of toMm, for writing a session out as a script.
 export function fromMm(name, args, tank) {
   const table = units(tank);
-  const out = { ...args };
-  for (const [now, old] of Object.entries(RENAMED[name] ?? {})) if (old in out) { out[now] = out[old]; delete out[old]; }
+  const renamed = RENAMED[name] ?? {};
+  // Same order, new names: the script reads as the session was written.
+  const out = Object.fromEntries(Object.entries(args).map(([k, v]) => [renamed[k] ?? k, v]));
   for (const [key, , , , unit] of paramsOf(name)) {
     if (out[key] !== undefined && unit) out[key] = tidy(table[unit][1](out[key]));
   }

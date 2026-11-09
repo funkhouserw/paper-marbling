@@ -1061,7 +1061,7 @@ test('air draws a seed when none is given, records it, and the script and replay
   const logged = m.log.at(-1);
   assert.equal(logged.fn, 'air');
   assert.ok(Number.isInteger(logged.args.seed));
-  assert.match(m.toScript(), /air\(\{"scale":15,"speed":6,"octaves":2,"duration":1,"seed":\d+,"at":[\d.]+\}\);/);
+  assert.match(m.toScript(), /air\(\{"scale":15,"strength":6,"octaves":2,"duration":1,"seed":\d+,"at":[\d.]+\}\);/);
   // A replay never idles between the drop and the breath, so its outline is sampled differently;
   // the shape has to be the same.
   const centroid = ({ xy, n }) => {

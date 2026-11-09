@@ -1962,9 +1962,11 @@ export class Marble {
 
   // A breath of air: a smooth random flow over the whole bath that stretches ink without
   // changing its area. The same seed gives the same breath, and a fresh one is drawn otherwise.
-  air({ scale = 200, speed = 50, octaves = 2, duration = 2, seed, at } = {}) {
+  // strength was called speed until 2026-11-09 (row 62); saved sessions logged with speed still replay.
+  air({ scale = 200, strength, octaves = 2, duration = 2, seed, at } = {}) {
+    const speed = strength ?? arguments[0]?.speed ?? 50;
     if (seed === undefined || seed === null) seed = Math.floor(this.random() * 2 ** 31);
-    const args = { scale, speed, octaves, duration, seed };
+    const args = { scale, strength: speed, octaves, duration, seed };
     if (at !== undefined) args.at = at;
     const op = { kind: 'air', scale, speed, octaves: Math.max(1, Math.min(4, Math.round(octaves))), duration, seed, elapsed: 0 };
     return this._schedule('air', args, op, duration, true);

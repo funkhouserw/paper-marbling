@@ -86,7 +86,7 @@ export const INFO = {
   'tool.stir': 'Circular tines turning around a centre, which winds ink into spirals.',
   'tool.air': 'A breath of air over the whole bath: a smooth random flow that stretches and swirls the ink without changing its area. Scripts can pass a seed to repeat the same breath. In Wake it also sets the bath moving.',
   'air.scale': 'How big the swirls are. A second breath at a smaller size adds fine turbulence on top.',
-  'air.speed': 'How fast the air moves the ink, and so how far the ink gets pushed.',
+  'air.strength': 'How fast the air moves the ink, and so how far the ink gets pushed.',
   'air.octaves': 'How many layers of smaller swirls are added to the main ones.',
   'air.duration': DURATION,
   'tool.fillDots': 'Packs the tank with dots of many sizes, biggest holes first, each in the palette\'s inks with neighbours avoiding a match. It goes around ink already there unless you tell it to go on top. Press it again to fill what\'s left.',
