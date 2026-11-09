@@ -36,7 +36,7 @@ export const PATTERNS = [
   },
   {
     id: 'antique-spot', family: 'base', names: { en: 'Antique Spot' }, status: 'verified',
-    summary: 'A variant of Antique marble, not another name for Stone: the colours are raked once up and down, then spotted with pink or green, and finally white.',
+    summary: 'A variant of Antique marble, not another name for Stone: red, black and yellow are raked as for Nonpareil, then spotted with two more colours (teal, then pink inside it, in No. 14), and a little white is beaten over the whole.',
     sources: ['RE', 'WOOL'], image: { title: 'Woolnough 1881, Examples 14–15', url: 'https://archive.org/details/wholeartofmarbli00wool', licence: 'Public Domain Mark' },
 
     example: 'Antique spot',

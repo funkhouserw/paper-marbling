@@ -471,25 +471,42 @@ settle();
 for (let i = 0; i < 26; i++) drop({ x: 5 + random() * 90, y: 5 + random() * 90, quantity: 0.25, turpentine: 0.25, color: '#2f5f9e' });
 settle();
 `,
-  'Antique spot': `// Antique spot: the colours thrown as a stone, raked once up and back down, then spotted with pink
-// and green, and finally white (Woolnough 1881). Rising gall lets each spotting open over the last.
-viscosity({ value: 1000 });
-bath({ color: '#efe8da' });
-separate({ on: true });
-gall({ on: true, start: 1, step: 0.4 });
-broom({ n: 70, x: 30, y: 40, w: 60, h: 60, size: 0.03, spread: 0.9, spreading: 25, color: '#2c3a5a' });
+  'Antique spot': `// Antique Spots, Woolnough (1881) Example No. 14 (plate p. 97, the sample Ilse found, row 66): red,
+// black and yellow thrown and raked up and back as for Nonpareil, then teal spots and pink, mostly
+// inside the teal, and a little white beaten over the whole at last. The waves in the ground are the
+// spots pushing the raked lines aside, not a tool. Spots run to about a third of the sheet as on the
+// plate. The raked ground is chevroned where the plate's lines run long and fine: the long-stroke
+// drag of a coarse rake is still to come in the engine (rows 36, 59). About 45 s headless.
+viscosity({ value: 100 });
+bath({ color: '#efe6d6' });
+gall({ on: true, start: 1, step: 0.5 });
+// Red, black and yellow, raked up and back as for Nonpareil.
+broom({ n: 550, size: 0.13, spread: 0.7, spreading: 2, color: '#5b1b1d' });
 settle();
-broom({ n: 70, x: 70, y: 60, w: 60, h: 60, size: 0.03, spread: 0.9, spreading: 25, color: '#7a2e24' });
+broom({ n: 500, size: 0.05, spread: 0.8, spreading: 2, color: '#24161a' });
 settle();
-fullRake({ angle: 90, teeth: 10, speed: 22, D: 0.7 });
+broom({ n: 400, size: 0.01, spread: 0.8, spreading: 2, color: '#c98a2a' });
 settle();
-fullRake({ angle: 270, teeth: 10, offset: 5, speed: 22, D: 0.7 });
+fullRake({ angle: 90, teeth: 20, speed: 20, D: 1 });
 settle();
-broom({ n: 90, x: 50, y: 50, w: 95, h: 95, size: 0.0025, spread: 0.7, spreading: 25, color: '#d98aa0' });
+fullRake({ angle: 270, teeth: 20, offset: 2.5, speed: 20, D: 1 });
 settle();
-broom({ n: 90, x: 50, y: 50, w: 95, h: 95, size: 0.0025, spread: 0.7, spreading: 25, color: '#5c8a5a' });
+// Teal spots, then pink mostly inside them.
+const spots = [];
+for (let i = 0; i < 34; i++) {
+  const x = random() * 100, y = random() * 100, q = 0.03 + 1.6 * random() ** 3;
+  spots.push([x, y, q]);
+  drop({ x, y, quantity: q, color: '#2f6a74' });
+}
 settle();
-broom({ n: 120, x: 50, y: 50, w: 95, h: 95, size: 0.0012, spread: 0.6, spreading: 25, color: '#f6f2ea' });
+for (const [x, y, q] of spots) {
+  const k = 1 + Math.floor(random() * 3);
+  for (let j = 0; j < k; j++) drop({ x: x + (random() - 0.5) * 3, y: y + (random() - 0.5) * 3, quantity: q * 0.33 / k, color: '#e8b9b5' });
+}
+for (let i = 0; i < 25; i++) drop({ x: random() * 100, y: random() * 100, quantity: 0.02 + 0.1 * random(), color: '#e8b9b5' });
+settle();
+// White beaten over the whole at last.
+for (let i = 0; i < 8; i++) spray({ x: random() * 100, y: random() * 100, radius: 80, n: 450, min: 0.08, max: 0.35, colors: ['#f4ede4'] });
 settle();
 `,
   'Hatip hearts': `// Hatip (yürek, "hearts"), after a Turkish ebru: a pale stone ground, then rows of hearts, each an
