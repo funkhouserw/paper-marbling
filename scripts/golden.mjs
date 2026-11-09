@@ -17,6 +17,12 @@
 //                                                      render another checkout (to bisect), compared
 //                                                      with this checkout's references
 //
+// References and reviews are made on Modal (x64 node), never on a laptop: arm64 and x64 differ by
+// about 1e-5 per tick, which grows into another layout in chaotic scenes (Cells near capacity, Wake,
+// Film). A local run is advisory only. From marbler-private:
+//   MODAL_PROFILE=funkhouserw modal run bench/modal_app.py::golden --tree <worktree> --only "A|B" [--refresh --write-back]
+// --only takes names split on '|' when there is one, so names with commas work ("Ebru, combed stone").
+//
 // The review is <out>/report.html (open it in a browser), <out>/report.json, and for each flagged
 // example <out>/review/<name>.png (reference left, now right). Film and Wake examples take a minute
 // or more each, so this runs before a merge or overnight, not in `npm test`.
@@ -77,7 +83,8 @@ if (args[0] === '--one') {
 
 // ---- Everything ------------------------------------------------------------------------------
 const { EXAMPLES } = await import(join(root, 'examples.js'));
-const only = opt('--only')?.split(',').map((s) => s.trim());
+const onlyArg = opt('--only');
+const only = onlyArg?.split(onlyArg.includes('|') ? '|' : ',').map((s) => s.trim());
 const missing = only?.filter((n) => !(n in EXAMPLES)) ?? [];
 if (missing.length) { console.error(`No example called: ${missing.join(', ')}`); process.exit(2); }
 const names = Object.keys(EXAMPLES).filter((n) => !only || only.includes(n));
