@@ -1,12 +1,11 @@
 // The short explanations behind each (i). A test checks every sidebar control has one.
-const THICKNESS = 'How far the pull reaches. Ink nearby gets carried along, more so the higher this is, though the tine itself stays a point. Very high values drag the whole page along, so a full-width rake can push all the ink off an open tank. In Wake, more thickness stops adding direct pull fairly early.';
+const THICKNESS = 'How far each tine\'s pull reaches: ink nearby is carried along with it, more the higher this is, and further still the faster the stroke (Speed) and the thinner the bath. The tine itself stays a point (Tine width is its real size). Very high values drag the whole page along, so a full-width rake can push all the ink off an open tank. With many teeth and a quick stroke, a straight full rake arches the colour between its teeth by itself, as a nonpareil comb does. In Wake, more pull stops adding direct pull fairly early.';
 const TINE_WIDTH = 'The physical size of each tine. Ink bulges aside and closes up behind it, instead of being dragged. If the width is more than about twice the pull\'s reach, you only get the bulge.';
 const SPEED = 'How fast the tool travels. It changes how much ink gets pulled as well as how long the stroke takes: faster reaches further. In Wake, a fast tool also leaves more movement in the bath.';
 const WEAVE_SHAPE = 'The path each tooth follows as it travels. Straight goes in a line; the others swing side to side in that shape. Needs some weave height to show.';
 const WEAVE_HEIGHT = 'How far each tooth swings to the side. Overlapping neighbouring teeth is fine and often the point.';
 const WEAVE_LENGTH = 'How far the rake travels for one full swing of the weave. Short gives tight, busy marks.';
 const EASE = 'How long the teeth take to come up to speed at the start and to slow to a stop at the end, as a hand does. The path is the same; the stroke just takes this much longer. 0 starts and stops at full speed, as before.';
-const REACH = 'How far each tooth pulls the colour, as a share of the gap to the next tooth. 0.5 keeps each tooth to its own lane, so one comb can\'t drag the whole sheet. Raise it to 1–1.5 for a fine comb after tall colour columns (Bouquet, Old Dutch) or for Peacock fans; past about 1 the teeth start moving the colour together like a paddle.';
 const TEETH = 'How many teeth the rake has.';
 const DURATION = 'How long the motion takes.';
 const COLOURS = 'The inks of the current palette. Keys 1 to 9 pick them while this tool is chosen. The square at the end picks any colour.';
@@ -147,12 +146,9 @@ export const INFO = {
   'broom.turpentine': 'Turpentine in every drop, as in the Drop tool: each breaks into a lace of fine holes as it spreads (Stormont).',
   'rake.teeth': TEETH,
   'rake.spacing': 'The gap between neighbouring teeth.',
-  'rake.reach': REACH,
   'rake.ease': EASE,
   'fullRake.ease': EASE,
   'drawnRake.ease': EASE,
-  'fullRake.reach': REACH,
-  'drawnRake.reach': REACH,
   'rake.speed': SPEED,
   'rake.D': THICKNESS,
   'rake.width': TINE_WIDTH,
@@ -178,8 +174,6 @@ export const INFO = {
   'fullRake.teeth': `${TEETH} They spread evenly across the page.`,
   'fullRake.offset': 'Slides all the teeth sideways, wrapping at the edges. A second pass with half a tooth\'s offset lands between the first pass\'s lines.',
   'fullRake.speed': SPEED,
-  'fullRake.arch': 'Arches (comb shear), for fine straight combs such as a nonpareil\'s. Off, each tooth pulls ink like a stylus. On, each tooth drags its line this far along the stroke, and the drag falls off with distance from the nearest tooth (Lu et al. 2012), so every line between two teeth bends into a pointed arch. About 1.5 times the gap between teeth looks right; use many teeth. A weave or a tine width goes back to stylus teeth.',
-  'fullRake.falloff': 'With arches: how sharp they are. A line this far from its tooth moves half as far as one on the tooth, so smaller is more pointed. Auto is 0.15 of the gap between teeth.',
   'fullRake.overhang': 'How far past the edges the teeth start and stop. Auto uses none on a repeating tank, where anything past one edge would be raked a second time at the other, and 2% of the width otherwise. Try values here to compare how the seam looks.',
   'fullRake.D': THICKNESS,
   'fullRake.width': TINE_WIDTH,

@@ -325,19 +325,20 @@ settle();
   'Nonpareil': `// Nonpareil: a ground drawn into fine parallel stripes, then combed across them with a fine comb, so
 // every stripe bends into a row of small pointed arches. A staple of 19th-century bookbinding.
 // After a combed endpaper of 1826 (Wikimedia Commons): stripes about 7 mm with thin slivers of other
-// colours between them, first jiggled a few millimetres at an uneven pace so the slivers wander, then
-// combed. The comb is Lu et al.'s comb shear (arch, falloff): 175 teeth 4 mm apart, each dragging its
-// line 6 mm with a 0.6 mm falloff. The arches don't depend on the comb's speed, so it goes fast. About
-// 12 s headless on a quiet machine; it peaks near 291,000 points, under the default limit.
+// colours between them, jiggled a millimetre or so at an uneven pace so the slivers wander, then
+// combed with 175 teeth 4 mm apart. A comb this fine and quick arches the sheet between its teeth by
+// itself (the engine's comb shear, Lu et al. 2012). Its pull (D 0.4) and speed are set high enough to
+// cross into arching in this thick bath (viscosity 1000); about 10 s headless, peaking near 282,000
+// points, under the default limit.
 viscosity({ value: 1000 });
 const inks = palette('Lapis & Gilt').inks;
 stripes({ angle: 90, count: 140, colors: inks, variation: 0.4, slivers: 0.4 });
 settle();
 // Two small jiggles at unrelated wavelengths, so the wiggle is uneven.
-jiggle({ angle: 90, period: 3.7, amplitude: 0.25, duration: 1 });
-jiggle({ angle: 90, period: 2.3, amplitude: 0.15, offset: 0.7, duration: 1, at: 1 });
+jiggle({ angle: 90, period: 3.7, amplitude: 0.12, duration: 1 });
+jiggle({ angle: 90, period: 2.3, amplitude: 0.08, offset: 0.7, duration: 1, at: 1 });
 settle();
-fullRake({ angle: 0, teeth: 175, speed: 30, D: 0.16, arch: 0.6, falloff: 0.06 });
+fullRake({ angle: 0, teeth: 175, speed: 50, D: 0.4 });
 settle();
 `,
   'Broom-straw stone': `// Broom-straw stone, after a marbler's video: a broom flicks the first colour until it covers most of

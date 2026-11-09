@@ -47,7 +47,7 @@ function expectedShift(pitch, alpha, lambda, near) {
 
 // Combs one stripe ground and measures one stripe's left edge on each tine line (the arch tips) and
 // on each line halfway between (the arch backs), as moves from where that edge was before.
-function comb(pitch, { arch, falloff, cut = true } = {}) {
+function comb(pitch, { arch, falloff, cut = true, speed = 30, D = 1.6 } = {}) {
   const m = ground(cut);
   let pick = null;
   for (const p of m.polys) {
@@ -57,7 +57,8 @@ function comb(pitch, { arch, falloff, cut = true } = {}) {
   }
   const before = ink(m);
   const teeth = Math.round(H / pitch);
-  m.fullRake({ angle: 0, teeth, speed: 30, D: 1.6, ...(arch ? { arch } : {}), ...(falloff ? { falloff } : {}) });
+  if (arch) m.combArch = { arch, falloff };
+  m.fullRake({ angle: 0, teeth, speed, D });
   m.runUntilIdle(600);
   const lim = pick.x0 + 13;
   const tips = [], backs = [];
@@ -110,21 +111,27 @@ test('a 2.5 mm comb arches too, with the default falloff (0.15 of the pitch)', (
   assert.ok(Math.abs(tips[0] - mean(backs) - height) < 0.07, `arch ${(tips[0] - mean(backs)).toFixed(3)} vs ${height.toFixed(3)}`);
 });
 
-test('the arch only applies to straight full rakes with point tines; replaying the log gives the same ink', () => {
+test('the comb shear only applies to straight full rakes with point tines; replaying the log gives the same ink', () => {
   const m = new Marble({ width: 300, height: 200, seed: 4 });
-  assert.ok(m.fullRake({ angle: 0, teeth: 20, arch: 5 }).shear);
-  assert.equal(m.fullRake({ angle: 0, teeth: 20, arch: 5, waveAmp: 3 }).shear, null);
-  assert.equal(m.fullRake({ angle: 0, teeth: 20, arch: 5, width: 2 }).shear, null);
-  assert.equal(m.rake({ from: [-100, 0], to: [100, 0], teeth: 5, spacing: 10, arch: 5 }).shear, undefined);
+  m.combArch = { arch: 5 };
+  assert.ok(m.fullRake({ angle: 0, teeth: 20 }).shear);
+  assert.equal(m.fullRake({ angle: 0, teeth: 20, waveAmp: 3 }).shear, null);
+  assert.equal(m.fullRake({ angle: 0, teeth: 20, width: 2 }).shear, null);
+  assert.equal(m.rake({ from: [-100, 0], to: [100, 0], teeth: 5, spacing: 10 }).shear, undefined);
 
-  const a = new Marble({ width: 300, height: 200, seed: 4 });
-  a.stripes({ angle: 90, count: 14, colors: ['#963a33', '#3b5e4c', '#c9a24f'] });
-  a.settle();
-  a.fullRake({ angle: 90, teeth: 40, speed: 60, arch: 7, falloff: 1 });
-  a.runUntilIdle(120);
-  const b = new Marble({ width: 300, height: 200, seed: 4 });
-  b.replay(a.log);
-  b.runUntilIdle(120);
+  const run = (log) => {
+    const t = new Marble({ width: 300, height: 200, seed: 4 });
+    t.combArch = { arch: 7, falloff: 1 };
+    if (log) t.replay(log);
+    else {
+      t.stripes({ angle: 90, count: 14, colors: ['#963a33', '#3b5e4c', '#c9a24f'] });
+      t.settle();
+      t.fullRake({ angle: 90, teeth: 40, speed: 60 });
+    }
+    t.runUntilIdle(120);
+    return t;
+  };
+  const a = run(), b = run(a.log);
   const pa = a.polys.flatMap((p) => Array.from(p.xy.subarray(0, p.n * 2)));
   const pb = b.polys.flatMap((p) => Array.from(p.xy.subarray(0, p.n * 2)));
   assert.equal(pa.length, pb.length);
@@ -165,9 +172,10 @@ test('on a repeating tank the comb moves points at the seams as in the middle, a
   const xs = [-149.5, -147.5, -100, 0, 146.5, 148.5, 149.5 - 300, 0 + 300, -170, 170];
   m.tracers = [];
   for (const x of xs) for (const y of [2, 4]) m.tracers.push([x, y, x]);
-  m.fullRake({ angle: 0, teeth: 15, speed: 30, D: 1.6, arch: alpha, falloff: lambda });
+  m.combArch = { arch: alpha, falloff: lambda };
+  m.fullRake({ angle: 0, teeth: 15, speed: 30, D: 1.6 });
   m.runUntilIdle(600);
-  const shear = m.fullRake({ angle: 0, teeth: 15, arch: alpha, falloff: lambda }).shear;
+  const shear = m.fullRake({ angle: 0, teeth: 15 }).shear;
   for (const [x, y, x0] of m.tracers) {
     assert.ok(Math.abs(y - (y === 2 ? 2 : 4)) < 1e-12);
     const want = m._combShift(shear, y);
@@ -182,7 +190,8 @@ test('a big arch on a plain tank moves points near the ends of the stroke all th
   for (let t = 0; m.busy && t < 5000; t++) m.step();
   m.tracers = [];
   for (const x of [-148, -140, 0, 140, 148]) for (const y of [10, 20]) m.tracers.push([x, y, x]);
-  const op = m.fullRake({ angle: 0, teeth: 10, speed: 60, arch: 20 });
+  m.combArch = { arch: 20 };
+  const op = m.fullRake({ angle: 0, teeth: 10, speed: 60 });
   assert.ok(op.shear.w / 2 + op.shear.most > 20);
   m.runUntilIdle(600);
   for (const [x, y, x0] of m.tracers) {
@@ -195,7 +204,8 @@ test('near the point limit the comb plans a coarser spacing for the whole stroke
   const m = new Marble({ width: W, height: H, viscosity: 1000, seed: 1, maxVertices: 9000 });
   m.stripes({ angle: 90, count: 70, colors: ['#1f4e79', '#c9a227'], variation: 0, wobble: 0, slivers: 0 });
   for (let t = 0; m.busy && t < 5000; t++) m.step();
-  const op = m.fullRake({ angle: 0, teeth: 15, speed: 30, D: 1.6, arch: 6, falloff: 0.6 });
+  m.combArch = { arch: 6, falloff: 0.6 };
+  const op = m.fullRake({ angle: 0, teeth: 15, speed: 30, D: 1.6 });
   let peak = 0;
   for (let t = 0; m.busy && t < 5000; t++) { m.step(); peak = Math.max(peak, m.polys.reduce((a, p) => a + p.n, 0)); }
   // Planned, not run out of: coarser than pitch/8, the same everywhere, and under the limit.
@@ -226,7 +236,8 @@ test('a full-size Nonpareil of 200 stripes at the default point limit: under the
   assert.equal(m.maxVertices, 400000);
   m.stripes({ angle: 90, count: 200, colors: ['#1f3a5f', '#c9a227', '#8c2f39', '#e8e1cf'], variation: 0.2, slivers: 0 });
   for (let t = 0; m.busy && t < 5000; t++) m.step();
-  m.fullRake({ angle: 0, teeth: 175, speed: 300, D: 1.6, arch: 6, falloff: 0.6 });
+  m.combArch = { arch: 6, falloff: 0.6 };
+  m.fullRake({ angle: 0, teeth: 175, speed: 300, D: 1.6 });
   let peak = 0;
   for (let t = 0; m.busy && t < 5000; t++) { m.step(); peak = Math.max(peak, m.polys.reduce((a, p) => a + p.n, 0)); }
   assert.ok(peak < 400000 && !m.capped, `peak ${peak}`);
@@ -250,4 +261,30 @@ test('a full-size Nonpareil of 200 stripes at the default point limit: under the
   });
   // 150 mm of 200 stripes on 3 lines: about 2 edges × 30 stripes × 3 lines.
   for (const n of tips) assert.ok(n > 150 && n < 190, `tips ${tips}`);
+});
+
+// The engine picks the comb shear itself (no setting): while the tines' drag L₀ = speed·D²/ν stays
+// under reach × the gap they pull as styluses, as before; past it, Lu's kernel with an arch rising
+// from the stylus comb's own arch at the switch.
+test('a coarse comb, or a fine one whose drag stays under the gap, keeps the stylus tines', () => {
+  const m = new Marble({ width: 1000, height: 700, viscosity: 1000, seed: 1 });
+  // As the comb examples: 6 to 40 teeth.
+  for (const [teeth, speed, D] of [[6, 220, 8], [30, 320, 4], [40, 300, 3], [8, 240, 7]]) assert.equal(m.fullRake({ angle: 0, teeth, speed, D }).shear, null, `${teeth} teeth`);
+  // 4 mm teeth, 1.6 mm tines at 300 mm/s: L₀ 0.77 mm, under half the 4 mm gap.
+  assert.equal(m.fullRake({ angle: 0, teeth: 175, speed: 300, D: 1.6 }).shear, null);
+});
+
+test('a fine comb whose drag reaches past the gap makes arches, rising from the stylus look at the switch', () => {
+  // 4 mm teeth, 3 mm tines at 300 mm/s: L₀ = 2.7 mm against 0.5 × 4 mm, ρ 1.35.
+  const pitch = 4;
+  const { tips, backs, lines } = comb(pitch, { speed: 300, D: 3 });
+  const rho = (300 * 9) / 1000 / (0.5 * pitch);
+  const want = pitch * (0.57 + (1.5 - 0.57) * (1 - Math.exp(1 - rho)));
+  assert.equal(lines, 13);
+  assert.ok(tips.every((v) => Math.abs(v - tips[0]) < 1e-6));
+  assert.ok(Math.abs(tips[0] - mean(backs) - want) < 0.07, `arch ${(tips[0] - mean(backs)).toFixed(3)} vs ${want.toFixed(3)}`);
+  // Faster tines arch higher, towards the most (1.5 of the gap).
+  const fast = comb(pitch, { speed: 1500, D: 3 });
+  const higher = fast.tips[0] - mean(fast.backs);
+  assert.ok(higher > tips[0] - mean(backs) && higher < 1.5 * pitch + 0.07, `faster arch ${higher}`);
 });
