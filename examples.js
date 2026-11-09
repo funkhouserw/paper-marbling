@@ -324,16 +324,20 @@ settle();
 `,
   'Nonpareil': `// Nonpareil: a ground drawn into fine parallel stripes, then combed across them with a fine comb, so
 // every stripe bends into a row of small pointed arches. A staple of 19th-century bookbinding.
-// After a combed endpaper of 1826 (Wikimedia Commons): stripes about 7 mm, arches about 4 mm.
-// The comb is Lu et al.'s comb shear (arch, falloff): 175 teeth, 4 mm apart, each dragging its line
-// 6 mm (about 1.5 times the gap) with a 0.6 mm falloff. The arches don't depend on the comb's speed,
-// so it goes fast. Finer stripes (200) still fit the default point limit, but their arches come out
-// angular; 140 keeps them round.
+// After a combed endpaper of 1826 (Wikimedia Commons): stripes about 7 mm that meander gently, and
+// arches that reach into the next band or two, so each colour shows a column of nested cusps.
+// The meander: a wide comb drawn along the stripes with a slight sideways wave. The arches: Lu et
+// al.'s comb shear (arch, falloff), 175 teeth 4 mm apart, each dragging its line 12 mm with a 0.6 mm
+// falloff. The arches don't depend on the comb's speed, so it goes fast. About 22 s headless on a
+// quiet machine; it peaks near 305,000 points, under the default limit. Finer stripes (200) also
+// fit, but their arches come out angular.
 viscosity({ value: 1000 });
 const inks = palette('Lapis & Gilt').inks;
 stripes({ angle: 90, count: 140, colors: inks, variation: 0.2, slivers: 0 });
 settle();
-fullRake({ angle: 0, teeth: 175, speed: 30, D: 0.16, arch: 0.6, falloff: 0.06 });
+fullRake({ angle: 90, teeth: 8, speed: 20, D: 1.6, waveShape: 'sine', waveAmp: 0.3, waveLength: 25 });
+settle();
+fullRake({ angle: 0, teeth: 175, speed: 30, D: 0.16, arch: 1.2, falloff: 0.06 });
 settle();
 `,
   'Broom-straw stone': `// Broom-straw stone, after a marbler's video: a broom flicks the first colour until it covers most of
