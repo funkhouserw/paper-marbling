@@ -267,6 +267,29 @@ export function filmPressureSlope(tau, tauMax = TAU_MAX) {
   return 1 / (1 - t / m) ** 2;
 }
 
+// The Cells law's pressure (research/2026-11-09-cells-size-spread.md, last section). Up to the knee it
+// is filmPressure. Past it a film near collapse folds instead of resisting (a monolayer past its
+// collapse pressure, research ANSWERS §1), so Π rises only at its rest slope Π′(1), not ~2500 times
+// steeper, but only as the solve's tank fills: weight w = smoothstep((room − 0.85)/0.15), room being
+// the ink at its caps (Σ A0/τ_max) over the solve's area. Under capacity the steep knee keeps the
+// solver's path safe (a throw's first iterates can push a cell past its cap, and the plateau gave
+// nothing to push back: a cell lost 80 % in one tick); over capacity every cell squeezes evenly past
+// its cap instead of shattering. A switch at a fixed room flipped the law between ticks and broke
+// the recipe on seed 5; the blend is continuous in τ and in room.
+export function cellPressure(tau, tauMax, w) {
+  const m = Math.max(1.01, tauMax);
+  const knee = 1 + (m - 1) * PRESSURE_KNEE;
+  if (!(tau > knee) || !(w > 0)) return filmPressure(tau, tauMax);
+  return filmPressure(knee, tauMax) + (tau - knee) * (w / (1 - 1 / m) ** 2 + (1 - w) / (1 - knee / m) ** 2);
+}
+
+export function cellPressureSlope(tau, tauMax, w) {
+  const m = Math.max(1.01, tauMax);
+  const knee = 1 + (m - 1) * PRESSURE_KNEE;
+  if (!(tau > knee) || !(w > 0)) return filmPressureSlope(tau, tauMax);
+  return w / (1 - 1 / m) ** 2 + (1 - w) / (1 - knee / m) ** 2;
+}
+
 // A Cells cell's marks for the dark band where it meets a cell of its own colour (#33): edgeFaces 1
 // and edgeTau at those points, from the contact edges its layout kept (poly.contacts). Refreshed
 // whenever the cell's points have changed (refining adds points along its edges).
@@ -310,6 +333,7 @@ function seeded(seed) {
 // seen but still costs points, so every outline simulator cuts ribbons narrower than THINNEST.
 const THINNEST = 0.5; // mm
 const REACH_SHARE = 0.5; // a comb tine's pull reaches at most this share of the gap to its neighbour
+const CELL_ONE_THROW = 0.5; // s: Cells drops landing this close together are one throw (channels, not seams)
 const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
 // How stiff Cells' films are under the pressure law: κ as a share of a typical cell's R0².
 const CELL_STIFFNESS = 1;
@@ -1323,25 +1347,13 @@ export class Marble {
       return Math.abs(now.area - was.area) < 0.03 * was.area && Math.hypot(now.x - was.x, now.y - was.y) < Math.max(2, 0.05 * Math.sqrt(was.area))
         && Math.abs(now.perimeter - was.perimeter) < 0.03 * was.perimeter;
     };
-    // Whether a disc of radius r about (x, y) lies inside the cell's outline.
-    const wholly = (p, x, y, r) => {
-      let inside = false;
-      for (let i = 0, k = p.n - 1; i < p.n; k = i++) {
-        const ax = p.xy[k * 2], ay = p.xy[k * 2 + 1], bx = p.xy[i * 2], by = p.xy[i * 2 + 1];
-        if ((ay > y) !== (by > y) && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) inside = !inside;
-        const dx = bx - ax, dy = by - ay;
-        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
-        if (Math.hypot(ax + dx * t - x, ay + dy * t - y) < r) return false;
-      }
-      return inside;
-    };
     // The first tick sorts the drops into the tree; every tick after re-solves it as they grow.
     if (!op.top) {
     op.top = this.polys.filter((p) => laid(p) && !(p.parentCell && laid(p.parentCell)));
     const laidBefore = op.top.length > 0;
     op.start = this.time;
     op.firstTick = this.tick; // the tick the new drops join the layout: the law converges on it
-    op.throwId = this._throwCount = (this._throwCount ?? 0) + 1; // which throw a cell came from
+
     const top = op.top;
     const log = this.log;
     const live = this._live;
@@ -1356,16 +1368,11 @@ export class Marble {
       const asked = d.spreading ?? op.spreading * gallier;
       const spreading = Math.min(asked, (this.cellSpreadMax ?? Infinity) * gallier);
       const area = plain(d.quantity) * spreading;
-      let under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
-      // A drop of a cell's own colour joins it only when it lands wholly on top of it (#1: "one drop of
-      // the same color onto another drop ... should combine"). Touching it or overlapping its edge,
-      // it is a cell of its own beside it (#33: same-colour drops that meet keep a seam). Joining
-      // every drop that hit a cell made merge chains: drops land in proportion to area, so the
-      // biggest cells caught the most and grew into giants (research/2026-11-09-cells-size-spread.md).
-      if (under && laid(under) && under.color === color) {
-        if (wholly(under, d.x, d.y, Math.sqrt(area / Math.PI))) { under.own += area; continue; }
-        under = under.parentCell && laid(under.parentCell) ? under.parentCell : null;
-      }
+      const under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
+      // A drop centred on a cell of its own colour joins it (#1: "one drop of the same color onto
+      // another drop ... should combine"). One centred on bath or on another colour that comes to press
+      // on a cell of its colour stays a cell of its own, with a dark seam where they meet (#33).
+      if (under && laid(under) && under.color === color) { under.own += area; continue; }
       if (under && !laid(under)) {
         // Lands on ink the layout can't hold: an ordinary drop, unlogged.
         this.log = [];
@@ -1376,7 +1383,7 @@ export class Marble {
         this._live = live;
         continue;
       }
-      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, throwId: op.throwId, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: under, fresh: true };
+      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, landed: op.start, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: under, fresh: true };
       if (under) {
         // Where it landed in its parent, relative to the parent's centre and size, so it moves
         // with the parent when the parent is laid out again.
@@ -1444,14 +1451,15 @@ export class Marble {
     // A cell's channel: half the gap in from each edge, plus the corner rounding. Where it meets a
     // cell of its own colour the two keep only a hairline (op.seam) between them, drawn as a dark band
     // (#33: "not a big white seam ... a slight darkening around the edge of the loop where it touches
-    // the same color"), when they came from different throws; those edges are kept as contacts for
+    // the same color"), when they landed in different throws; those edges are kept as contacts for
     // drawing it (see cellContacts).
     const channel = (cells, k, tags, outer, gap, round) => {
       if (outer.length < 6) return { core: [], contacts: null };
       const n = outer.length / 2;
       // Cells of one throw keep their channel of bare bath (photo 26); a later drop meeting an earlier
-      // cell of its colour is what row 33 describes.
-      const meets = (o) => o && o !== cells[k] && o.color === cells[k].color && o.throwId !== cells[k].throwId;
+      // cell of its colour is what row 33 describes. One throw is drops landing within a moment of each
+      // other (a spray's land over 0.4 s, in several batches; a broom's within 0.3 s).
+      const meets = (o) => o && o !== cells[k] && o.color === cells[k].color && Math.abs(o.landed - cells[k].landed) > CELL_ONE_THROW;
       const same = apart && tags?.length === n ? tags.map((t) => t >= 0 && meets(cells[t])) : null;
       if (!same?.some(Boolean)) return { core: erode(outer, gap / 2 + round), contacts: null };
       const contacts = [];
@@ -1472,11 +1480,17 @@ export class Marble {
         }
       }
       const kappa = CELL_STIFFNESS * A0.reduce((a, b) => a + b, 0) / A0.length / Math.PI;
+      // How full this solve's room is with ink at its caps: the collapse plateau's weight (cellPressure).
+      const room = A0.reduce((a, v, k) => a + v / cells[k].tauMax, 0) / Math.max(1e-9, polygonArea(domain));
+      const u = Math.min(1, Math.max(0, (room - 0.85) / 0.15));
+      const w = u * u * (3 - 2 * u);
+      const Pi = (tau, cap) => cellPressure(tau, cap, w);
+      const dPi = (tau, cap) => cellPressureSlope(tau, cap, w);
       const solved = partialTransport(cells.map((c) => c.site), A0, domain, {
         // Converged on the tick new drops join (and once they're done); 20 rounds a tick between.
         // Stopped at 4, the first tick's iterate was drawn half-solved and its crushed cells stayed so.
         weights: cells.map((c) => c.psi), iterations: done || this.tick === op.firstTick ? 80 : 20, obstacles,
-        law: { A0, tauMax: cells.map((c) => c.tauMax), kappa, background, Pi: filmPressure, dPi: filmPressureSlope },
+        law: { A0, tauMax: cells.map((c) => c.tauMax), kappa, background, Pi, dPi },
       });
       cells.forEach((c, k) => { c.psi = solved.weights[k]; });
       // Sites drift down pressure differences (research note sec. 3.2): the net push on a cell is its
@@ -1485,7 +1499,7 @@ export class Marble {
       // Overdamped, scaled by the cell's size over its perimeter, and at most a tenth of its size a
       // tick, so neighbours never swap.
       if (!nested && this.cellDrift) {
-        const P = cells.map((c, k) => filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax));
+        const P = cells.map((c, k) => Pi(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax));
         let most = 0;
         cells.forEach((c, k) => {
           const poly = solved.cells[k], tags = solved.tags[k];
@@ -1565,7 +1579,7 @@ export class Marble {
         if (c.merged) return;
         const outer = solved.cells[k];
         const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;
-        const pressure = filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax);
+        const pressure = Pi(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax);
         const gap = !apart ? 0 : nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
         const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
         const { core, contacts } = channel(cells, k, solved.tags?.[k], outer, gap, round);
