@@ -187,7 +187,7 @@ const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', 
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 settle();
-air({ scale: 20, speed: 8 });
+air({ scale: 20, strength: 8 });
 settle();`,
   'Storm': `// Two strong passes leave a swirling storm. A higher point limit in Detail lets it run longer.
 viscosity({ value: 10 });
@@ -204,7 +204,7 @@ viscosity({ value: 100 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
-air({ scale: 20, speed: 8 });`,
+air({ scale: 20, strength: 8 });`,
   'Spiral field': `// A breath of air in a whorling bath fills the page with spirals. Heavy: it makes a lot of points.
 viscosity({ value: 10 });
 flow({ friction: 0.05, coast: 40, push: 3 });
@@ -212,7 +212,7 @@ const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', 
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 settle();
-air({ scale: 20, speed: 8 });
+air({ scale: 20, strength: 8 });
 settle();`,
   'Seamless wallpaper': `// One tile of a repeating pattern. Press See it repeat to check it joins up.
 viscosity({ value: 1000 });
@@ -222,7 +222,7 @@ stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 fullRake({ angle: 90, teeth: 6, speed: 30, D: 1 });
 fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
 fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
-air({ scale: 25, speed: 6 });`,
+air({ scale: 25, strength: 6 });`,
   'Starry spray': `// Dark dots with fine metallic spray over the top.
 separate({ on: false }); // made before Keep cells separate; drawn as it was
 viscosity({ value: 1000 });

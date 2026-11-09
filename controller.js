@@ -4,7 +4,7 @@
 // An interface changes `settings` as the user edits, calls the commit methods where a
 // change should act on the tank, and redraws when told to through on().
 import { Marble, runScript } from './engine.js';
-import { toMm } from './api.js';
+import { toMm, strikeToEngine } from './api.js';
 import { TOOLS, PAGE_UNITS } from './tools.js';
 import { closedDirection } from './tile.js';
 import { MODELS } from './models.js';
@@ -457,6 +457,7 @@ export class TankController {
     const scale = { w: k, tenth: k / 10, w2: k * k, q: toMm('drop', { quantity: 1 }, tank).quantity };
     const out = { ...this.values[name] };
     for (const [key, unit] of Object.entries(PAGE_UNITS)) if (key in out && out[key] !== null) out[key] *= scale[unit]; // null is Auto
+    if (name === 'hearts' && typeof out.angle === 'number') out.angle = strikeToEngine(out.angle); // 0 = down, as Heart drop
     return out;
   }
 

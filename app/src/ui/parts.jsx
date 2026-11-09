@@ -76,6 +76,12 @@ const DIRECTIONS = [
   { angle: 0, label: 'Right', Icon: ArrowRight }, { angle: 90, label: 'Up', Icon: ArrowUp },
   { angle: 180, label: 'Left', Icon: ArrowLeft }, { angle: 270, label: 'Down', Icon: ArrowDown },
 ];
+// Hearts point the way their angle says, 0 down (Heart drop and Heart strike alike).
+const HEART_DIRECTIONS = [
+  { angle: 90, label: 'Right', Icon: ArrowRight }, { angle: 180, label: 'Up', Icon: ArrowUp },
+  { angle: 270, label: 'Left', Icon: ArrowLeft }, { angle: 0, label: 'Down', Icon: ArrowDown },
+];
+const directionsFor = (def) => (def.directions === 'heart' ? HEART_DIRECTIONS : DIRECTIONS);
 
 // Lines under a setting that say what its number means. The mock values are rough; connected,
 // these come from the tank (drop size uses the film's real spread).
@@ -257,7 +263,7 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
         <div className="flex flex-col gap-1">
           <span className="text-xs text-ink-300">Direction</span>
           <div className="flex gap-0.5">
-            {DIRECTIONS.map(({ angle, label, Icon }) => (
+            {directionsFor(def).map(({ angle, label, Icon }) => (
               <IconButton
                 key={angle} size="sm" label={label}
                 active={Number(values.angle) === angle}
@@ -343,7 +349,7 @@ export function FoldedSettings({ tank }) {
       })}
       {def.directions && (
         <div className="flex shrink-0 gap-0.5 pl-1.5">
-          {DIRECTIONS.map(({ angle, label, Icon }) => (
+          {directionsFor(def).map(({ angle, label, Icon }) => (
             <IconButton key={angle} size="sm" label={label} active={Number(values.angle) === angle} onClick={() => set('angle')(angle)}>
               <Icon size={14} />
             </IconButton>
