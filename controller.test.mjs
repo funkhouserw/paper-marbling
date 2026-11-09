@@ -546,3 +546,38 @@ test('a throw the simulator crawls through is called slow once, and a brisk one 
   assert.equal(c.checkSlow(81), null);
   assert.equal(c.slowWarned, false);
 });
+
+test('low framerate goes on when ticks get slow and off again once they have been fast for a while (row 61)', () => {
+  const c = fresh();
+  Object.defineProperty(c.marble, 'busy', { get: () => true, configurable: true });
+  c.stepMs = 80;
+  c.noteLoad(0, 1000);
+  assert.equal(c.autoSnapshots, true, 'a slow tick turns it on');
+  c.stepMs = 20;
+  c.noteLoad(20, 2000);
+  assert.equal(c.autoSnapshots, true, 'still on: not fast for long enough yet');
+  c.noteLoad(20, 4500);
+  assert.equal(c.autoSnapshots, true, 'still on at 2.5 s');
+  c.noteLoad(20, 5000);
+  assert.equal(c.autoSnapshots, false, 'off after 3 s of fast ticks and draws');
+  // In between the limits nothing changes either way, so it doesn't flicker.
+  c.stepMs = 50;
+  c.noteLoad(20, 6000);
+  assert.equal(c.autoSnapshots, false);
+  c.stepMs = 80;
+  c.noteLoad(20, 7000);
+  c.stepMs = 50;
+  c.noteLoad(20, 8000);
+  c.noteLoad(20, 20000);
+  assert.equal(c.autoSnapshots, true, 'a tick between the limits never turns it off');
+  // A slow draw counts too, and a slow one in the middle restarts the wait.
+  c.stepMs = 10;
+  c.noteLoad(200, 21000);
+  c.noteLoad(20, 22000);
+  c.noteLoad(200, 24000);
+  c.noteLoad(20, 25000);
+  c.noteLoad(20, 27500);
+  assert.equal(c.autoSnapshots, true, 'the slow draw at 24 s restarted the wait');
+  c.noteLoad(20, 28000);
+  assert.equal(c.autoSnapshots, false);
+});
