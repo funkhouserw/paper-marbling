@@ -397,7 +397,7 @@ export const TOOLS = {
 
 export const PAGE_UNITS = {
   quantity: 'q', scatter: 'w', size: 'w', spacing: 'w', speed: 'w', D: 'w', waveAmp: 'tenth', waveLength: 'w',
-  gap: 'w', width: 'w', wobble: 'w', scale: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2', overhang: 'w',
+  gap: 'w', width: 'w', wobble: 'w', scale: 'w', radius: 'w', min: 'w', max: 'w', offset: 'w', period: 'w', amplitude: 'w', ringSpacing: 'w', circulation: 'w2', overhang: 'w', arch: 'w', falloff: 'w',
 };
 
 // Size-like sliders run 0 to 100 across their useful range, and past that with a param's sixth entry; counts, degrees and seconds

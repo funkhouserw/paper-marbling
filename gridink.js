@@ -983,6 +983,9 @@ export class GridInk extends Marble {
 
   _tineBody(bx, by, ex, ey, a) { this._pin(bx, by, ex, ey, 2 * a); }
 
+  // Its tines drive the flow, so a comb's arch is the flow's, not Lu's shear.
+  get combShearSupported() { return false; }
+
   _pin(bx, by, ex, ey, width) {
     const { hx, hy } = this._g;
     const sigma = Math.max(width / 2, LEAST_REACH * Math.max(hx, hy));
