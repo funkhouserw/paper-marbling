@@ -288,3 +288,14 @@ test('a fine comb whose drag reaches past the gap makes arches, rising from the 
   const higher = fast.tips[0] - mean(fast.backs);
   assert.ok(higher > tips[0] - mean(backs) && higher < 1.5 * pitch + 0.07, `faster arch ${higher}`);
 });
+
+// doubleComb (Woolnough's Antique zigzag): exactly the two full rakes it stands for.
+test('doubleComb is two full rakes, half a pitch apart, the hind one gap / speed behind', async () => {
+  const { Marble, runScript } = await import('./engine.js');
+  const a = new Marble(), b = new Marble();
+  runScript(a, "doubleComb({ angle: 0, teeth: 7, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, gap: 5, at: 0 });");
+  runScript(b, "fullRake({ angle: 0, teeth: 7, offset: -2.5, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, at: 0 });\nfullRake({ angle: 0, teeth: 7, offset: 2.5, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, at: 0.2 });");
+  assert.equal(a.log.length, 2);
+  const strip = (log) => JSON.stringify(log, (k, v) => (typeof v === 'number' ? Number(v.toFixed(9)) : v));
+  assert.equal(strip(a.log), strip(b.log));
+});

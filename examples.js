@@ -758,8 +758,8 @@ carnation(68, 80, 14, ['#c0352b', '#d9677a', '#c0352b']);
 // and gold, white thrown on last "not too finely", then a double comb. Two bars of wires about two
 // inches apart, the teeth of the hind bar in the middle of the gaps of the front one, are drawn left
 // to right while moved up and down, "taking special care that the prong of the hind one just catches
-// the bottom of the loop formed by the first". Here: two zigzag full rakes half a pitch apart, the
-// second a moment behind the first. The wires here are 100 mm apart, twice Woolnough's two inches:
+// the bottom of the loop formed by the first". Here: doubleComb, two zigzag full rakes half a pitch
+// apart, the second a bar's gap behind the first. The wires here are 100 mm apart, twice Woolnough's two inches:
 // at his 51 mm (teeth: 14, waveAmp 1.27, waveLength 5.5) the motifs come out true to the plate's
 // size but read as confetti over a tank this big. About a minute headless.
 viscosity({ value: 100 });
@@ -775,9 +775,8 @@ broom({ n: 350, size: 0.005, spread: 0.8, spreading: 2, color: '#e0b43a' });
 settle();
 broom({ n: 2000, size: 0.004, spread: 0.9, spreading: 2, color: '#f6efe4' });
 settle();
-// The double comb: front bar, then the hind bar half a pitch over and 0.2 s behind.
-fullRake({ angle: 0, teeth: 7, offset: -2.5, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, at: 0 });
-fullRake({ angle: 0, teeth: 7, offset: 2.5, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, at: 0.2 });
+// The double comb: the hind bar half a pitch over and 50 mm behind the front one.
+doubleComb({ angle: 0, teeth: 7, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, gap: 5, at: 0 });
 settle();
 `,
 };
