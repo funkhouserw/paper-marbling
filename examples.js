@@ -742,7 +742,9 @@ carnation(68, 80, 14, ['#c0352b', '#d9677a', '#c0352b']);
 // inches apart, the teeth of the hind bar in the middle of the gaps of the front one, are drawn left
 // to right while moved up and down, "taking special care that the prong of the hind one just catches
 // the bottom of the loop formed by the first". Here: two zigzag full rakes half a pitch apart, the
-// second a moment behind the first. About a minute headless.
+// second a moment behind the first. The wires here are 100 mm apart, twice Woolnough's two inches:
+// at his 51 mm (teeth: 14, waveAmp 1.27, waveLength 5.5) the motifs come out true to the plate's
+// size but read as confetti over a tank this big. About a minute headless.
 viscosity({ value: 100 });
 bath({ color: '#f3efe6' });
 gall({ on: true, start: 1, step: 0.3 });
