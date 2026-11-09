@@ -59,7 +59,7 @@
   <p>These are the formulas behind the outline simulators. Here <code>p</code> is a point on an outline, and <code>c</code> is the centre of the action.</p>
   <dl>
     <dt>Drop</dt>
-    <dd>A point at distance <code>r</code> from the centre moves to distance <code>√(r² + s)</code>, where <code>s</code> is the drop's area over π. Everything outside gets pushed out by exactly the area the drop adds, so area is preserved.</dd>
+    <dd>A point at distance <code>r</code> from the centre moves to distance <code>√(r² + s)</code>, where <code>s</code> is the drop's area over π. Everything outside gets pushed out by exactly the area the drop adds, so area is preserved. How far a drop opens comes from its gall against the ink it lands on, and water in the paint thins that gall (Paint: thick ↔ thin), so thinner paint opens a little less and prints lighter.</dd>
     <dt>Stylus and rake</dt>
     <dd>Each tine pulls nearby ink along its direction of travel, and the pull fades exponentially with distance, as <code>e^(−d / L)</code>, where <code>L</code> is the reach. A rake is a row of tines. Each tine's motion also carries a matching sideways part, so the flow doesn't squash the ink.</dd>
     <dt>Arches (comb shear)</dt>
@@ -75,7 +75,7 @@
     <dt>Air</dt>
     <dd>A smooth random flow, built as the curl of noise. A curl can't compress anything, so ink stretches and swirls without changing its area. The same seed repeats the same breath.</dd>
     <dt>Direction</dt>
-    <dd>Angle 0 points right and 90 points up. Positive <code>degrees</code> and <code>circulation</code> turn counter-clockwise, negative clockwise, and in <code>stir</code> a negative radius reverses that ring.</dd>
+    <dd>Angle 0 points right and 90 points up. Positive <code>degrees</code> and <code>circulation</code> turn counter-clockwise, negative clockwise, and in <code>stir</code> a negative radius reverses that ring. Hearts are the exception: Heart drop and Heart strike give the way the point faces, 0 down, 90 right, 180 up.</dd>
   </dl>
 </section>
 
