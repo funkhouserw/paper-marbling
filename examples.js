@@ -588,8 +588,9 @@ colours.forEach((color, i) => {
 // yellow one inside just past the stem, a thick stroke down into it for the heart, and two strokes
 // out and forward for the petals. Necmeddin Okyay made the tulip the emblem of floral ebru.
 viscosity({ value: 1000 });
-bath({ color: '#f2ecdc' });
-// A light ground in two tones of one colour.
+// A light ground in two tones of one colour; the bath is the lighter tone, so where the ground drops
+// part, no paler channel shows.
+bath({ color: '#dfe3e6' });
 let k = 0;
 for (const [c, q] of [['#dfe3e6', 3.4], ['#cdd5db', 1.0]]) {
   for (let y = 18; y <= 82; y += 16) for (let x = 6; x <= 94; x += 16) { k++; drop({ x: x + 3 * Math.sin(k * 2.1), y: y + 3 * Math.cos(k * 1.3), quantity: q, color: c, at: k * 0.05 }); }
