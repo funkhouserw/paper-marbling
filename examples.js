@@ -601,8 +601,8 @@ const q = (r) => (Math.PI * r * r) / 7000; // % of a 1000 × 700 tank at plain s
 // mm, and the books' tools are scaled with it (S = 1 for their 16 mm drops).
 const tulip = (X0, Y0, R, red) => {
   const S = R / 16;
-  // mm from the lower leaf drop, x right and y up, to page units.
-  const P = (x, y) => [X0 + x / 10, Y0 - y / 10];
+  // mm from the lower leaf drop, x right and y up, to page units (the page is 1000 × 700 mm).
+  const P = (x, y) => [X0 + x / 10, Y0 - y / 7];
   const at = (x, y) => { const [px, py] = P(x, y); return { x: px, y: py }; };
   // 1. Two green drops, one above the other.
   drop({ ...at(0, 0), quantity: q(R), spreading: 1, dispersion: 20, color: green });
