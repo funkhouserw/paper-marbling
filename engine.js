@@ -15,7 +15,7 @@ import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
 import { wrapX, wrapY, doubled, closedDirection, latticeShifts, pushApartTiled, swirlTiled } from './tile.js';
 import { cutDisc } from './erase.js';
-import { tintOf, squeezedColour } from './tint.js';
+import { tintOf, squeezedColour, paintColour } from './tint.js';
 import { SEAM, SEAM_SHARE as BARE_SHARE, seamed, mergedPoints, bareSeam, contactKeep, contactRuns, bandWidth } from './seam.js';
 import { COMMANDS, toMm, fromMm } from './api.js';
 import { planDots, colourDots, dotGrid, clearanceFrom } from './fill.js';
@@ -52,7 +52,10 @@ const gallSpread = (g, most = GALL_MOST) => 1 + (most - 1) * gallPressure(g);
 // the colour (thin 0 → twice the gall, 1 → half), so a thinner drop opens a little less over the
 // same surface; how far follows the gall's saturating pressure (gallSpread), and how fast follows
 // the pressure contrast (√ of the spread ratio here), never the paint's own viscosity; and thinner
-// paint carries less pigment per area, so it prints lighter (the τ tint law, squeezedColour).
+// paint carries less pigment per area, so it prints lighter (the τ tint law, paintColour in tint.js).
+// TODO row 62 (researcher's review): whether a drop opens over its host still compares the host's gall
+// with the undiluted gall, so a thin later colour on a gall-rich host should stay a dot and doesn't yet;
+// that belongs to driver's physical rule.
 export const THIN_NEUTRAL = 0.5;
 export function paintThinness(thin, gall, most = GALL_MOST) {
   const t = Math.min(1, Math.max(0, thin ?? THIN_NEUTRAL));
@@ -1037,7 +1040,7 @@ export class Marble {
       // The bath's gall is looked up by the colour as thrown, before thinning shades it.
       gall ??= this._bathGall(color);
       const paint = paintThinness(thin, gall, this.gallMost);
-      if (paint) { spreading *= paint.spread; dispersion *= paint.speed; color = squeezedColour(color, paint.tau); }
+      if (paint) { spreading *= paint.spread; dispersion *= paint.speed; color = paintColour(color, paint.tau); }
     }
     if (turpentine > 0) Object.assign(args, { turpentine, evaporation });
     if (oil) {
@@ -1328,7 +1331,7 @@ export class Marble {
       args.thin = thin;
       gall ??= this._bathGall(color); // by the colour as thrown, before thinning shades it
       const paint = paintThinness(thin, gall, this.gallMost);
-      if (paint) { spreading *= paint.spread; dispersion *= paint.speed; color = squeezedColour(color, paint.tau); }
+      if (paint) { spreading *= paint.spread; dispersion *= paint.speed; color = paintColour(color, paint.tau); }
     }
     // Where the drops land and how much ink each carries are drawn now, so a replay matches.
     const gauss = () => Math.sqrt(-2 * Math.log(1 - this.random())) * Math.cos(2 * Math.PI * this.random());

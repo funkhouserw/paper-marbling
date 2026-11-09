@@ -18,3 +18,13 @@ export function squeezedColour(color, tau) {
   }
   return out;
 }
+
+// Paint thick ↔ thin (row 62): pigment per area, both ways. Thinner paint (τ < 1) has less pigment over
+// the same area and prints lighter; thicker (τ > 1) darker, by the same law as squeezed ink, which only
+// darkens. Unlike squeezedColour this does not skip small changes.
+export function paintColour(color, tau) {
+  if (!(tau > 0) || tau === 1 || !/^#[0-9a-f]{6}$/i.test(color)) return color;
+  const t = Math.sqrt(tau);
+  const n = parseInt(color.slice(1), 16);
+  return `#${[n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(255 * (1 - (1 - v / 255) ** (1 / t))).toString(16).padStart(2, '0')).join('')}`;
+}

@@ -25,7 +25,7 @@ test('thinner paint opens less and prints lighter; thicker the reverse; monotone
   const sizes = [0, 0.25, 0.5, 0.75, 1].map((t) => { const m = lone(t); return { a: area(m.polys[0]), l: lightness(m.polys[0].color) }; });
   for (let i = 1; i < sizes.length; i++) {
     assert.ok(sizes[i].a < sizes[i - 1].a, `area falls with water: ${sizes.map((s) => s.a.toFixed(0))}`);
-    assert.ok(sizes[i].l >= sizes[i - 1].l, `colour lightens with water: ${sizes.map((s) => s.l)}`);
+    assert.ok(sizes[i].l > sizes[i - 1].l, `colour lightens with water, strictly: ${sizes.map((s) => s.l)}`);
   }
   assert.equal(lone(1).log[0].args.thin, 1, 'logged when not ordinary');
 });
@@ -37,4 +37,9 @@ broom({ n: 5, color: '#336699', thin: 0.9 });
 drop({ x: 20, y: 20, color: '#336699' });
 drop({ x: 80, y: 80, color: '#993333' });`);
   assert.deepEqual(m.gallColours, ['#336699', '#993333']);
+});
+
+test('thin paint prints lighter and thick darker than ordinary paint, by pigment per area', () => {
+  const [thick, plain, thin] = [0, 0.5, 1].map((t) => lightness(lone(t).polys[0].color));
+  assert.ok(thin > plain && plain > thick, `lightness thick ${thick}, ordinary ${plain}, thin ${thin}`);
 });
