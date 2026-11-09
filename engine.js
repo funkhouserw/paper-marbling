@@ -1313,8 +1313,11 @@ export class Marble {
   // seam is kept for older logs and the Cells simulator.
   // turpentine, evaporation, oil and bands are passed on to every drop, as drop() takes them (a whole
   // flick of turpentined colour, as in neftli battal; an oiled flick of Shells).
-  broom({ n = 60, x = 0, y = 0, w = this.width, h = this.height, size = 0.15, spread = 1, spreading = 25, dispersion = 1.5, gall, thin, seam = 1.5, color = '#1f4e79', shimmer = 0, turpentine = 0, evaporation = 0, oil = 0, bands = 5, at } = {}) {
+  // seam is no longer a broom option (row 62: Tank's seam is the one place); sessions logged with it
+  // replay the same, and the broom's own bare seam stays 1.5 mm.
+  broom({ n = 60, x = 0, y = 0, w = this.width, h = this.height, size = 0.15, spread = 1, spreading = 25, dispersion = 1.5, gall, thin, color = '#1f4e79', shimmer = 0, turpentine = 0, evaporation = 0, oil = 0, bands = 5, at } = {}) {
     if (typeof color === 'object') ({ color, shimmer = 0 } = color);
+    const seam = arguments[0]?.seam ?? 1.5;
     const args = { n, x, y, w, h, size, spread, spreading, dispersion, seam, color, shimmer };
     if (gall !== undefined && gall !== null) args.gall = gall;
     if (turpentine > 0) Object.assign(args, { turpentine, evaporation });
