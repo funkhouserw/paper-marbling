@@ -2,7 +2,7 @@
 // tool's settings under them, a tool rail on the left, panels on the right, transport below.
 // Menus, panels and the tank's right-click menu are all drawn from features.js.
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, Code, Copy, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, Pause, Play, Printer, Redo2, Share2, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Code, Copy, FastForward, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, Pause, Play, Printer, Redo2, Share2, Trash2, Undo2, X } from 'lucide-react';
 import { FREEZE_INFO_KEY, FreezeIcon, GROUPS, INFO, NEEDS, SPEEDS, iconFor, toolDef } from '../ui/controls.js';
 import { ACTIONS, FIXED, MENU_ORDER, SECTIONS } from '../ui/features.js';
 import { Button, IconButton, InfoTip, Swatches, cx } from '../ui/widgets.jsx';
@@ -123,6 +123,44 @@ export function MenuBar({ tank, commands, panelsOpen, onPanels }) {
   );
 }
 
+// A row that scrolls sideways when its settings don't fit, and says so: a fade and an arrow at
+// whichever edge has more, which scrolls that way when pressed (#30: at 1440 px a full Full rake
+// bar hid its Direction buttons behind a scrollbar too thin to notice).
+function ScrollRow({ children, className, innerClassName, deps = [] }) {
+  const box = useRef(null);
+  const [more, setMore] = useState({ left: false, right: false });
+  const check = () => {
+    const b = box.current;
+    if (!b) return;
+    const left = b.scrollLeft > 2, right = b.scrollLeft + b.clientWidth < b.scrollWidth - 2;
+    setMore((m) => (m.left === left && m.right === right ? m : { left, right }));
+  };
+  useEffect(() => {
+    check();
+    const ro = new ResizeObserver(check);
+    if (box.current) { ro.observe(box.current); if (box.current.firstElementChild) ro.observe(box.current.firstElementChild); }
+    return () => ro.disconnect();
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  const nudge = (dir) => box.current?.scrollBy({ left: dir * box.current.clientWidth * 0.8, behavior: 'smooth' });
+  const edge = (side) => (
+    <button
+      type="button" aria-label={side === 'right' ? 'More settings to the right' : 'More settings to the left'}
+      onClick={() => nudge(side === 'right' ? 1 : -1)}
+      className={cx('absolute inset-y-0 z-10 flex w-8 items-center justify-center text-ink-200 hover:text-ink-50',
+        side === 'right' ? 'right-0 bg-gradient-to-l' : 'left-0 bg-gradient-to-r', 'from-ink-900 via-ink-900/80 to-transparent')}
+    >
+      {side === 'right' ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+    </button>
+  );
+  return (
+    <div className={cx('relative', className)}>
+      <div ref={box} onScroll={check} className={cx('scroll-thin h-full overflow-x-auto', innerClassName)}>{children}</div>
+      {more.left && edge('left')}
+      {more.right && edge('right')}
+    </div>
+  );
+}
+
 // The current tool's settings. Two rows tall, so the tank doesn't jump when the tool changes; the
 // chevron folds them to one line of icons and values, every setting still live, giving the tank the
 // room (kept for the session). The
@@ -148,7 +186,7 @@ export function OptionsBar({ tank }) {
         {def.color && (
           <div className="shrink-0"><Swatches palette={palette} ink={state.ink} custom={state.inkNow?.rgb} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} /></div>
         )}
-        <div className="scroll-thin min-w-0 flex-1 overflow-x-auto"><FoldedSettings tank={tank} /></div>
+        <ScrollRow className="min-w-0 flex-1" deps={[state.tool, state.view]}><FoldedSettings tank={tank} /></ScrollRow>
         <div className="ml-auto flex items-center">{chevron}</div>
       </div>
     );
@@ -162,7 +200,7 @@ export function OptionsBar({ tank }) {
       {def.color && (
         <div className="shrink-0 pt-1"><Swatches palette={palette} ink={state.ink} custom={state.inkNow?.rgb} onPick={(ink) => dispatch({ type: 'set', patch: { ink } })} /></div>
       )}
-      <div className="scroll-thin h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden"><ToolSettings tank={tank} /></div>
+      <ScrollRow className="h-full min-w-0 flex-1" innerClassName="overflow-y-hidden" deps={[state.tool, state.view]}><ToolSettings tank={tank} /></ScrollRow>
       {chevron}
     </div>
   );
