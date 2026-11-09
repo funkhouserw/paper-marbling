@@ -363,7 +363,7 @@ const MIN_CUT = 8; // points
 const MIN_PIECE = 24; // points
 
 export class Marble {
-  constructor({ width = 1000, height = 700, viscosity = 1000, bath = '#f4efe2',
+  constructor({ width = 1000, height = 700, viscosity = 100, bath = '#f4efe2',
                 film = 0.1, dt = 1 / 30, seed = 1, maxVertices = 400000, pointBudget = null } = {}) {
     Object.assign(this, { width, height, viscosity, bath, film, dt, seed, maxVertices, pointBudget });
     this.maxEdge = Math.max(width, height) / 400;
@@ -833,7 +833,7 @@ export class Marble {
   }
 
   // Named apart from the `viscosity` value it sets.
-  setViscosity({ value = 1000 } = {}) {
+  setViscosity({ value = 100 } = {}) {
     this.viscosity = Math.max(5, Math.min(20000, value));
     this.log.push({ fn: 'setViscosity', args: { value: this.viscosity } });
     return this;

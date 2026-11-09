@@ -12,7 +12,7 @@ import { GridInk } from './gridink.js';
 import { palette } from './palettes.js';
 
 export const START_PALETTE = 'Dark Academia';
-export const STANDARD_VISCOSITY = 1000;
+export const STANDARD_VISCOSITY = 100;
 
 // Point limits are a setting of the machine, not of the tank, so saved tanks and undo don't change them.
 export const STANDARD_LIMIT = 400000;
@@ -21,7 +21,7 @@ export const MOST_LIMIT = 20000000;
 
 // The Wake simulator's bath. Each preset is also a viscosity, since it needs a thin bath to show.
 export const FLOW_PRESETS = {
-  calm: { viscosity: 1000, push: 1, friction: 0.25, coast: 25, cell: 7 },
+  calm: { viscosity: 100, push: 1, friction: 0.25, coast: 25, cell: 7 },
   curling: { viscosity: 30, push: 1, friction: 0.05, coast: 120, cell: 7 },
   whorls: { viscosity: 10, push: 3, friction: 0.05, coast: 120, cell: 7 },
   storm: { viscosity: 10, push: 10, friction: 0.05, coast: 40, cell: 7 },
@@ -46,7 +46,7 @@ export const SETTINGS = {
     store: 'marbler.simulator', save: String, load: (s) => (MODELS.some((m) => m.id === s) ? s : undefined),
   },
   // Starts at the chosen simulator's own viscosity, not at default; see startingViscosity().
-  visc: { kind: 'number', label: 'Viscosity (mm²/s)', info: 'viscosity', default: '1000', min: 5, max: 20000, step: 1 },
+  visc: { kind: 'number', label: 'Viscosity (mm²/s)', info: 'viscosity', default: '100', min: 5, max: 20000, step: 1 },
   tankW: { kind: 'number', label: 'Width (mm)', info: 'tankSize', default: '1000', min: 100, max: 4000, step: 1 },
   tankH: { kind: 'number', label: 'Height (mm)', info: 'tankSize', default: '700', min: 100, max: 4000, step: 1 },
   useBath: { kind: 'toggle', label: 'Base colour', info: 'baseColour', default: false },
