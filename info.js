@@ -178,6 +178,8 @@ export const INFO = {
   'fullRake.teeth': `${TEETH} They spread evenly across the page.`,
   'fullRake.offset': 'Slides all the teeth sideways, wrapping at the edges. A second pass with half a tooth\'s offset lands between the first pass\'s lines.',
   'fullRake.speed': SPEED,
+  'fullRake.arch': 'Arches (comb shear), for fine straight combs such as a nonpareil\'s. Off, each tooth pulls ink like a stylus. On, each tooth drags its line this far along the stroke, and the drag falls off with distance from the nearest tooth (Lu et al. 2012), so every line between two teeth bends into a pointed arch. About 1.5 times the gap between teeth looks right; use many teeth. A weave or a tine width goes back to stylus teeth.',
+  'fullRake.falloff': 'With arches: how sharp they are. A line this far from its tooth moves half as far as one on the tooth, so smaller is more pointed. Auto is 0.15 of the gap between teeth.',
   'fullRake.overhang': 'How far past the edges the teeth start and stop. Auto uses none on a repeating tank, where anything past one edge would be raked a second time at the other, and 2% of the width otherwise. Try values here to compare how the seam looks.',
   'fullRake.D': THICKNESS,
   'fullRake.width': TINE_WIDTH,
