@@ -267,6 +267,28 @@ export function filmPressureSlope(tau, tauMax = TAU_MAX) {
   return 1 / (1 - t / m) ** 2;
 }
 
+// A Cells cell's marks for the dark band where it meets a cell of its own colour (#33): edgeFaces 1
+// and edgeTau at those points, from the contact edges its layout kept (poly.contacts). Refreshed
+// whenever the cell's points have changed (refining adds points along its edges).
+const CONTACT_TAU = 1.5; // the band's least squeeze: a slight darkening, as Film's pressed films
+function cellContacts(poly) {
+  const c = poly.contacts;
+  if (!c || poly.edgeFaces?.length === poly.n) return;
+  const faces = new Uint8Array(poly.n), taus = new Float32Array(poly.n);
+  const tau = Math.max(CONTACT_TAU, thickness(poly));
+  const { seg, reach } = c;
+  for (let i = 0; i < poly.n; i++) {
+    const x = poly.xy[i * 2], y = poly.xy[i * 2 + 1];
+    for (let k = 0; k < seg.length; k += 4) {
+      const ax = seg[k], ay = seg[k + 1], dx = seg[k + 2] - ax, dy = seg[k + 3] - ay;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+      if (Math.hypot(ax + dx * t - x, ay + dy * t - y) < reach) { faces[i] = 1; taus[i] = tau; break; }
+    }
+  }
+  poly.edgeFaces = faces;
+  poly.edgeTau = taus;
+}
+
 // A ring's ink is its outline less the drops inside it: poly.inkArea, where a simulator keeps it.
 // a0 is the area the film's outline enclosed at rest, plus whatever drops have since landed inside it
 // (see _feedHosts), so a drop nested in a ring doesn't count as squeezing it.
@@ -1301,12 +1323,25 @@ export class Marble {
       return Math.abs(now.area - was.area) < 0.03 * was.area && Math.hypot(now.x - was.x, now.y - was.y) < Math.max(2, 0.05 * Math.sqrt(was.area))
         && Math.abs(now.perimeter - was.perimeter) < 0.03 * was.perimeter;
     };
+    // Whether a disc of radius r about (x, y) lies inside the cell's outline.
+    const wholly = (p, x, y, r) => {
+      let inside = false;
+      for (let i = 0, k = p.n - 1; i < p.n; k = i++) {
+        const ax = p.xy[k * 2], ay = p.xy[k * 2 + 1], bx = p.xy[i * 2], by = p.xy[i * 2 + 1];
+        if ((ay > y) !== (by > y) && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) inside = !inside;
+        const dx = bx - ax, dy = by - ay;
+        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+        if (Math.hypot(ax + dx * t - x, ay + dy * t - y) < r) return false;
+      }
+      return inside;
+    };
     // The first tick sorts the drops into the tree; every tick after re-solves it as they grow.
     if (!op.top) {
     op.top = this.polys.filter((p) => laid(p) && !(p.parentCell && laid(p.parentCell)));
     const laidBefore = op.top.length > 0;
     op.start = this.time;
     op.firstTick = this.tick; // the tick the new drops join the layout: the law converges on it
+    op.throwId = this._throwCount = (this._throwCount ?? 0) + 1; // which throw a cell came from
     const top = op.top;
     const log = this.log;
     const live = this._live;
@@ -1321,8 +1356,16 @@ export class Marble {
       const asked = d.spreading ?? op.spreading * gallier;
       const spreading = Math.min(asked, (this.cellSpreadMax ?? Infinity) * gallier);
       const area = plain(d.quantity) * spreading;
-      const under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
-      if (under && laid(under) && under.color === color) { under.own += area; continue; }
+      let under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
+      // A drop of a cell's own colour joins it only when it lands wholly on top of it (#1: "one drop of
+      // the same color onto another drop ... should combine"). Touching it or overlapping its edge,
+      // it is a cell of its own beside it (#33: same-colour drops that meet keep a seam). Joining
+      // every drop that hit a cell made merge chains: drops land in proportion to area, so the
+      // biggest cells caught the most and grew into giants (research/2026-11-09-cells-size-spread.md).
+      if (under && laid(under) && under.color === color) {
+        if (wholly(under, d.x, d.y, Math.sqrt(area / Math.PI))) { under.own += area; continue; }
+        under = under.parentCell && laid(under.parentCell) ? under.parentCell : null;
+      }
       if (under && !laid(under)) {
         // Lands on ink the layout can't hold: an ordinary drop, unlogged.
         this.log = [];
@@ -1333,7 +1376,7 @@ export class Marble {
         this._live = live;
         continue;
       }
-      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: under, fresh: true };
+      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, throwId: op.throwId, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: under, fresh: true };
       if (under) {
         // Where it landed in its parent, relative to the parent's centre and size, so it moves
         // with the parent when the parent is laid out again.
@@ -1398,6 +1441,23 @@ export class Marble {
     // pressure-math.md sec. 3.1.
     // A cell squeezed out of this tick's layout keeps its last outline and its children, and is laid
     // out again next tick: its ink is still on the bath (a solve not yet converged can empty it).
+    // A cell's channel: half the gap in from each edge, plus the corner rounding. Where it meets a
+    // cell of its own colour the two keep only a hairline (op.seam) between them, drawn as a dark band
+    // (#33: "not a big white seam ... a slight darkening around the edge of the loop where it touches
+    // the same color"), when they came from different throws; those edges are kept as contacts for
+    // drawing it (see cellContacts).
+    const channel = (cells, k, tags, outer, gap, round) => {
+      if (outer.length < 6) return { core: [], contacts: null };
+      const n = outer.length / 2;
+      // Cells of one throw keep their channel of bare bath (photo 26); a later drop meeting an earlier
+      // cell of its colour is what row 33 describes.
+      const meets = (o) => o && o !== cells[k] && o.color === cells[k].color && o.throwId !== cells[k].throwId;
+      const same = apart && tags?.length === n ? tags.map((t) => t >= 0 && meets(cells[t])) : null;
+      if (!same?.some(Boolean)) return { core: erode(outer, gap / 2 + round), contacts: null };
+      const contacts = [];
+      same.forEach((on, i) => { if (on) contacts.push(outer[i * 2], outer[i * 2 + 1], outer[((i + 1) % n) * 2], outer[((i + 1) % n) * 2 + 1]); });
+      return { core: erode(outer, same.map((on) => (on ? op.seam : gap) / 2 + round)), contacts: { seg: contacts, reach: op.seam / 2 + round + 0.25 } };
+    };
     const keepLast = (c) => { if (c.gone || !(c.n >= 3 && c.laid)) return false; placed.push(c); c.kids.forEach(keepLast); return true; };
     const layoutLaw = (cells, domain, background = 0, nested = false, obstacles = []) => {
       if (!cells.length || domain.length < 6) { for (const c of cells) if (!keepLast(c)) c.gone = true; return; }
@@ -1508,8 +1568,10 @@ export class Marble {
         const pressure = filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax);
         const gap = !apart ? 0 : nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
         const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
-        const core = outer.length >= 6 ? erode(outer, gap / 2 + round) : [];
+        const { core, contacts } = channel(cells, k, solved.tags?.[k], outer, gap, round);
         const pts = core.length >= 6 ? grow(core, round) : [];
+        c.contacts = contacts;
+        c.edgeFaces = null;
         if (pts.length < 6) {
           // Squeezed out of this tick's layout. Its ink is still on the bath: under the law a cell
           // that drops out for a tick (a solve not yet converged) keeps its last outline and its
@@ -1613,8 +1675,10 @@ export class Marble {
         // thin as its share allows: a hairline seam, the rest of its ink lying as the rim.
         const gap = !apart ? 0 : nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
         const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
-        const core = outer.length >= 6 ? erode(outer, gap / 2 + round) : [];
+        const { core, contacts } = channel(cells, k, solved.tags?.[k], outer, gap, round);
         const pts = core.length >= 6 ? grow(core, round) : [];
+        c.contacts = contacts;
+        c.edgeFaces = null;
         if (pts.length < 6) { c.gone = true; return; }
         const m = pts.length / 2;
         c.xy = new Float64Array(m * 4);
@@ -3485,6 +3549,7 @@ export class Marble {
     this._beforeInk(ctx);
     const half = this.seamsDrawn ? this.seam / 2 : 0;
     // Points inside another drop of the same colour aren't pulled in: those drops have merged.
+    for (const poly of this.polys) if (poly.contacts) cellContacts(poly);
     const merged = half ? mergedPoints(this.polys, this.touchReach) : null;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, shimmer } = this.polys[p];
@@ -3586,6 +3651,7 @@ export class Marble {
     const { width: w, height: h } = this;
     const paths = [];
     const half = this.seamsDrawn ? this.seam / 2 : 0;
+    for (const poly of this.polys) if (poly.contacts) cellContacts(poly);
     const merged = half ? mergedPoints(this.polys, this.touchReach) : null;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, cell } = this.polys[p];
