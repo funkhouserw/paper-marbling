@@ -737,10 +737,34 @@ carnation(32, 80, 14, ['#c0352b', '#d9677a', '#c0352b']);
 carnation(50, 74, 14, ['#a8234f', '#e08aa0', '#a8234f']);
 carnation(68, 80, 14, ['#c0352b', '#d9677a', '#c0352b']);
 `,
+  'Antique zigzag': `// Antique zigzag, after Woolnough (1881), Examples 18–19: a fine stone in red, blue, a little dark
+// and gold, white thrown on last "not too finely", then a double comb. Two bars of wires about two
+// inches apart, the teeth of the hind bar in the middle of the gaps of the front one, are drawn left
+// to right while moved up and down, "taking special care that the prong of the hind one just catches
+// the bottom of the loop formed by the first". Here: two zigzag full rakes half a pitch apart, the
+// second a moment behind the first. About a minute headless.
+viscosity({ value: 100 });
+bath({ color: '#f3efe6' });
+gall({ on: true, start: 1, step: 0.3 });
+broom({ n: 1100, size: 0.03, spread: 0.8, spreading: 2, color: '#7a1f2b' });
+settle();
+broom({ n: 1100, size: 0.02, spread: 0.8, spreading: 2, color: '#3a64b0' });
+settle();
+broom({ n: 500, size: 0.006, spread: 0.8, spreading: 2, color: '#1f3340' });
+settle();
+broom({ n: 350, size: 0.005, spread: 0.8, spreading: 2, color: '#e0b43a' });
+settle();
+broom({ n: 2000, size: 0.004, spread: 0.9, spreading: 2, color: '#f6efe4' });
+settle();
+// The double comb: front bar, then the hind bar half a pitch over and 0.2 s behind.
+fullRake({ angle: 0, teeth: 7, offset: -2.5, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, at: 0 });
+fullRake({ angle: 0, teeth: 7, offset: 2.5, speed: 25, D: 0.5, waveShape: 'zigzag', waveAmp: 5, waveLength: 12, at: 0.2 });
+settle();
+`,
 };
 
 export const EXAMPLE_SIMULATOR = {
-  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic', Spanish: 'classic', 'Tulip (Çiçekli)': 'classic', 'Carnation (Çiçekli)': 'classic',
+  Chevrons: 'film', Ribbons: 'film', 'Big waves': 'film', Flames: 'film', 'Two-way feathers': 'film', Whorls: 'wake', Storm: 'wake', 'Italian marble': 'film', 'Spiral field': 'wake', 'Seamless wallpaper': 'classic', 'Grid ink spirals': 'gridink', 'Italian vein': 'classic', 'Hair-vein': 'film', 'Feather plumes': 'film', 'Get-gel': 'classic', Nonpareil: 'classic', 'Broom-straw stone': 'cells', Stormont: 'classic', 'Stone, four colours': 'classic', 'Stone veins (Thin film)': 'thinfilm', 'Stone veins, fuller (Thin film)': 'thinfilm', 'Stone (Cells)': 'cells', 'Large-cell vein (Cells)': 'cells', 'French Shell': 'classic', Gloster: 'classic', 'Antique spot': 'classic', 'Hatip hearts': 'classic', 'Taraklı': 'classic', 'Ebru, combed stone': 'classic', 'Chevron feather': 'classic', Spanish: 'classic', 'Tulip (Çiçekli)': 'classic', 'Carnation (Çiçekli)': 'classic', 'Antique zigzag': 'classic',
   // Written on 1 Nov for the first engine, since retuned for spreading ink: in Classic their drops
   // leave bare bath and Repeating whorls never whorls, so they keep the editor's Wake (fast) (#51).
   'Lapis bullseyes': 'wakefast', 'Blue & gold feather': 'wakefast', 'Emerald peacock': 'wakefast', 'Gilded stone': 'wakefast', 'Oxblood whirl': 'wakefast', 'Library endpaper': 'wakefast', 'Dot garden': 'wakefast', 'Bead field': 'wakefast', 'Repeating whorls': 'wakefast', 'Starry spray': 'wakefast', 'Wave comb': 'wakefast', 'Verdigris waves': 'wakefast',
