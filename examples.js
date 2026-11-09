@@ -648,10 +648,13 @@ tulip(64, 68, 17, '#c0352b');
 // their tips sharpened with a fine awl; then the flower's colours as drops side by side at the end
 // of the branch, a small green drop for the calyx, the flower's outer edge crumpled with small strokes
 // of a fine wire awl (first outward, then inward), and the calyx drawn from the flower into it and
-// out again.
+// out again. The flowers are at the books' size (14 mm leaf drops, which open 3–4 cm on their 35 × 50
+// cm trays), so they are small on this 1000 × 700 mm tank; drawn bigger, the blooms hold but the leaves
+// curl into a U and the stem parts from the calyx.
 viscosity({ value: 1000 });
-bath({ color: '#f2ecdc' });
-// A light ground in two tones of one colour.
+// A light ground in two tones of one colour; the bath is the lighter tone, so where the ground drops
+// part, no paler channel shows.
+bath({ color: '#e6e1d3' });
 let k = 0;
 for (const [c, q] of [['#e6e1d3', 3.4], ['#d8d1bf', 1.0]]) {
   for (let y = 18; y <= 82; y += 16) for (let x = 6; x <= 94; x += 16) { k++; drop({ x: x + 3 * Math.sin(k * 2.1), y: y + 3 * Math.cos(k * 1.3), quantity: q, color: c, at: k * 0.05 }); }
