@@ -63,7 +63,7 @@
     <dt>Stylus and rake</dt>
     <dd>Each tine pulls nearby ink along its direction of travel, and the pull fades exponentially with distance, as <code>e^(−d / L)</code>, where <code>L</code> is the reach. A rake is a row of tines. Each tine's motion also carries a matching sideways part, so the flow doesn't squash the ink.</dd>
     <dt>Arches (comb shear)</dt>
-    <dd>For fine straight combs, such as a nonpareil's, Full rake can use Lu et al.'s comb shear (2012) instead of a row of tines. Each point moves along the comb by <code>α λ / (d + λ)</code>, where <code>d</code> is its distance to the nearest tooth, <code>α</code> is the arch and <code>λ</code> the sharpness, so every line between two teeth bends into a pointed arch. Turn it on with Arches in Full rake's Advanced settings (about 1.5 times the gap between teeth); it is off by default. Weaves and tine widths still use tines.</dd>
+    <dd>A fine straight comb drawn quickly through the size doesn't pull ink tine by tine: the whole sheet between its teeth shears, and every line bends into a pointed arch, as in a nonpareil. Full rake switches to this by itself when its teeth are close and fast enough for their pulls to overlap, using Lu et al.'s comb shear (2012): each point moves along the comb by <code>α λ / (d + λ)</code>, where <code>d</code> is its distance to the nearest tooth. The arch height <code>α</code> and sharpness <code>λ</code> come from the gap between teeth, the speed, the pull and the bath. Weaves and tine widths still use tines.</dd>
     <dt>Tine width</dt>
     <dd>A real tine has thickness. The width option makes ink bulge around the tine and close up behind it, using the flow around a moving cylinder.</dd>
     <dt>Stir</dt>

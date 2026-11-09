@@ -134,7 +134,7 @@ test('the instructions list the commands', () => {
   assert.match(INSTRUCTIONS, /Turkish Ebru/);
   assert.match(INSTRUCTIONS, /Concentric rings/);
   assert.match(INSTRUCTIONS, /"Weave height": fullRake option waveAmp: slider 0 to 150, script value is the slider divided by 10/);
-  assert.match(INSTRUCTIONS, /Stylus, "Tine thickness": stylus option D: 0=0\.3, .*100=3/);
+  assert.match(INSTRUCTIONS, /Stylus, "Pull": stylus option D: 0=0\.3, .*100=3/);
   assert.match(INSTRUCTIONS, /Drop, "Drop size": drop option quantity:/);
 });
 

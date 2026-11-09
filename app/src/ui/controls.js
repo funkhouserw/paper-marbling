@@ -69,8 +69,8 @@ export const shownChoices = (id, _view) => toolDef(id).choices;
 export const SHORT_LABELS = {
   'Smallest dot (% of largest)': 'Smallest (%)',
   'Drops per click': 'Per click', 'Dots per spray': 'Per spray', 'Space between dots': 'Spacing',
-  'Rings in each dot': 'Rings', 'Space between teeth': 'Spacing', 'Tooth thickness': 'Thickness',
-  'Tine thickness': 'Thickness', 'Start above (%)': 'Starts (%)', 'Wave direction (°)': 'Direction (°)',
+  'Rings in each dot': 'Rings', 'Space between teeth': 'Spacing',
+  'Start above (%)': 'Starts (%)', 'Wave direction (°)': 'Direction (°)',
   'Starts turning': 'Turns first', 'Swirl strength': 'Strength',
 };
 export const shortLabel = (label) => SHORT_LABELS[label] ?? label;
