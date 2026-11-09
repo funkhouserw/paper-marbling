@@ -81,6 +81,12 @@ export const PATTERNS = [
     example: 'Nonpareil',
   },
   {
+    id: 'antique-zigzag', family: 'combed', names: { en: 'Antique Zigzag' }, status: 'verified',
+    summary: 'A fine stone drawn through with a double comb, two bars of wires about two inches apart, the hind teeth between the front ones, moved up and down as it travels so each hind wire catches the bottom of the loop the front one made.',
+    sources: ['WOOL'], image: { title: 'Woolnough 1881, Examples 18–19', url: 'https://archive.org/details/wholeartofmarbli00wool', licence: 'Public Domain Mark' },
+    example: 'Antique zigzag',
+  },
+  {
     id: 'old-dutch', family: 'combed', names: { en: 'Old Dutch' }, status: 'verified',
     summary: 'One of the oldest European combed patterns, with bold comb lines. "Dutch" is a different pattern, not a synonym.',
     sources: ['RE'], image: { title: 'Atlas de Wit, 1698, endpaper (KB)', url: commons('Atlas_de_Wit_1698-schutbladachter-KB_PPN_145205088_(cropped).jpg'), licence: 'Public domain' },
