@@ -267,6 +267,51 @@ export function filmPressureSlope(tau, tauMax = TAU_MAX) {
   return 1 / (1 - t / m) ** 2;
 }
 
+// The Cells law's pressure (research/2026-11-09-cells-size-spread.md, last section). Up to the knee it
+// is filmPressure. Past it a film near collapse folds instead of resisting (a monolayer past its
+// collapse pressure, research ANSWERS §1), so Π rises only at its rest slope Π′(1), not ~2500 times
+// steeper, but only as the solve's tank fills: weight w = smoothstep((room − 0.85)/0.15), room being
+// the ink at its caps (Σ A0/τ_max) over the solve's area. Under capacity the steep knee keeps the
+// solver's path safe (a throw's first iterates can push a cell past its cap, and the plateau gave
+// nothing to push back: a cell lost 80 % in one tick); over capacity every cell squeezes evenly past
+// its cap instead of shattering. A switch at a fixed room flipped the law between ticks and broke
+// the recipe on seed 5; the blend is continuous in τ and in room.
+export function cellPressure(tau, tauMax, w) {
+  const m = Math.max(1.01, tauMax);
+  const knee = 1 + (m - 1) * PRESSURE_KNEE;
+  if (!(tau > knee) || !(w > 0)) return filmPressure(tau, tauMax);
+  return filmPressure(knee, tauMax) + (tau - knee) * (w / (1 - 1 / m) ** 2 + (1 - w) / (1 - knee / m) ** 2);
+}
+
+export function cellPressureSlope(tau, tauMax, w) {
+  const m = Math.max(1.01, tauMax);
+  const knee = 1 + (m - 1) * PRESSURE_KNEE;
+  if (!(tau > knee) || !(w > 0)) return filmPressureSlope(tau, tauMax);
+  return w / (1 - 1 / m) ** 2 + (1 - w) / (1 - knee / m) ** 2;
+}
+
+// A Cells cell's marks for the dark band where it meets a cell of its own colour (#33): edgeFaces 1
+// and edgeTau at those points, from the contact edges its layout kept (poly.contacts). Refreshed
+// whenever the cell's points have changed (refining adds points along its edges).
+const CONTACT_TAU = 1.5; // the band's least squeeze: a slight darkening, as Film's pressed films
+function cellContacts(poly) {
+  const c = poly.contacts;
+  if (!c || poly.edgeFaces?.length === poly.n) return;
+  const faces = new Uint8Array(poly.n), taus = new Float32Array(poly.n);
+  const tau = Math.max(CONTACT_TAU, thickness(poly));
+  const { seg, reach } = c;
+  for (let i = 0; i < poly.n; i++) {
+    const x = poly.xy[i * 2], y = poly.xy[i * 2 + 1];
+    for (let k = 0; k < seg.length; k += 4) {
+      const ax = seg[k], ay = seg[k + 1], dx = seg[k + 2] - ax, dy = seg[k + 3] - ay;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+      if (Math.hypot(ax + dx * t - x, ay + dy * t - y) < reach) { faces[i] = 1; taus[i] = tau; break; }
+    }
+  }
+  poly.edgeFaces = faces;
+  poly.edgeTau = taus;
+}
+
 // A ring's ink is its outline less the drops inside it: poly.inkArea, where a simulator keeps it.
 // a0 is the area the film's outline enclosed at rest, plus whatever drops have since landed inside it
 // (see _feedHosts), so a drop nested in a ring doesn't count as squeezing it.
@@ -301,6 +346,7 @@ const COMB_ROOM = 0.8; // share of the point limit a comb's spacing may plan to 
 const COMB_SAMPLES = 12; // points along an edge piece to measure the curve the comb will give it
 const COMB_TERMS = 4000; // tine pairs summed for it (the terms fall off as 1/k³)
 const REACH_SHARE = 0.5; // a comb tine's pull reaches at most this share of the gap to its neighbour
+const CELL_ONE_THROW = 0.5; // s: Cells drops landing this close together are one throw (channels, not seams)
 const BROOM_LANDING = 0.3; // s: a broom throw's drops all land within this of each other
 // How stiff Cells' films are under the pressure law: κ as a share of a typical cell's R0².
 const CELL_STIFFNESS = 1;
@@ -1320,6 +1366,7 @@ export class Marble {
     const laidBefore = op.top.length > 0;
     op.start = this.time;
     op.firstTick = this.tick; // the tick the new drops join the layout: the law converges on it
+
     const top = op.top;
     const log = this.log;
     const live = this._live;
@@ -1335,6 +1382,9 @@ export class Marble {
       const spreading = Math.min(asked, (this.cellSpreadMax ?? Infinity) * gallier);
       const area = plain(d.quantity) * spreading;
       const under = this.shapesAt(d.x, d.y)[0]?.[0] ?? null;
+      // A drop centred on a cell of its own colour joins it (#1: "one drop of the same color onto
+      // another drop ... should combine"). One centred on bath or on another colour that comes to press
+      // on a cell of its colour stays a cell of its own, with a dark seam where they meet (#33).
       if (under && laid(under) && under.color === color) { under.own += area; continue; }
       if (under && !laid(under)) {
         // Lands on ink the layout can't hold: an ordinary drop, unlogged.
@@ -1346,7 +1396,7 @@ export class Marble {
         this._live = live;
         continue;
       }
-      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: under, fresh: true };
+      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, landed: op.start, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: under, fresh: true };
       if (under) {
         // Where it landed in its parent, relative to the parent's centre and size, so it moves
         // with the parent when the parent is laid out again.
@@ -1411,6 +1461,24 @@ export class Marble {
     // pressure-math.md sec. 3.1.
     // A cell squeezed out of this tick's layout keeps its last outline and its children, and is laid
     // out again next tick: its ink is still on the bath (a solve not yet converged can empty it).
+    // A cell's channel: half the gap in from each edge, plus the corner rounding. Where it meets a
+    // cell of its own colour the two keep only a hairline (op.seam) between them, drawn as a dark band
+    // (#33: "not a big white seam ... a slight darkening around the edge of the loop where it touches
+    // the same color"), when they landed in different throws; those edges are kept as contacts for
+    // drawing it (see cellContacts).
+    const channel = (cells, k, tags, outer, gap, round) => {
+      if (outer.length < 6) return { core: [], contacts: null };
+      const n = outer.length / 2;
+      // Cells of one throw keep their channel of bare bath (photo 26); a later drop meeting an earlier
+      // cell of its colour is what row 33 describes. One throw is drops landing within a moment of each
+      // other (a spray's land over 0.4 s, in several batches; a broom's within 0.3 s).
+      const meets = (o) => o && o !== cells[k] && o.color === cells[k].color && Math.abs(o.landed - cells[k].landed) > CELL_ONE_THROW;
+      const same = apart && tags?.length === n ? tags.map((t) => t >= 0 && meets(cells[t])) : null;
+      if (!same?.some(Boolean)) return { core: erode(outer, gap / 2 + round), contacts: null };
+      const contacts = [];
+      same.forEach((on, i) => { if (on) contacts.push(outer[i * 2], outer[i * 2 + 1], outer[((i + 1) % n) * 2], outer[((i + 1) % n) * 2 + 1]); });
+      return { core: erode(outer, same.map((on) => (on ? op.seam : gap) / 2 + round)), contacts: { seg: contacts, reach: op.seam / 2 + round + 0.25 } };
+    };
     const keepLast = (c) => { if (c.gone || !(c.n >= 3 && c.laid)) return false; placed.push(c); c.kids.forEach(keepLast); return true; };
     const layoutLaw = (cells, domain, background = 0, nested = false, obstacles = []) => {
       if (!cells.length || domain.length < 6) { for (const c of cells) if (!keepLast(c)) c.gone = true; return; }
@@ -1425,11 +1493,17 @@ export class Marble {
         }
       }
       const kappa = CELL_STIFFNESS * A0.reduce((a, b) => a + b, 0) / A0.length / Math.PI;
+      // How full this solve's room is with ink at its caps: the collapse plateau's weight (cellPressure).
+      const room = A0.reduce((a, v, k) => a + v / cells[k].tauMax, 0) / Math.max(1e-9, polygonArea(domain));
+      const u = Math.min(1, Math.max(0, (room - 0.85) / 0.15));
+      const w = u * u * (3 - 2 * u);
+      const Pi = (tau, cap) => cellPressure(tau, cap, w);
+      const dPi = (tau, cap) => cellPressureSlope(tau, cap, w);
       const solved = partialTransport(cells.map((c) => c.site), A0, domain, {
         // Converged on the tick new drops join (and once they're done); 20 rounds a tick between.
         // Stopped at 4, the first tick's iterate was drawn half-solved and its crushed cells stayed so.
         weights: cells.map((c) => c.psi), iterations: done || this.tick === op.firstTick ? 80 : 20, obstacles,
-        law: { A0, tauMax: cells.map((c) => c.tauMax), kappa, background, Pi: filmPressure, dPi: filmPressureSlope },
+        law: { A0, tauMax: cells.map((c) => c.tauMax), kappa, background, Pi, dPi },
       });
       cells.forEach((c, k) => { c.psi = solved.weights[k]; });
       // Sites drift down pressure differences (research note sec. 3.2): the net push on a cell is its
@@ -1438,7 +1512,7 @@ export class Marble {
       // Overdamped, scaled by the cell's size over its perimeter, and at most a tenth of its size a
       // tick, so neighbours never swap.
       if (!nested && this.cellDrift) {
-        const P = cells.map((c, k) => filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax));
+        const P = cells.map((c, k) => Pi(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax));
         let most = 0;
         cells.forEach((c, k) => {
           const poly = solved.cells[k], tags = solved.tags[k];
@@ -1518,11 +1592,13 @@ export class Marble {
         if (c.merged) return;
         const outer = solved.cells[k];
         const size = outer.length >= 6 ? Math.sqrt(polygonArea(outer)) : 0;
-        const pressure = filmPressure(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax);
+        const pressure = Pi(A0[k] / Math.max(1e-9, solved.areas[k]), c.tauMax);
         const gap = !apart ? 0 : nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
         const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
-        const core = outer.length >= 6 ? erode(outer, gap / 2 + round) : [];
+        const { core, contacts } = channel(cells, k, solved.tags?.[k], outer, gap, round);
         const pts = core.length >= 6 ? grow(core, round) : [];
+        c.contacts = contacts;
+        c.edgeFaces = null;
         if (pts.length < 6) {
           // Squeezed out of this tick's layout. Its ink is still on the bath: under the law a cell
           // that drops out for a tick (a solve not yet converged) keeps its last outline and its
@@ -1626,8 +1702,10 @@ export class Marble {
         // thin as its share allows: a hairline seam, the rest of its ink lying as the rim.
         const gap = !apart ? 0 : nested ? op.seam : Math.max(op.seam, SEAM_SHARE * size);
         const round = (c.roundShare ?? (nested ? NEST_ROUND_SHARE : ROUND_SHARE)) * size;
-        const core = outer.length >= 6 ? erode(outer, gap / 2 + round) : [];
+        const { core, contacts } = channel(cells, k, solved.tags?.[k], outer, gap, round);
         const pts = core.length >= 6 ? grow(core, round) : [];
+        c.contacts = contacts;
+        c.edgeFaces = null;
         if (pts.length < 6) { c.gone = true; return; }
         const m = pts.length / 2;
         c.xy = new Float64Array(m * 4);
@@ -3858,6 +3936,7 @@ export class Marble {
     this._beforeInk(ctx);
     const half = this.seamsDrawn ? this.seam / 2 : 0;
     // Points inside another drop of the same colour aren't pulled in: those drops have merged.
+    for (const poly of this.polys) if (poly.contacts) cellContacts(poly);
     const merged = half ? mergedPoints(this.polys, this.touchReach) : null;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, shimmer } = this.polys[p];
@@ -3959,6 +4038,7 @@ export class Marble {
     const { width: w, height: h } = this;
     const paths = [];
     const half = this.seamsDrawn ? this.seam / 2 : 0;
+    for (const poly of this.polys) if (poly.contacts) cellContacts(poly);
     const merged = half ? mergedPoints(this.polys, this.touchReach) : null;
     for (let p = 0; p < this.polys.length; p++) {
       const { group, cell } = this.polys[p];

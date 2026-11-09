@@ -375,7 +375,8 @@ export function partialTransport(sites, targets, domain, { iterations = 300, tol
   return { cells, weights: psi, error, areas: now.area, tags: now.all.map((c) => c.tags) };
 }
 
-// Pulls a convex polygon in by d along its edges' normals (an inner parallel polygon).
+// Pulls a convex polygon in by d along its edges' normals (an inner parallel polygon). d may also be
+// an array, one distance per edge (edge i runs from point i to point i + 1).
 export function erode(poly, d) {
   let out = poly;
   const n = poly.length / 2;
@@ -391,7 +392,7 @@ export function erode(poly, d) {
     // Outward normal, then keep points at least d inside the edge.
     const nx = ccw ? ey / len : -ey / len;
     const ny = ccw ? -ex / len : ex / len;
-    out = cut(out, nx, ny, nx * poly[i * 2] + ny * poly[i * 2 + 1] - d);
+    out = cut(out, nx, ny, nx * poly[i * 2] + ny * poly[i * 2 + 1] - (typeof d === 'number' ? d : d[i]));
   }
   return out;
 }
