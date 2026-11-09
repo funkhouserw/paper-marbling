@@ -1385,7 +1385,17 @@ export class Marble {
       // A drop centred on a cell of its own colour joins it (#1: "one drop of the same color onto
       // another drop ... should combine"). One centred on bath or on another colour that comes to press
       // on a cell of its colour stays a cell of its own, with a dark seam where they meet (#33).
-      if (under && laid(under) && under.color === color) { under.own += area; continue; }
+      // Under the pressure law it lands as a cell of its own beside its host (a sibling), as a drop's
+      // radial map pushes the old film into a ring "independent of colour" (Jaffer 2017; Lu 2012):
+      // merged into the host's rest ink it made the host a giant that the next drop was likelier to
+      // hit, one cell taking 17 drops (research/2026-11-09-cells-size-spread.md, fix 1). The host's
+      // site moves off the drop, to the middle of its outline beyond the drop's rest radius, or two
+      // near-coincident sites leave the newcomer nothing.
+      let host = null;
+      if (under && laid(under) && under.color === color) {
+        if (!this.cellsPressure) { under.own += area; continue; }
+        host = under;
+      }
       if (under && !laid(under)) {
         // Lands on ink the layout can't hold: an ordinary drop, unlogged.
         this.log = [];
@@ -1396,8 +1406,22 @@ export class Marble {
         this._live = live;
         continue;
       }
-      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, landed: op.start, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: under, fresh: true };
-      if (under) {
+      const parent = host ? host.parentCell ?? null : under;
+      const cell = { xy: new Float64Array(0), n: 0, color, shimmer, cell: true, landed: op.start, site: [d.x, d.y], own: area, kids: [], tauMax: Math.min(spreading, this.cellTauMax ?? BROOM_TAU_MAX), parentCell: parent, fresh: true };
+      if (host) {
+        const r = Math.sqrt(area / Math.PI);
+        let sx = 0, sy = 0, k = 0;
+        for (let i = 0; i < host.n; i++) {
+          const x = host.xy[i * 2], y = host.xy[i * 2 + 1];
+          if (Math.hypot(x - d.x, y - d.y) > r) { sx += x; sy += y; k++; }
+        }
+        if (k) {
+          const away = [sx / k, sy / k];
+          host.site = holdsPoint(host.xy, host.n, away) ? away : keepInside(Array.from(host.xy.subarray(0, host.n * 2)), away);
+        }
+      }
+      if (parent) {
+        const under = parent;
         // Where it landed in its parent, relative to the parent's centre and size, so it moves
         // with the parent when the parent is laid out again.
         const c0 = centreOf(Array.from(under.xy.subarray(0, under.n * 2)));
@@ -1406,7 +1430,7 @@ export class Marble {
       } else {
         // A later colour landing on bare bath spreads as a disc until it meets ink, so its corners
         // stay rounder than a first throw's packed cells.
-        if (laidBefore) cell.roundShare = NEST_ROUND_SHARE;
+        if (laidBefore && !host) cell.roundShare = NEST_ROUND_SHARE;
         top.push(cell);
       }
     }
