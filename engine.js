@@ -4153,7 +4153,9 @@ export class Marble {
       }).join('');
       if (group) {
         // One path per repeat: copies of a shape longer than the tile overlap, and even-odd would cancel them (#47).
-        for (const [sx, sy] of this.tileShifts(this.polys.slice(first, p + 1))) paths.push(`<path fill="${color}" fill-rule="evenodd" d="${trace(sx, sy)}"/>`);
+        // Stroked like a drop when cells aren't kept separate, so abutting prints match the canvas (row 77).
+        const extra = isTranslucent(color) || half ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
+        for (const [sx, sy] of this.tileShifts(this.polys.slice(first, p + 1))) paths.push(`<path fill="${color}" fill-rule="evenodd"${extra} d="${trace(sx, sy)}"/>`);
       } else {
         const d = this.tileShifts([this.polys[p]]).map(([sx, sy]) => trace(sx, sy)).join('');
         const extra = isTranslucent(color) || cell || half ? '' : ` stroke="${color}" stroke-width="0.8" stroke-linejoin="round"`;
