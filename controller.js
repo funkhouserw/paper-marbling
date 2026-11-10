@@ -10,6 +10,7 @@ import { closedDirection } from './tile.js';
 import { MODELS } from './models.js';
 import { GridInk } from './gridink.js';
 import { palette } from './palettes.js';
+import { imageCells, cellsToPrints, workingSize, downsample } from './image.js';
 
 export const START_PALETTE = 'Dark Academia';
 export const STANDARD_VISCOSITY = 100;
@@ -194,6 +195,8 @@ export class TankController {
   constructor({ settings = {}, trace = () => [] } = {}) {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.trace = trace;
+    this.picture = null;
+    this.imaged = { key: null, prints: null };
     this.listeners = {};
     this.onTick = null; // told how long each tick took, for profiling
 
@@ -587,6 +590,30 @@ export class TankController {
     return this.traced.contours;
   }
 
+  // The Image tool's picture ({ data, w, h }, decoded in the page). It lives only here: values and
+  // settings are stored, and the picture must never be. null forgets it.
+  setPicture(picture) {
+    this.picture = picture;
+    this.imaged = { key: null, prints: null };
+  }
+
+  // The picture as print() arguments centred on the origin, traced once per distinct setting.
+  currentImage() {
+    if (!this.picture) return null;
+    const { colours, detail, fit, from } = this.values.image;
+    const m = this.marble;
+    const palette = from === 'palette' ? this.inks.map((i) => (typeof i === 'object' ? i.color : i)) : null;
+    const key = JSON.stringify([colours, detail, fit, palette, m.width, m.height]);
+    if (key !== this.imaged.key) {
+      const { w: pw, h: ph } = this.picture;
+      const [w, h] = workingSize(pw, ph, detail);
+      const cells = imageCells(downsample(this.picture, w, h), { colours, detail, palette });
+      const full = Math.min(m.width * 0.95, m.height * 0.95 * (w / h));
+      this.imaged = { key, prints: cellsToPrints(cells, { w, h }, { size: (full * fit) / 100 }) };
+    }
+    return this.imaged.prints;
+  }
+
   // Decides when an action starts, then calls fn(at). at is undefined when the action
   // should follow the script timeline, behind a settle point.
   place(isTool, fn) {
@@ -629,6 +656,8 @@ export class TankController {
       inks: this.inks,
       queueMode: this.settings.queueMode,
       text: () => this.currentText(),
+      image: () => this.currentImage(),
+      notice: (message) => this.notice(message),
       place: (fn) => this.place(Boolean(def.waits), fn),
       ...extra,
     });
@@ -651,7 +680,7 @@ export class TankController {
     if (input === 'stroke' || input === 'line') this.stroke = [p];
     else if (input === 'click') {
       const before = this.undoMarks.length;
-      this.act(() => this.clickAction(p));
+      this.act(() => this.clickAction(p), TOOLS[this.tool].stepLabel);
       this.pressCounted = this.undoMarks.length > before;
     }
     if (TOOLS[this.tool].drag) this.lastSpray = p;

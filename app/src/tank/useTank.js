@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { TankController, SETTINGS, DETAIL_PRESETS, storedSettings, storeSetting } from '../../../controller.js';
 import { textContours } from '../../../text.js';
+import { pictureFromFile } from '../../../image.js';
 import { EXAMPLES, EXAMPLE_SIMULATOR, EXAMPLE_PAGE } from '../../../examples.js';
 import { PALETTES, palette as findPalette } from '../../../palettes.js';
 import { FIXED, SECTIONS } from '../ui/features.js';
@@ -323,6 +324,15 @@ export function useTank() {
         else if (a.remove) c.removePaletteInk(a.i);
         else c.setPaletteInk(a.i, { rgb: a.rgb, shimmer: a.shimmer });
         bump();
+        return;
+      // The Image tool's file: decoded here, held by the controller only (never kept or sent).
+      case 'picture':
+        pictureFromFile(a.file).then((picture) => {
+          c.setPicture(picture);
+          c.notice('');
+          setUi({ pictureName: a.file.name });
+          bump();
+        }).catch(() => c.notice(`${a.file.name} couldn't be read as a jpg or png.`));
         return;
       case 'value':
         c.values[a.tool][a.key] = a.value;

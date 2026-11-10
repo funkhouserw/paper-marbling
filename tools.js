@@ -21,7 +21,8 @@ const FAR_DRAG = { top: 200, value: 6 };
 //   drag: a click tool that keeps going while dragged, every spacing × its radius, at share of
 //     its strength. spacing is given the tool's values.
 //   act(t): does it. t has m (the tank), v (the tool's values in mm), point or path, ink (the
-//     chosen { color, shimmer }), inks (the palette), text() (the Text tool's contours),
+//     chosen { color, shimmer }), inks (the palette), text() (the Text tool's contours), image()
+//     (the Image tool's cells, or null before a picture is chosen), notice(message),
 //     queueMode, share for drags, and place(fn), which calls fn(at) with when the action
 //     should start (undefined: behind a settle point) and returns what fn did.
 // Adding a tool: its engine method, an entry here, its (i) text in info.js, and its script
@@ -184,6 +185,32 @@ export const TOOLS = {
     text: true,
     params: {
       size: ['Text size', 12, 2, 50, 0.5],
+    },
+  },
+  image: {
+    input: 'click',
+    act(t) {
+      const prints = t.image();
+      if (!prints) { t.notice('Choose an image first.'); return null; }
+      const [x, y] = t.point;
+      // Every cell lands at once, as one step.
+      return t.place((at) => {
+        let op = null;
+        for (const p of prints) op = t.m.print({ contours: moveContours(p.contours, x, y), color: p.color, at });
+        return op;
+      });
+    },
+    label: 'Image',
+    stepLabel: 'Image',
+    hint: 'Choose a jpg or png, then click to lay it as cells of ink.',
+    image: true,
+    params: {
+      colours: ['Colours', 8, 2, 10, 1],
+      detail: ['Detail', 3, 1, 5, 1],
+      fit: ['Size', 100, 10, 100, 1], // % of the largest size that fits the tank
+    },
+    choices: {
+      from: ['Colours from', { photo: 'The picture', palette: 'The palette' }, 'photo'],
     },
   },
   paint: {
