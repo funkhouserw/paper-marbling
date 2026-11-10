@@ -246,3 +246,20 @@ test('the picture is never in values or settings', () => {
   assert.ok(stored.length < 20000);
   assert.deepEqual(Object.keys(c.values.image).sort(), ['colours', 'detail', 'fit', 'from']);
 });
+
+test('a small vivid patch on a dull picture gets an ink of its own', () => {
+  // Browns in bands, with two small yellow discs (an owl's eyes). Plain k-means at 8 inks averages
+  // them into the browns for these radii; promotion gives them an ink.
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  for (const r of [5, 7]) {
+    s = 5;
+    const img = picture(160, 120, (x, y) => {
+      if (Math.hypot(x - 50, y - 60) < r || Math.hypot(x - 110, y - 60) < r) return [235, 190, 60];
+      const t = (Math.sin(x / 9) + Math.sin(y / 7) + 2) / 4;
+      return [60 + 190 * t + noise() * 20, 45 + 170 * t + noise() * 20, 30 + 140 * t + noise() * 20];
+    });
+    const res = imageCells(img, { colours: 8 });
+    const yellow = res.cells.some((c) => { const [R, G, B] = hex(c.color); return R > 180 && G > 140 && B < 120 && R - B > 100; });
+    assert.ok(yellow, `r ${r}: inks ${[...new Set(res.cells.map((c) => c.color))].join(' ')}`);
+  }
+});

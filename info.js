@@ -72,7 +72,7 @@ export const INFO = {
   'tool.image': 'Turns a jpg or png into cells of flat ink: at most Colours inks, one cell for each patch of one colour, laid where you click. The cells never expand, but every later tool moves them, and Keep cells separate draws its seam round each one. The picture is read on this computer and never sent or kept; a saved tank or a copied script does hold the traced cells, which still look like the picture. Patches that touch only at a corner stay separate cells. A copied script run in a tank of another shape stretches the picture. Fine detail makes busy tanks coarser, most in Wake, and cells raked off the tank still count.',
   'image.colours': 'Most inks the picture is reduced to. Colours that are nearly the same count as one.',
   'image.detail': 'How fine the cells are: 1 gives a few large cells, 5 many small ones with closer outlines.',
-  'image.fit': 'How big the picture is, as a share of the largest size that fits the tank.',
+  'image.fit': 'How big the picture is, in % of the largest size that fits the tank.',
   'image.from': 'The picture\'s own colours, or each one swapped for the nearest ink in the palette.',
   'tool.paint': 'A brush for laying lines of ink. Unlike a drop it doesn\'t expand or push anything; it sits on top, then moves with everything else once you rake or stir.',
   'tool.stripes': 'Covers the tank in bands of colour, the starting point for chevrons and bouquet patterns. Rake across the bands with Full rake, then back the other way with an offset. It adds to the tank rather than clearing it. The arrows set which way the bands run.',

@@ -9,11 +9,12 @@
 
 // Detail 1–5: working size, smallest patch, simplify tolerance (start and most), and the caps.
 const DETAIL = {
-  1: { side: 96, minArea: 40, tol: 1.0, cells: 60, points: 3000 },
-  3: { side: 192, minArea: 24, tol: 0.7, cells: 200, points: 8000 },
-  5: { side: 320, minArea: 12, tol: 0.5, cells: 500, points: 14000 },
+  1: { side: 128, minArea: 28, tol: 0.9, cells: 80, points: 3000 },
+  3: { side: 256, minArea: 16, tol: 0.6, cells: 200, points: 8000 },
+  5: { side: 384, minArea: 8, tol: 0.5, cells: 500, points: 14000 },
 };
 export const MAX_TOL = 1.5;
+const OUTLIER = 0.08; // OKLab distance from every ink past which a group of pixels is offered its own
 const JOIN = 0.05; // OKLab distance under which two clusters are the same ink (about 2× a just-noticeable difference)
 
 export function detailSettings(detail = 3) {
@@ -145,6 +146,7 @@ export function quantise(lab, opaque, n, k, seed = 1) {
     centres.push(centre(sample[j]));
   }
   const assign = new Int32Array(sample.length);
+
   for (let iter = 0; iter < 20; iter++) {
     const acc = centres.map(() => [0, 0, 0, 0]);
     let moved = 0;
@@ -157,6 +159,54 @@ export function quantise(lab, opaque, n, k, seed = 1) {
     }
     centres = centres.map((c, q) => (acc[q][3] ? [acc[q][0] / acc[q][3], acc[q][1] / acc[q][3], acc[q][2] / acc[q][3]] : c));
     if (iter && !moved) break;
+  }
+  // k-means weights by area, so a small but striking colour (yellow eyes in a brown owl) gets no ink
+  // of its own. When enough pixels sit far from every centre, the two closest centres merge and those
+  // pixels get one, then k-means settles again. Up to three times.
+  // Promoted centres stay put: settling again would pull them back towards the big colours nearby.
+  // A promotion is kept only if it leaves fewer pixels far from every ink and costs k-means' own error
+  // (summed squared distance) under 15%: a small striking colour is worth a little smoothness.
+  const pinned = new Set();
+  const farOf = (cs) => sample.filter((i) => dist2(lab, i, cs[nearest(lab, i, cs)]) > OUTLIER * OUTLIER);
+  const errorOf = (cs) => sample.reduce((sum, i) => sum + dist2(lab, i, cs[nearest(lab, i, cs)]), 0);
+  let far = farOf(centres), error = errorOf(centres);
+  for (let round = 0; round < 3 && far.length; round++) {
+    // Seed from the far pixel with the most far neighbours (a colour, not one odd pixel).
+    const probe = far.filter((_, j) => j % Math.max(1, Math.floor(far.length / 1500)) === 0);
+    let seedAt = probe[0], most = -1;
+    for (const i of probe) {
+      let c = 0;
+      for (const q of probe) if (dist2(lab, q, centre(i)) < OUTLIER * OUTLIER) c++;
+      if (c > most) { most = c; seedAt = i; }
+    }
+    const group = far.filter((i) => dist2(lab, i, centre(seedAt)) < OUTLIER * OUTLIER);
+    if (group.length < Math.max(12, sample.length * 0.003)) break;
+    const mean = [0, 1, 2].map((t) => group.reduce((a, i) => a + lab[i * 3 + t], 0) / group.length);
+    let trial = centres.slice();
+    if (trial.length >= k) {
+      let bi = 0, bj = 1, bd = Infinity;
+      for (let i = 0; i < trial.length; i++) for (let j = i + 1; j < trial.length; j++) {
+        if (pinned.has(trial[i]) || pinned.has(trial[j])) continue;
+        const dd = (trial[i][0] - trial[j][0]) ** 2 + (trial[i][1] - trial[j][1]) ** 2 + (trial[i][2] - trial[j][2]) ** 2;
+        if (dd < bd) { bd = dd; bi = i; bj = j; }
+      }
+      if (bd === Infinity) break;
+      trial[bi] = trial[bi].map((v, t) => (v + trial[bj][t]) / 2);
+      trial.splice(bj, 1);
+    }
+    trial.push(mean);
+    const pins = new Set([...pinned, mean]);
+    for (let iter = 0; iter < 10; iter++) {
+      const acc = trial.map(() => [0, 0, 0, 0]);
+      for (const i of sample) { const c = nearest(lab, i, trial), a = acc[c]; a[0] += lab[i * 3]; a[1] += lab[i * 3 + 1]; a[2] += lab[i * 3 + 2]; a[3]++; }
+      trial = trial.map((c, q) => (pins.has(c) || !acc[q][3] ? c : [acc[q][0] / acc[q][3], acc[q][1] / acc[q][3], acc[q][2] / acc[q][3]]));
+    }
+    const trialError = errorOf(trial), trialFar = farOf(trial);
+    if (trialFar.length >= far.length || trialError > error * 1.15) break;
+    centres = trial;
+    pinned.add(mean);
+    error = trialError;
+    far = trialFar;
   }
   // Clusters closer than JOIN in OKLab are one ink split by noise: join them (weighted by size).
   {
@@ -577,13 +627,13 @@ const loopArea = (pts) => {
 
 // image: { data (RGBA), w, h } already at working size. Returns the cells in pixel corners:
 // [{ color: '#rrggbb', loops: [[[x, y], ...], ...] }], outer loop first, plus the counts.
-export function imageCells(image, { colours = 6, detail = 3, seed = 1, palette = null, limits = {} } = {}) {
+export function imageCells(image, { colours = 6, detail = 3, seed = 1, palette = null, limits = {}, tune = {} } = {}) {
   const { w, h } = image;
   const set = { ...detailSettings(detail), ...limits }; // limits: tests force the caps
   const { lab: raw, opaque } = toLab(image);
-  const lab = smooth(raw, opaque, w, h);
+  const lab = smooth(raw, opaque, w, h, tune.smoothPasses ?? 1);
   const { labels: first, centres } = quantise(lab, opaque, w * h, Math.max(1, Math.min(10, Math.round(colours))), seed);
-  let labels = majority(first, w, h, centres.length);
+  let labels = majority(first, w, h, centres.length, tune.majorityPasses ?? 1);
   let colourOf = centres.map(oklabToHex);
   if (palette?.length) colourOf = centres.map((c) => nearestInk(c, palette));
 
@@ -668,7 +718,7 @@ export function downsample({ data, w: sw, h: sh }, w, h) {
 
 // Browser only: a jpg or png file as pixels with the long side `side` px, upright (EXIF), never at
 // full size on a canvas. Nothing is sent anywhere or stored.
-export async function pictureFromFile(file, side = 320) {
+export async function pictureFromFile(file, side = 384) {
   const opts = { imageOrientation: 'from-image', resizeQuality: 'high' };
   let bitmap = await createImageBitmap(file, { ...opts, resizeWidth: side });
   if (bitmap.height > bitmap.width) {

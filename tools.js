@@ -202,12 +202,12 @@ export const TOOLS = {
     },
     label: 'Image',
     stepLabel: 'Image',
-    hint: 'Choose a jpg or png, then click to lay it as cells of ink. They never grow, but every later tool moves them. Fine detail makes busy tanks coarser, most in Wake.',
+    hint: 'Choose a jpg or png, then click to lay it as cells of ink.',
     image: true,
     params: {
-      colours: ['Colours', 6, 2, 10, 1],
+      colours: ['Colours', 8, 2, 10, 1],
       detail: ['Detail', 3, 1, 5, 1],
-      fit: ['Size (% of the tank)', 100, 10, 100, 1],
+      fit: ['Size', 100, 10, 100, 1], // % of the largest size that fits the tank
     },
     choices: {
       from: ['Colours from', { photo: 'The picture', palette: 'The palette' }, 'photo'],
