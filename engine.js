@@ -1893,7 +1893,7 @@ export class Marble {
   // fullSpan (set by fullRake): straight teeth across the whole tank. A fine one, whose tines' drag
   // would reach past each other (see _combAuto), moves ink by a comb shear instead of tine by tine.
   rake({ from, to, path, teeth = 10, spacing = 50, offsets, speed = 100, D = 10,
-         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach, ease = 0,
+         waveAmp = 0, waveLength = 100, waveShape = 'sine', width = 0, reach, ease = 0, angle,
          at, fullSpan = false } = {}) {
     const points = path ?? [from, to];
     const offs = offsets ?? Array.from({ length: teeth }, (_, i) => (i - (teeth - 1) / 2) * spacing);
@@ -1902,6 +1902,8 @@ export class Marble {
     reach ??= this.reachShare;
     if (ease > 0) args.ease = ease;
     if (fullSpan) args.fullSpan = true; // set by fullRake: the teeth cover the tank
+    const facing = angle === undefined || angle === null ? null : Number(angle);
+    if (facing !== null) args.angle = facing;
     if (at !== undefined) args.at = at;
 
     const segs = [];
@@ -1914,7 +1916,10 @@ export class Marble {
     }
     if (!segs.length) return null;
     const s0 = segs[0];
-    const perp = [-(s0.by - s0.ay) / s0.len, (s0.bx - s0.ax) / s0.len];
+    // The row of teeth lies across the way the comb faces: the first direction it moves, or `angle`
+    // (as fullRake's: 0 right, 90 up), whichever way it is then dragged.
+    const perp = facing === null ? [-(s0.by - s0.ay) / s0.len, (s0.bx - s0.ax) / s0.len]
+      : [-Math.sin(facing * DEG), Math.cos(facing * DEG)];
     const op = {
       kind: 'rake', segs, total, offs, perp, speed, waveAmp, waveLength, waveShape, width, dist: 0,
       L: Math.max((speed * D * D) / this.viscosity, 0.25),

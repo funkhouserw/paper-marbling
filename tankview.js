@@ -501,8 +501,10 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
       if (tool === 'rake' || tool === 'drawnRake') {
         const [a, b] = stroke;
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-        const perp = [-(b[1] - a[1]) / len, (b[0] - a[0]) / len];
-        const { teeth, spacing } = c.inMm(tool);
+        const { teeth, spacing, angle } = c.inMm(tool);
+        // A set Angle turns the row of teeth, as the engine's rake does; Auto follows the stroke.
+        const perp = typeof angle === 'number' ? [-Math.sin(angle * Math.PI / 180), Math.cos(angle * Math.PI / 180)]
+          : [-(b[1] - a[1]) / len, (b[0] - a[0]) / len];
         octx.fillStyle = guideColor(0.75);
         for (let i = 0; i < teeth; i++) {
           const off = (i - (teeth - 1) / 2) * spacing;
@@ -514,10 +516,13 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
       }
     }
     if (tool === 'drawnRake' && !(stroke?.length > 1) && view.hover) {
-      const { teeth, spacing } = c.inMm('drawnRake');
+      const { teeth, spacing, angle } = c.inMm('drawnRake');
+      // Before the stroke, Auto shows the row upright (a comb facing right, angle 0).
+      const a = (typeof angle === 'number' ? angle : 0) * Math.PI / 180;
       octx.fillStyle = guideColor(0.75);
       for (let i = 0; i < teeth; i++) {
-        const [x, y] = toPx([view.hover[0], view.hover[1] + (i - (teeth - 1) / 2) * spacing]);
+        const off = (i - (teeth - 1) / 2) * spacing;
+        const [x, y] = toPx([view.hover[0] - Math.sin(a) * off, view.hover[1] + Math.cos(a) * off]);
         octx.beginPath();
         octx.arc(x, y, 2.5 * octx.lineWidth, 0, 7);
         octx.fill();

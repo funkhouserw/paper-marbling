@@ -147,6 +147,7 @@ export const COMMANDS = [
     size('width', 0, 'how much space each tine takes up; ink bulges aside and closes behind it; 0 is a point of force'),
     ['reach', 'number', null, "how far each tine's pull may reach, as a share of the gap to the next tine; left out, the simulator's own rule (0.5 today); more lets a fine or wavy comb drag further, but past about 1 the teeth move the sheet as one paddle"],
     ['ease', 'number', 0, 'seconds the comb takes to come up to speed at the start and to slow to a stop at the end; 0 starts and stops at full speed'],
+    ['angle', 'number', null, "which way the comb faces, degrees, as fullRake's: 0 right, 90 up, 180 left, 270 down; its row of teeth lies across that, whichever way the path goes. Left out, it faces the path's first direction"],
     AT,
     ['fullSpan', 'boolean', false, "set by fullRake: straight, evenly spaced teeth across the whole tank; a fine one moves ink as a comb (nonpareil arches)"],
   ] },
