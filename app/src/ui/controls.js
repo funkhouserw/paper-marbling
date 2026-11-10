@@ -1,7 +1,7 @@
 // How the new interface arranges the real controls, which come from the tank's own modules
 // through live.js, so every tool and setting has a place here.
 import {
-  Droplet, SprayCan, Grip, Type, Brush, Wheat, Rows3, Heart, PenTool, Waves, Activity, RefreshCw,
+  Droplet, SprayCan, Grip, Type, Image as ImageIcon, Brush, Wheat, Rows3, Heart, PenTool, Waves, Activity, RefreshCw,
   Tornado, Wind, Eraser, Snowflake, Columns3, Sparkles, Spline,
   Expand, Hash, Droplets, CircleDot, FlaskConical, Hourglass, TestTube, Shuffle, Maximize2, Compass,
   CircleDashed, Circle, Dot, MoveHorizontal, Shrink, Target, Ruler, Triangle, Slice, BetweenHorizontalStart,
@@ -52,7 +52,7 @@ function HeartDropIcon({ size = 24, ...rest }) {
 }
 
 export const ICONS = {
-  drop: Droplet, heartDrop: HeartDropIcon, broom: Wheat, spray: SprayCan, fillDots: Grip, paint: Brush, stripes: Rows3, text: Type,
+  drop: Droplet, heartDrop: HeartDropIcon, broom: Wheat, spray: SprayCan, fillDots: Grip, paint: Brush, stripes: Rows3, text: Type, image: ImageIcon,
   rake: Columns3, drawnRake: Spline, fullRake: FullRakeIcon, hearts: Heart, stylus: PenTool,
   jiggle: Waves, wriggle: Activity, stir: RefreshCw, vortex: Tornado, air: Wind,
   erase: Eraser,
@@ -89,6 +89,6 @@ export const SETTING_ICONS = {
   offset: MoveRight, overhang: Frame, period: Waves, amplitude: AudioWaveform, duration: Timer, degrees: RotateCw,
   ringSpacing: Disc3, rate: RefreshCw, scale: Maximize, octaves: Layers, circulation: Tornado,
   sprayColors: Palette, sizes: BarChart3, over: Layers2, waveShape: Spline, style: Heart, direction: RotateCcw,
-  mode: Eraser, ease: Activity,
+  mode: Eraser, ease: Activity, colours: Palette, detail: Grip, fit: Maximize, from: Palette,
 };
 export const settingIcon = (key) => SETTING_ICONS[key] ?? SlidersHorizontal;

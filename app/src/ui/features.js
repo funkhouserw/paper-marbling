@@ -21,7 +21,7 @@
 
 // Where each tool from tools.js sits, in the desktop rail and the phone's group tabs.
 export const TOOL_GROUPS = [
-  { id: 'ink', label: 'Ink', tools: ['drop', 'heartDrop', 'broom', 'spray', 'fillDots', 'paint', 'stripes', 'text'] },
+  { id: 'ink', label: 'Ink', tools: ['drop', 'heartDrop', 'broom', 'spray', 'fillDots', 'paint', 'stripes', 'text', 'image'] },
   { id: 'comb', label: 'Comb', tools: ['rake', 'drawnRake', 'fullRake', 'hearts', 'stylus'] },
   { id: 'move', label: 'Move', tools: ['jiggle', 'wriggle', 'stir', 'vortex', 'air'] },
   { id: 'lift', label: 'Lift', tools: ['erase'] },

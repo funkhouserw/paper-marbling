@@ -18,6 +18,7 @@ export const TOOLS = Object.fromEntries(Object.entries(RAW_TOOLS).map(([id, t]) 
   color: Boolean(t.color),
   directions: t.directions || false, // true, or 'heart' for arrows that follow Heart drop's angle (0 = down)
   text: Boolean(t.text),
+  image: Boolean(t.image), // the Image tool's file picker
   // Size-like settings show a 0 to 100 dial (further with `over`) instead of page units, as the old page did.
   // A 7th entry carries flags: advanced (Advanced view only) and auto (a value of null means the
   // tank picks, shown as an Auto toggle).

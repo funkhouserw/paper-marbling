@@ -459,6 +459,7 @@ $('deletePalette').onclick = () => {
 renderPaletteEditor();
 
 for (const name of Object.keys(TOOLS)) {
+  if (TOOLS[name].image) continue; // the archived page has no file picker; Image lives in the editor
   const b = document.createElement('button');
   b.textContent = TOOLS[name].label ?? name[0].toUpperCase() + name.slice(1);
   b.dataset.tool = name;

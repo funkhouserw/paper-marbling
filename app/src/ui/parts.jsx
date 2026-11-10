@@ -204,6 +204,22 @@ const DEFAULT_WEAVE_HEIGHT = 30;
 
 // The ways a tool's settings are set, shared by the full and folded bars and the panels.
 // The old page's two weave rules: a shape needs height to show, and height on a straight rake means a weave.
+// The Image tool's file picker: jpg or png, decoded in the page and never sent anywhere.
+function PictureButton({ tank, wide = false }) {
+  const { state, dispatch } = tank;
+  const input = useRef(null);
+  return (
+    <div className={cx('flex min-w-0 flex-col gap-1 text-xs text-ink-300', wide ? 'w-44' : 'w-full')}>
+      <Button onClick={() => input.current?.click()} className="w-full">{state.pictureName ? 'Change image…' : 'Choose image…'}</Button>
+      <span className="truncate text-[11px] text-ink-400" title={state.pictureName ?? ''}>{state.pictureName ?? 'jpg or png; it stays on this computer'}</span>
+      <input
+        ref={input} type="file" accept="image/png,image/jpeg" hidden aria-label="Image file"
+        onChange={(e) => { const file = e.target.files?.[0]; if (file) dispatch({ type: 'picture', file }); e.target.value = ''; }}
+      />
+    </div>
+  );
+}
+
 function toolSetters({ state, dispatch }) {
   const id = state.tool;
   const values = state.values[id] ?? {};
@@ -238,6 +254,7 @@ export function ToolSettings({ tank, layout = 'row', limit }) {
     <div className={cx(row ? 'grid grid-flow-col grid-rows-2 auto-cols-[10rem] items-start gap-x-5 gap-y-2' : 'flex flex-col gap-4')}>
       {/* In a column the button comes first and last, so it's never a long scroll away. */}
       {def.whole && !row && <Button primary onClick={applyTool} className="w-full"><Play size={12} /> {def.label}</Button>}
+      {def.image && <PictureButton tank={tank} wide={!row} />}
       {def.text && (
         <>
           <label className="flex flex-col gap-1 text-xs text-ink-300">
@@ -327,6 +344,7 @@ export function FoldedSettings({ tank }) {
   const { set, setParam, setWeave } = toolSetters(tank);
   return (
     <div className="flex min-w-0 items-center gap-1">
+      {def.image && <PictureButton tank={tank} />}
       {def.text && (
         <input
           aria-label="Text" value={values.string ?? ''} onChange={(e) => set('string')(e.target.value)}
