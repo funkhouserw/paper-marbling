@@ -311,7 +311,7 @@ export const TOOLS = {
     input: 'stroke',
     waits: true,
     act: (t) => t.place((at) => t.m.rake({ path: t.path, ...t.v, at })),
-    hint: 'Draw freely: the whole rake follows your stroke, its teeth keeping the line your first movement set, or the Angle you choose.',
+    hint: 'Draw freely: the whole rake follows your stroke, its teeth keeping the line your first movement set, or the Angle you choose. Drag across the row of teeth: along it, they all follow one track.',
     params: {
       // null is Auto: the comb faces the stroke's first direction. Set, it faces that way (0 right, 90 up,
       // as Full rake), and its row of teeth lies across it however you drag.

@@ -138,7 +138,7 @@ export const INFO = {
   'text.size': 'The height of the letters.',
   'rake.waveShape': WEAVE_SHAPE,
   'tool.drawnRake': 'A whole rake dragged freehand, like the stylus but with all its teeth. The teeth keep the line your first movement sets: start moving east and they stay lined up north to south however the stroke curves, so every tine bends the same way. Drag east and then curve south to fan the colours into feather plumes.',
-  'drawnRake.angle': 'Which way the comb faces, as Full rake\'s Angle: 0 right, 90 up, 180 left, 270 down. The row of teeth lies across it however you drag, so you can draw a stroke one way while the teeth line up another. Auto faces your first movement.',
+  'drawnRake.angle': 'Which way the comb faces, as Full rake\'s Angle: 0 right, 90 up, 180 left, 270 down. The row of teeth lies across it however you drag, so you can draw a stroke one way while the teeth line up another. Auto faces your first movement. Drag across the row of teeth: dragged along it, every tooth follows the same track and the comb draws one line, as a real comb would.',
   'drawnRake.teeth': TEETH,
   'drawnRake.spacing': 'The gap between neighbouring teeth.',
   'drawnRake.speed': SPEED,
