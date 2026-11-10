@@ -211,7 +211,9 @@ function PictureButton({ tank, wide = false }) {
   return (
     <div className={cx('flex min-w-0 flex-col gap-1 text-xs text-ink-300', wide ? 'w-44' : 'w-full')}>
       <Button onClick={() => input.current?.click()} className="w-full">{state.pictureName ? 'Change image…' : 'Choose image…'}</Button>
-      <span className="truncate text-[11px] text-ink-400" title={state.pictureName ?? ''}>{state.pictureName ?? 'jpg or png; it stays on this computer'}</span>
+      <span role="status" className={cx('truncate text-[11px]', state.tracing ? 'text-gilt-soft' : 'text-ink-400')} title={state.pictureName ?? ''}>
+        {state.tracing ? 'Tracing the picture…' : state.pictureName ?? 'jpg or png; it stays on this computer'}
+      </span>
       <input
         ref={input} type="file" accept="image/png,image/jpeg" hidden aria-label="Image file"
         onChange={(e) => { const file = e.target.files?.[0]; if (file) dispatch({ type: 'picture', file }); e.target.value = ''; }}

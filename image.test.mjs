@@ -263,3 +263,75 @@ test('a small vivid patch on a dull picture gets an ink of its own', () => {
     assert.ok(yellow, `r ${r}: inks ${[...new Set(res.cells.map((c) => c.color))].join(' ')}`);
   }
 });
+
+// ---- Choosing a picture lays it; new settings replace it while it is the newest step ----
+const printGroups = (c) => new Set(c.marble.polys.filter((p) => p.group).map((p) => p.group)).size;
+const settle = (c) => { for (let i = 0; i < 400 && (c.marble.busy || c.marble.queued.length); i++) c.marble.step(); c.marble.step(); };
+
+test('choosing a picture lays it at once, centred, as one Image step', () => {
+  const c = new TankController({ settings: { simulator: 'classic' } });
+  c.tool = 'image';
+  const marks = c.undoMarks.length;
+  c.choosePicture(tankPhoto());
+  settle(c);
+  assert.equal(c.undoMarks.length, marks + 1);
+  assert.equal(c.stepLabels.get(c.undoMarks.at(-1)), 'Image');
+  assert.equal(printGroups(c), c.currentImage().length);
+  // Centred: the ink's bounding box is centred on the tank.
+  let lo = Infinity, hi = -Infinity;
+  for (const p of c.marble.polys) for (let i = 0; i < p.n; i++) { lo = Math.min(lo, p.xy[i * 2]); hi = Math.max(hi, p.xy[i * 2]); }
+  assert.ok(Math.abs(lo + hi) < 1, `centre ${(lo + hi) / 2}`);
+});
+
+test('new settings or a new file replace the newest image, still one step; after other work they do not', () => {
+  const c = new TankController({ settings: { simulator: 'classic' } });
+  c.tool = 'image';
+  c.choosePicture(tankPhoto());
+  settle(c);
+  const marks = c.undoMarks.length, before = printGroups(c);
+  c.values.image.colours = 3;
+  assert.equal(c.relayImage(), true);
+  settle(c);
+  assert.equal(c.undoMarks.length, marks, 'still one step');
+  assert.equal(c.redoGroups.length, 0, 'nothing to redo');
+  assert.equal(printGroups(c), c.currentImage().length);
+  assert.notEqual(printGroups(c), before);
+  // Another file while it is newest: replaced.
+  c.choosePicture(picture(40, 30, (x) => (x < 20 ? RED : BLUE)));
+  settle(c);
+  assert.equal(c.undoMarks.length, marks);
+  assert.equal(printGroups(c), 2);
+  // Something else happens: the image is no longer newest, so settings only affect the next lay.
+  c.tool = 'drop';
+  c.press([300, 200]);
+  settle(c);
+  const after = c.undoMarks.length, polys = c.marble.polys.length;
+  c.values.image.colours = 5;
+  assert.equal(c.relayImage(), false);
+  assert.equal(c.undoMarks.length, after);
+  assert.equal(c.marble.polys.length, polys);
+  // A new file now adds a new image rather than replacing.
+  c.tool = 'image';
+  c.choosePicture(tankPhoto());
+  assert.equal(c.undoMarks.length, after + 1);
+  // One undo takes the whole image away.
+  c.undo();
+  settle(c);
+  assert.equal(c.undoMarks.length, after);
+});
+
+test('a click lays a copy where clicked, and that copy is the one new settings replace', () => {
+  const c = new TankController({ settings: { simulator: 'classic' } });
+  c.tool = 'image';
+  c.choosePicture(tankPhoto());
+  settle(c);
+  c.values.image.fit = 20;
+  c.press([250, 100]);
+  settle(c);
+  const marks = c.undoMarks.length;
+  assert.deepEqual(c.imageStep.point, [250, 100]);
+  c.values.image.colours = 3;
+  assert.equal(c.relayImage(), true);
+  assert.equal(c.undoMarks.length, marks);
+  assert.deepEqual(c.imageStep.point, [250, 100]);
+});

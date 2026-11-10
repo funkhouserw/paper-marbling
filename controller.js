@@ -197,6 +197,7 @@ export class TankController {
     this.trace = trace;
     this.picture = null;
     this.imaged = { key: null, prints: null };
+    this.imageStep = null; // the newest image laid: { mark, length, point }
     this.listeners = {};
     this.onTick = null; // told how long each tick took, for profiling
 
@@ -597,6 +598,42 @@ export class TankController {
     this.imaged = { key: null, prints: null };
   }
 
+  // A chosen picture goes straight onto the bath, centred. While that image is still the newest
+  // step, choosing another file replaces it instead of adding a second one.
+  choosePicture(picture) {
+    const replacing = this.imageIsNewest();
+    this.setPicture(picture);
+    if (replacing) this.relayImage();
+    else this.layImage([0, 0]);
+  }
+
+  // Lays the picture at point as one step, "Image", and remembers that step.
+  layImage(point = [0, 0]) {
+    const before = this.undoMarks.length;
+    this.act(() => this.runTool('image', { point }), 'Image');
+    this.imageStep = this.undoMarks.length > before ? { mark: this.undoMarks.at(-1), length: this.marble.log.length, point } : null;
+    this.dirty = true;
+  }
+
+  // Whether the last image laid is still the newest step: nothing has been done to the tank since.
+  imageIsNewest() {
+    const s = this.imageStep;
+    return Boolean(s) && this.undoMarks.at(-1) === s.mark && this.marble.log.length === s.length && this.stepLabels.get(s.mark) === 'Image';
+  }
+
+  // New Image settings (or a new file) redo the newest image in place, as the same one step, so the
+  // sliders visibly do something. Once anything else has happened they only affect the next lay.
+  relayImage() {
+    if (!this.imageIsNewest() || this.locked) return false;
+    const { point } = this.imageStep;
+    this.undo();
+    this.redoGroups.pop();
+    this.redoStates.pop();
+    this.layImage(point);
+    this.emit('history');
+    return true;
+  }
+
   // The picture as print() arguments centred on the origin, traced once per distinct setting.
   currentImage() {
     if (!this.picture) return null;
@@ -680,7 +717,8 @@ export class TankController {
     if (input === 'stroke' || input === 'line') this.stroke = [p];
     else if (input === 'click') {
       const before = this.undoMarks.length;
-      this.act(() => this.clickAction(p), TOOLS[this.tool].stepLabel);
+      if (this.tool === 'image') this.layImage(p);
+      else this.act(() => this.clickAction(p), TOOLS[this.tool].stepLabel);
       this.pressCounted = this.undoMarks.length > before;
     }
     if (TOOLS[this.tool].drag) this.lastSpray = p;

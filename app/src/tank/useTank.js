@@ -46,6 +46,14 @@ const COMMIT = {
 };
 
 // The status line's numbers and warnings, as the old page's showStats gives them.
+// Runs fn after the browser has painted twice, so a "Tracing…" state shows before a slow, synchronous
+// trace starts. Resolves with fn's result.
+const paintThen = (fn) => new Promise((resolve, reject) => {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    try { resolve(fn()); } catch (err) { reject(err); }
+  }));
+});
+
 function readStats(c) {
   const m = c.marble;
   return {
@@ -168,6 +176,7 @@ export function useTank() {
   // Keep the setup: at most once a second while things change (the tank changes many times a
   // second while it runs), and again whenever the page is hidden or closed.
   const keep = useRef(null);
+  const relayTimer = useRef(null);
   const resetting = useRef(false);
   keep.current = () => {
     if (resetting.current) return;
@@ -325,18 +334,32 @@ export function useTank() {
         else c.setPaletteInk(a.i, { rgb: a.rgb, shimmer: a.shimmer });
         bump();
         return;
-      // The Image tool's file: decoded here, held by the controller only (never kept or sent).
-      case 'picture':
-        pictureFromFile(a.file).then((picture) => {
-          c.setPicture(picture);
-          c.notice('');
-          setUi({ pictureName: a.file.name });
-          bump();
-        }).catch(() => c.notice(`${a.file.name} couldn't be read as a jpg or png.`));
+      // The Image tool's file: decoded here, held by the controller only (never kept or sent), and laid
+      // on the bath at once. "Tracing the picture…" shows while that takes over about 200 ms.
+      case 'picture': {
+        const slow = setTimeout(() => setUi({ tracing: true }), 200);
+        pictureFromFile(a.file)
+          // Tracing runs in one go, so say so first and let that paint.
+          .then((picture) => { setUi({ tracing: true }); return paintThen(() => {
+            c.choosePicture(picture);
+            c.notice('');
+            setUi({ pictureName: a.file.name });
+          }); })
+          .catch((err) => c.notice(`${a.file.name} couldn't be read as a jpg or png${err?.message ? ` (${err.message})` : ''}.`))
+          .finally(() => { clearTimeout(slow); setUi({ tracing: false }); bump(); });
         return;
+      }
       case 'value':
         c.values[a.tool][a.key] = a.value;
         bump();
+        // The newest image follows its settings, once the slider rests.
+        if (a.tool === 'image' && c.imageIsNewest()) {
+          clearTimeout(relayTimer.current);
+          relayTimer.current = setTimeout(() => {
+            setUi({ tracing: true });
+            paintThen(() => c.relayImage()).finally(() => { setUi({ tracing: false }); bump(); });
+          }, 250);
+        }
         return;
       case 'tool': c.setTool(a.tool); return;
       case 'undo': c.undo(); return;

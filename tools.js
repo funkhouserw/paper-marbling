@@ -202,7 +202,7 @@ export const TOOLS = {
     },
     label: 'Image',
     stepLabel: 'Image',
-    hint: 'Choose a jpg or png, then click to lay it as cells of ink.',
+    hint: 'Choose a jpg or png: it goes on as cells of ink. Click to lay another.',
     image: true,
     params: {
       colours: ['Colours', 8, 2, 10, 1],
