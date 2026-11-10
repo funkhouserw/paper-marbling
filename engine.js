@@ -4063,6 +4063,14 @@ export class Marble {
           ctx.beginPath();
           trace(sx, sy);
           ctx.fill('evenodd');
+          // The same hairline drops get (below), so prints that share an edge (an image's cells) don't
+          // show the bath along it (row 77). Every loop gets it, holes too, as a drop's edge does.
+          if (!half && !isTranslucent(color)) {
+            ctx.lineWidth = 1.2 / pxPerMm;
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = color;
+            ctx.stroke();
+          }
           if (shimmer > 0) this._drawShimmer(ctx, 'evenodd', shimmer);
         }
       } else {

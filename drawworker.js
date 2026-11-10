@@ -82,6 +82,13 @@ self.onmessage = ({ data: m }) => {
         ctx.beginPath();
         for (let k = first; k <= p; k++) trace(ctx, thinned[k], sx, sy);
         ctx.fill('evenodd');
+        // The hairline drops get, so abutting prints don't show the bath along shared edges (Marble.draw).
+        if (!half && !translucent(color)) {
+          ctx.lineWidth = 1.2 / px;
+          ctx.lineJoin = join;
+          ctx.strokeStyle = color;
+          ctx.stroke();
+        }
       }
     } else {
       ctx.beginPath();
