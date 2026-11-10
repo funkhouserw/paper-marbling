@@ -7,22 +7,26 @@
 // border with, then the borders between patches traced along pixel edges. Each border between two
 // patches is simplified once and shared by both, so the cells meet exactly: no gaps, no overlaps.
 
-// Detail 1–5: working size, smallest patch, simplify tolerance (start and most), and the caps.
+// Detail 1–7: working size, smallest patch, simplify tolerance, and the caps. 6 and 7 were set from
+// runs on photos (row 79): past 640 px tracing takes seconds and Classic's 60k budget is crossed
+// after one rake.
 const DETAIL = {
   1: { side: 128, minArea: 28, tol: 0.9, cells: 80, points: 3000 },
+  2: { side: 192, minArea: 22, tol: 0.75, cells: 140, points: 5500 },
   3: { side: 256, minArea: 16, tol: 0.6, cells: 200, points: 8000 },
+  4: { side: 320, minArea: 12, tol: 0.55, cells: 350, points: 11000 },
   5: { side: 384, minArea: 8, tol: 0.5, cells: 500, points: 14000 },
+  6: { side: 512, minArea: 6, tol: 0.5, cells: 900, points: 24000 },
+  7: { side: 640, minArea: 5, tol: 0.45, cells: 1400, points: 32000 },
 };
+export const MOST_DETAIL = 7;
+export const MOST_COLOURS = 16;
 export const MAX_TOL = 1.5;
 const OUTLIER = 0.08; // OKLab distance from every ink past which a group of pixels is offered its own
 const JOIN = 0.05; // OKLab distance under which two clusters are the same ink (about 2× a just-noticeable difference)
 
 export function detailSettings(detail = 3) {
-  const d = Math.max(1, Math.min(5, Math.round(detail)));
-  if (DETAIL[d]) return DETAIL[d];
-  const [a, b] = d < 3 ? [DETAIL[1], DETAIL[3]] : [DETAIL[3], DETAIL[5]];
-  const mix = (k) => (a[k] + b[k]) / 2;
-  return { side: Math.round(mix('side')), minArea: Math.round(mix('minArea')), tol: mix('tol'), cells: Math.round(mix('cells')), points: Math.round(mix('points')) };
+  return DETAIL[Math.max(1, Math.min(MOST_DETAIL, Math.round(detail)))];
 }
 
 // Working size for a w×h picture at this detail: the long side becomes `side` (never enlarged).
@@ -629,13 +633,23 @@ const loopArea = (pts) => {
 // [{ color: '#rrggbb', loops: [[[x, y], ...], ...] }], outer loop first, plus the counts.
 export function imageCells(image, { colours = 6, detail = 3, seed = 1, palette = null, limits = {}, tune = {} } = {}) {
   const { w, h } = image;
-  const set = { ...detailSettings(detail), ...limits }; // limits: tests force the caps
+  // More colours make more, smaller patches of the same picture. Cells cost little (points are what
+  // slow a tank), so the cell cap grows with the colours; the point cap stays.
+  const base = detailSettings(detail);
+  const set = { ...base, cells: Math.round(base.cells * Math.max(1, colours / 8)), ...limits }; // limits: tests force the caps
   const { lab: raw, opaque } = toLab(image);
   const lab = smooth(raw, opaque, w, h, tune.smoothPasses ?? 1);
-  const { labels: first, centres } = quantise(lab, opaque, w * h, Math.max(1, Math.min(10, Math.round(colours))), seed);
+  const { labels: first, centres } = quantise(lab, opaque, w * h, Math.max(1, Math.min(MOST_COLOURS, Math.round(colours))), seed);
   let labels = majority(first, w, h, centres.length, tune.majorityPasses ?? 1);
   let colourOf = centres.map(oklabToHex);
-  if (palette?.length) colourOf = centres.map((c) => nearestInk(c, palette));
+  if (palette?.length) {
+    // Each colour becomes its nearest palette ink. Colours that land on the same ink are one colour
+    // from here on, so their patches join instead of meeting at a seam.
+    const inks = centres.map((c) => nearestInk(c, palette));
+    colourOf = [...new Set(inks)];
+    const to = inks.map((ink) => colourOf.indexOf(ink));
+    labels = labels.map((l) => (l < 0 ? l : to[l]));
+  }
 
   let minArea = set.minArea;
   let result = null;
@@ -657,7 +671,7 @@ export function imageCells(image, { colours = 6, detail = 3, seed = 1, palette =
       return { color: colourOf[p.colour], loops: ls };
     }).filter((c) => c.loops.length);
     const count = cells.reduce((s, c) => s + c.loops.reduce((a, l) => a + l.length, 0), 0);
-    result = { cells, points: count, tolerance: tol, minArea, colours: centres.length };
+    result = { cells, points: count, tolerance: tol, minArea, colours: colourOf.length };
     if ((count <= set.points && cells.length <= set.cells) || round === 11) break;
     minArea = Math.ceil(minArea * 1.5);
   }
@@ -718,7 +732,7 @@ export function downsample({ data, w: sw, h: sh }, w, h) {
 
 // Browser only: a jpg or png file as pixels with the long side `side` px, upright (EXIF), never at
 // full size on a canvas. Nothing is sent anywhere or stored.
-export async function pictureFromFile(file, side = 384) {
+export async function pictureFromFile(file, side = DETAIL[MOST_DETAIL].side) {
   const opts = { imageOrientation: 'from-image', resizeQuality: 'high' };
   let bitmap = await createImageBitmap(file, { ...opts, resizeWidth: side });
   if (bitmap.height > bitmap.width) {

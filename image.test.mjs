@@ -46,7 +46,7 @@ function cover(cells, x, y) {
 }
 
 // Gap and overlap shares on a sample grid off the pixel lattice (inside the picture, all opaque).
-function coverage(cells, w, h, step = 0.37) {
+function coverage(cells, w, h, step = Math.max(0.37, Math.sqrt(w * h) / 400)) {
   let gap = 0, over = 0, total = 0;
   for (let y = 0.113; y < h; y += step) for (let x = 0.071; x < w; x += step) {
     const n = cover(cells, x, y);
@@ -93,10 +93,10 @@ function assertPartition(res, w, h) {
   assert.equal(over, 0, 'overlap');
 }
 
-test('three flat colours with noise stay three colours at ten', () => {
+test('three flat colours with noise stay three colours at sixteen', () => {
   s = 3;
   const img = picture(60, 40, (x, y) => (x < 20 ? RED : x < 40 ? BLUE : YELLOW).map((c) => c + noise() * 20));
-  const res = imageCells(img, { colours: 10 });
+  const res = imageCells(img, { colours: 16 });
   assert.equal(res.colours, 3);
   assert.equal(res.cells.length, 3);
   assertPartition(res, 60, 40);
@@ -143,7 +143,7 @@ test('transparent pixels get no ink', () => {
 });
 
 test('a photo-like field is an exact partition at every detail, within the caps', () => {
-  for (const [detail, w, h] of [[1, 96, 72], [3, 192, 144], [5, 320, 240]]) {
+  for (const [detail, w, h] of [[1, 96, 72], [3, 192, 144], [5, 320, 240], [7, 640, 480]]) {
     const res = imageCells(photo(w, h), { colours: 10, detail });
     const set = detailSettings(detail);
     assert.ok(res.points <= set.points, `detail ${detail}: ${res.points} points`);
@@ -155,9 +155,9 @@ test('a photo-like field is an exact partition at every detail, within the caps'
 test('one-pixel strands at the largest tolerance still give simple loops and no overlap', () => {
   // Diagonal one-pixel strands and two-pixel-wide cells, with a tiny point budget to force MAX_TOL.
   const img = picture(80, 60, (x, y) => ((x + y) % 7 === 0 ? BLUE : (x - y + 200) % 11 < 2 ? YELLOW : (x * 3 + y) % 23 < 1 ? GREEN : RED));
-  const res = imageCells(img, { colours: 4, detail: 5 });
+  const res = imageCells(img, { colours: 4, detail: 7 });
   assertPartition(res, 80, 60);
-  const forced = imageCells(img, { colours: 4, detail: 5, limits: { points: 1 } });
+  const forced = imageCells(img, { colours: 4, detail: 7, limits: { points: 1 } });
   assert.equal(forced.tolerance, MAX_TOL);
   assertPartition(forced, 80, 60);
 });
@@ -334,4 +334,33 @@ test('a click lays a copy where clicked, and that copy is the one new settings r
   assert.equal(c.relayImage(), true);
   assert.equal(c.undoMarks.length, marks);
   assert.deepEqual(c.imageStep.point, [250, 100]);
+});
+
+test('at sixteen colours every ink is a different colour, and the partition still holds', () => {
+  const img = photo(192, 144);
+  const res = imageCells(img, { colours: 16, detail: 3 });
+  const inks = [...new Set(res.cells.map((c) => c.color))];
+  assert.equal(inks.length, res.colours);
+  assert.ok(res.colours > 8 && res.colours <= 16, `${res.colours} inks`);
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  for (let i = 0; i < inks.length; i++) for (let j = i + 1; j < inks.length; j++) assert.notDeepEqual(hex(inks[i]), hex(inks[j]));
+  assertPartition(res, 192, 144);
+});
+
+test('colours from a palette with fewer inks than asked: only palette inks, and no seam between one ink and itself', () => {
+  const palette = ['#1b263b', '#e36414', '#f4efe2'];
+  const img = photo(160, 120);
+  const res = imageCells(img, { colours: 16, palette });
+  const inks = new Set(res.cells.map((c) => c.color));
+  for (const ink of inks) assert.ok(palette.includes(ink), ink);
+  assert.ok(inks.size <= 3);
+  // Two cells of the same ink never share a border: they would have been one patch.
+  const owner = new Map();
+  res.cells.forEach((c, id) => c.loops.forEach((l) => l.forEach((p, i) => { owner.set(`${p}>${l[(i + 1) % l.length]}`, id); })));
+  for (const [k, id] of owner) {
+    const [a, b] = k.split('>');
+    const other = owner.get(`${b}>${a}`);
+    if (other !== undefined) assert.notEqual(res.cells[other].color, res.cells[id].color, `cells ${id} and ${other} share an ink across ${k}`);
+  }
+  assertPartition(res, 160, 120);
 });

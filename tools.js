@@ -202,11 +202,11 @@ export const TOOLS = {
     },
     label: 'Image',
     stepLabel: 'Image',
-    hint: 'Choose a jpg or png: it goes on as cells of ink. Click to lay another.',
+    hint: 'Choose a jpg or png: it goes on as cells of ink. Click to lay another. Detail 6–7 slow busy tanks.',
     image: true,
     params: {
-      colours: ['Colours', 8, 2, 10, 1],
-      detail: ['Detail', 3, 1, 5, 1],
+      colours: ['Colours', 8, 2, 16, 1],
+      detail: ['Detail', 3, 1, 7, 1],
       fit: ['Size', 100, 10, 100, 1], // % of the largest size that fits the tank
     },
     choices: {
