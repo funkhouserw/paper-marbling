@@ -269,6 +269,13 @@ export function Phone({ tank, local = false, landscape = false }) {
         >
           <InkDrop size={36} waiting={Boolean(state.stats?.moving) || (state.stats?.held ?? 0) > 0} />
         </button>
+        {/* In words too, as the desktop's corner says it (row 70): the drop alone didn't tell her the
+            tank was still working. */}
+        {(Boolean(state.stats?.moving) || (state.stats?.held ?? 0) > 0) && (
+          <span role="status" className="pointer-events-none absolute bottom-5 right-14 rounded-full bg-ink-900/85 px-2.5 py-1 text-[11px] text-ink-200">
+            {(state.stats?.held ?? 0) > 0 ? 'Waiting for the ink to settle…' : 'Ink still moving…'}
+          </span>
+        )}
       </main>
 
       {/* Thumb strip */}

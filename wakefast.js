@@ -138,7 +138,9 @@ export class WakeFast extends Wake {
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-        ctx.drawImage(bitmap, 0, 0);
+        // Drawn for the canvas's size when it was sent; if the canvas has been resized since (the
+        // density cap, row 70), it's scaled to fit rather than painted small in a corner.
+        ctx.drawImage(bitmap, 0, 0, ctx.canvas.width, ctx.canvas.height);
         ctx.restore();
       }
       bitmap.close();

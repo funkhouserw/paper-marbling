@@ -86,12 +86,26 @@ export function mountTank(container, c, { profiler = null, onStats = null, leftO
     const dpr = ratio();
     const cssScale = Math.max(0.01, Math.min(box.width / c.marble.width, box.height / c.marble.height));
     pxPerMm = cssScale * dpr;
+    const w = Math.round(c.marble.width * pxPerMm), h = Math.round(c.marble.height * pxPerMm);
+    // Resizing a canvas clears it, and the next drawing can be a while coming (a slow page, or Wake
+    // (fast) drawing in its worker): row 70, the tank went blank whenever the density cap switched as
+    // ink started or stopped moving. So the old picture is carried over, scaled, until it's redrawn.
+    let keep = null;
+    if (tank.width && tank.height && (tank.width !== w || tank.height !== h)) {
+      try {
+        keep = document.createElement('canvas');
+        keep.width = tank.width;
+        keep.height = tank.height;
+        keep.getContext('2d').drawImage(tank, 0, 0);
+      } catch { keep = null; }
+    }
     for (const el of [tank, overlay]) {
-      el.width = Math.round(c.marble.width * pxPerMm);
-      el.height = Math.round(c.marble.height * pxPerMm);
+      if (el.width !== w) el.width = w;
+      if (el.height !== h) el.height = h;
       el.style.width = `${c.marble.width * cssScale}px`;
       el.style.height = `${c.marble.height * cssScale}px`;
     }
+    if (keep) tctx.drawImage(keep, 0, 0, w, h);
     c.dirty = true;
   }
   const observer = new ResizeObserver(resize);
