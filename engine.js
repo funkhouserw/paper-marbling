@@ -4006,11 +4006,19 @@ export class Marble {
 
   get vertexCount() { return this.polys.reduce((sum, p) => sum + p.n, 0); }
 
-  // Current tine positions, for drawing the tool over the tank.
+  // Current tine positions, for drawing the tool over the tank. On a repeating tank a tine's path can run
+  // tiles past the page (a slanted full rake's laps, _fullRakeLaps), where its copy in the tile is the one
+  // that moves the ink, so that copy is the one shown (row 73: the dots went one by one).
   tinePositions() {
     const out = [];
+    const tiled = this.tileOn;
+    const { width: W, height: H } = this;
     for (const op of this.active) {
-      if (op.kind === 'rake') for (const off of op.offs) out.push(this._rakePoint(op, op.dist, off));
+      if (op.kind !== 'rake') continue;
+      for (const off of op.offs) {
+        const [x, y] = this._rakePoint(op, op.dist, off);
+        out.push(tiled ? [wrapX(x, y, W, H, this.tileOffset), wrapY(x, y, W, H, this.tileOffset)] : [x, y]);
+      }
     }
     return out;
   }
