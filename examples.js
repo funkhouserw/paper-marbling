@@ -123,8 +123,11 @@ settle();
 viscosity({ value: 1000 });
 const inks = palette('Old Dutch').inks;
 stripes({ count: 30, colors: inks, slivers: 1 });
+settle(); // the ink rests before each pass, as a marbler waits
 fullRake({ angle: 90, teeth: 8, speed: 24, D: 0.7 });
+settle();
 fullRake({ angle: 270, teeth: 8, offset: 6.25, speed: 24, D: 0.7 });
+settle();
 fullRake({ angle: 0, teeth: 40, speed: 30, D: 0.3 });`,
   'Ribbons': `// Stripes combed back and forth with a few wide teeth, until they stretch into ribbons.
 viscosity({ value: 100 });
@@ -132,7 +135,9 @@ const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
 bath({ color: '#c8d8c0' });
 stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
 for (let i = 0; i < 3; i++) {
+  settle(); // the ink rests before each pass, as a marbler waits
   fullRake({ angle: 90, teeth: 4, speed: 40, D: 2 });
+  settle();
   fullRake({ angle: 270, teeth: 4, offset: 12.5, speed: 40, D: 2 });
 }`,
   'Big waves': `// One slow, very wide pass each way bends stripes into broad waves.
@@ -140,7 +145,9 @@ viscosity({ value: 100 });
 const inks = ['#b5302a', '#2a4a8a', '#c8d8c0', '#7fa8b0', '#d07080', '#203070'];
 bath({ color: '#c8d8c0' });
 stripes({ count: 40, colors: inks, slivers: 1.5, variation: 0.8 });
+settle(); // the ink rests before each pass, as a marbler waits
 fullRake({ angle: 90, teeth: 3, speed: 60, D: 3 });
+settle();
 fullRake({ angle: 270, teeth: 3, offset: 16.7, speed: 60, D: 3 });`,
   'Flames': `// Wide combing up and down, twice, draws stripes out into flames.
 viscosity({ value: 100 });
@@ -148,7 +155,9 @@ const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', 
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
 for (let i = 0; i < 2; i++) {
+  settle(); // the ink rests before each pass, as a marbler waits
   fullRake({ angle: 90, teeth: 7, speed: 30, D: 1.4 });
+  settle();
   fullRake({ angle: 270, teeth: 7, offset: 7.14, speed: 30, D: 1.4 });
 }`,
   'Two-way feathers': `// Combed up and down, across, then up and down again, so the feathers point both ways.
@@ -156,10 +165,15 @@ viscosity({ value: 1000 });
 const inks = ['#d9485f', '#f2a65a', '#f7e1b5', '#3d5a80', '#7fb7be', '#6a2c70', '#2b2d42'];
 bath({ color: '#f7e1b5' });
 stripes({ count: 30, colors: inks, slivers: 0.5, variation: 0.7 });
+settle(); // the ink rests before each pass, as a marbler waits
 fullRake({ angle: 90, teeth: 6, speed: 30, D: 1 });
+settle();
 fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 30, D: 1 });
+settle();
 fullRake({ angle: 0, teeth: 24, speed: 30, D: 0.5 });
+settle();
 fullRake({ angle: 90, teeth: 6, speed: 20, D: 0.8 });
+settle();
 fullRake({ angle: 270, teeth: 6, offset: 8.33, speed: 20, D: 0.8 });`,
   'Whorls': `// In a thin bath with a strong push, the wake behind each tine rolls up into spirals.
 viscosity({ value: 10 });
