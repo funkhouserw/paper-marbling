@@ -124,6 +124,9 @@ function MenuSheet({ tank, commands, local, onClose, onScript, peek, dropping })
           {[['clear', 'Clear the tank', Trash2], ['pull', 'Pull a print', Printer], ['saveState', 'Save state', Bookmark], ['finish', 'Finish now', FastForward]].map(([id, label, Icon]) => (
             <Button key={id} className="h-10 justify-start" onClick={() => { commands.run(id); if (id === 'clear' || id === 'pull') onClose(); }}><Icon size={14} /> {label}</Button>
           ))}
+          {applies({ when: 'calm' }, state, local) && (
+            <Button className="col-span-2 h-10 justify-start" title={INFO.calm} onClick={() => { commands.run('calm'); onClose(); }}>Let it settle</Button>
+          )}
           <Button className="col-span-2 h-10 justify-start" onClick={() => setExamples(true)}><BookOpen size={14} /> Examples</Button>
         </div>
         <ViscositySlider c={visc} value={state.settings.visc} info={INFO.viscosity} className="w-full" onChange={(value) => dispatch({ type: 'setting', key: 'visc', value })} />

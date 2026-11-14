@@ -505,6 +505,7 @@ export function useTank() {
         return true;
       case 'freezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'freeze'); return true;
       case 'unfreezeHere': if (ctx?.point) c.freezeAt(ctx.tankPoint ?? ctx.point, 'unfreeze'); return true;
+      case 'calm': c.calm(); return true;
       case 'unfreezeAll': c.unfreezeAll(); return true;
       case 'resetTools':
         // Brush settings only (#48): every tool's sliders and choices as shipped. Saves, prints,

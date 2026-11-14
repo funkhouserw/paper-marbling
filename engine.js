@@ -516,6 +516,20 @@ export class Marble {
     return this;
   }
 
+  // Ends all outstanding spreading: every drop still growing keeps the size it has as its final one,
+  // so nothing feeds the pressure any more and the motion dies away. No ink is deleted, moved or
+  // recoloured. Only the simulators where drops push for a long time need it (calmSupported);
+  // elsewhere it is logged and does nothing.
+  calm({ at } = {}) {
+    const args = {};
+    if (at !== undefined) args.at = at;
+    return this._schedule('calm', args, { kind: 'calm' });
+  }
+
+  get calmSupported() { return false; }
+
+  _calmInk() {}
+
   // From here on, each action starts gap seconds after the previous one finishes.
   inOrder({ gap = 0.5 } = {}) {
     this.orderGap = gap;
@@ -3806,6 +3820,10 @@ export class Marble {
       }
       if (op.kind === 'hearts') {
         this._startHearts(op);
+        continue;
+      }
+      if (op.kind === 'calm') {
+        this._calmInk();
         continue;
       }
       if (op.kind === 'lift') {

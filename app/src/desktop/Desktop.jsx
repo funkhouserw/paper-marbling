@@ -321,6 +321,12 @@ export function TransportBar({ tank, commands }) {
         {state.playing ? <Pause size={18} /> : <Play size={18} />}
       </IconButton>
       <IconButton label="Finish now" onClick={() => commands.run('finish')}><FastForward size={18} /></IconButton>
+      {applies({ when: 'calm' }, state, false) && (
+        <span className="flex items-center gap-1">
+          <Button className="whitespace-nowrap" onClick={() => commands.run('calm')}>Let it settle</Button>
+          <InfoTip text={INFO.calm} label="Let it settle" />
+        </span>
+      )}
       <div role="radiogroup" aria-label="Speed" className="flex rounded-md bg-ink-800 p-0.5 text-xs">
         {SPEEDS.map((v) => (
           <button

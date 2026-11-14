@@ -25,6 +25,7 @@ function perform(id, tank, ctx) {
     case 'copySession': return set({ script: '// Your session so far\nviscosity({ value: 1000 });\n', example: '', drawer: true, view: 'advanced' });
     case 'freezeHere': return act(ctx?.point ? `Freeze ink at ${ctx.point.map(Math.round).join(', ')}` : 'Freeze ink');
     case 'unfreezeHere': return act('Unfreeze ink');
+    case 'calm': return act('Let it settle');
     case 'unfreezeAll': return act('Unfreeze all');
     case 'seeRepeat': return say('Showing four copies of the tank.');
     case 'saveState': return say('Saved the tank.');
