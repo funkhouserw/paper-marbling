@@ -72,3 +72,16 @@ test('the bath gives each new colour more gall, starts again on a new tank, and 
   m.setGall({ on: false });
   assert.equal(m.drop({ color: '#444444' }).gall, undefined);
 });
+
+test('Classic: a second gall drop opens over a colour an earlier gall drop already cut', () => {
+  const m = tank(Marble);
+  m.broom({ n: 40, size: 0.15, color: '#1f4e79' });
+  m.settle();
+  m.runUntilIdle();
+  for (const x of [-180, -60, 60]) {
+    m.drop({ x, y: 0, quantity: 0.5, color: 'clear', gall: 3 });
+    m.settle();
+    m.runUntilIdle();
+    assert.equal(m.shapesAt(x, 0, { one: true }).length, 0, `bare bath at x=${x}`);
+  }
+});

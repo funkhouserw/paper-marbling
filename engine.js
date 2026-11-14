@@ -1136,6 +1136,9 @@ export class Marble {
       const hole = k ? { xy: Float64Array.from(op.poly.xy), n: op.poly.n } : op.poly;
       target.group ??= this.nextGroup++;
       Object.assign(hole, { group: target.group, color: target.color, shimmer: target.shimmer });
+      // A hole is not ink, so the clear drop's pressure must not pass for the colour's gall: a later
+      // gall drop over this colour would compare itself with the hole and sink.
+      delete hole.gall;
       let at = this.polys.indexOf(target);
       while (this.polys[at + 1]?.group === target.group) at++;
       this.polys.splice(at + 1, 0, hole);
