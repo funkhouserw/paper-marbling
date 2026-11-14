@@ -310,6 +310,7 @@ export class TankController {
       erase: Boolean(proto.eraseSupported),
       hearts: Boolean(proto.freezeSupported),
       freeze: Boolean(proto.freezeSupported),
+      calm: Boolean(proto.calmSupported),
       tile: Boolean(!model.spreading && proto.tileSupported),
       tileOffset: Boolean(this.settings.tile && proto.tileOffsetSupported),
       walls: !atFirst, // Grid ink's sides are solid whenever it isn't repeating
@@ -571,6 +572,17 @@ export class TankController {
   freezeTarget([x, y], mode = this.freezeMode) {
     if (mode === 'off' || !this.capabilities().freeze) return null;
     return this.marble.shapeAt(x, y, { frozen: mode === 'unfreeze' }) ?? null;
+  }
+
+  // Let it settle: every drop still spreading keeps its size, so a crowded tank comes to rest.
+  calm() {
+    const m = this.marble;
+    if (!m.calmSupported) return;
+    this.act(() => {
+      m.live(() => m.calm({ at: m.time }));
+      m.applyNow();
+    });
+    this.dirty = true;
   }
 
   unfreezeAll() {

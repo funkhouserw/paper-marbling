@@ -270,6 +270,9 @@ export const COMMANDS = [
     AT,
   ] },
   // Tank settings
+  { name: 'calm', group: 'Tank', summary: 'Lets it settle: every drop still spreading keeps the size it has now, so the ink stops pushing and the tank comes to rest. No ink is removed or moved. Only Film, Wake and Wake (fast) need it; elsewhere it does nothing.', params: [
+    AT,
+  ] },
   { name: 'walls', group: 'Tank', summary: 'Hard edges: ink stays inside the tank and flattens against the walls.', params: [
     ['on', 'boolean', true, ''], AT,
   ] },

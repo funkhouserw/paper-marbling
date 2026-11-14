@@ -14,6 +14,7 @@ const COLOURS = 'The inks of the current palette. Keys 1 to 9 pick them while th
 export const INFO = {
   // Transport
   speed: 'How fast the simulation plays compared with real time. It doesn\'t change the result. Low framerate ignores this and runs as fast as it can.',
+  calm: 'Stops the ink spreading where it is. Use it when a crowded tank won\'t come to rest. Nothing is moved or removed.',
   finish: 'Skips ahead until everything has stopped moving.',
   profiling: 'Records where the time goes while the tank runs, every 2 seconds, to profiles/marbler-profile.jsonl next to this project. It stays on this computer. It holds timings and settings, not your scripts. Leave it off when you are not measuring something.',
   gridCell: 'How finely the Grid ink simulator divides the tank, in mm. Smaller is sharper and much slower: half the size is about four times the work. Takes effect the next time the tank clears.',

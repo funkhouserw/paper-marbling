@@ -469,6 +469,21 @@ export class Film extends Marble {
     this._smooth(L, 3);
   }
 
+  get calmSupported() { return true; }
+
+  // Every drop that has landed accepts the size it has now as its final one, so it asks for nothing
+  // more and every pressure source goes to zero. A drop that hasn't landed yet is left to land.
+  _calmInk() {
+    for (const op of this.active) {
+      if (op.kind !== 'drop' || !op.poly) continue;
+      op.area = polygonArea(op.poly);
+      op.plain = op.limit = op.area;
+      op.open = 0;
+      op.head = 1;
+      op.feed = 0;
+    }
+  }
+
   _advanceDrop(op, dt) {
     op.elapsed += dt;
     op.plain ??= op.maxArea * Math.PI;

@@ -37,6 +37,7 @@ export function capabilities(simulator) {
     walls: simulator !== 'gridink',
     flow: ['wake', 'wakefast', 'gridink'].includes(simulator),
     film,
+    calm: film,
   };
 }
 

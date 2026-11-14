@@ -12,7 +12,7 @@
 //   desktop: 'panel' (right side), 'tankPanel' (inside the Advanced Tank panel), 'drawer', 'creature'
 //   phone:   'menu' (a tab of the ☰ sheet), 'drawer', 'creature'
 // view: shown in Simple and Advanced ('simple') or Advanced only ('advanced').
-// when: only while the tank can do it: a key of TankController.capabilities() (erase, hearts, freeze,
+// when: only while the tank can do it: a key of TankController.capabilities() (erase, hearts, freeze, calm,
 //   tile, tileOffset, walls, flow), 'gridink', or 'local' (running on your own server, not the demo).
 // showIf: only while these settings have these values.
 //
@@ -165,6 +165,7 @@ export const ACTIONS = [
   { id: 'clear', label: 'Clear tank', menu: 'Edit', context: true, icon: 'trash' },
   { id: 'play', label: 'Play or pause', menu: 'Tank', shortcut: 'Space', icon: 'play' },
   { id: 'finish', label: 'Finish now', menu: 'Tank', info: 'finish', icon: 'finish' },
+  { id: 'calm', label: 'Let it settle', menu: 'Tank', info: 'calm', when: 'calm' },
   { id: 'freezeHere', label: 'Freeze this ink', menu: 'Tank', context: true, info: 'freeze', when: 'freeze', needs: 'point' },
   { id: 'unfreezeHere', label: 'Unfreeze this ink', menu: 'Tank', context: true, when: 'freeze', needs: 'point' },
   { id: 'unfreezeAll', label: 'Unfreeze all', menu: 'Tank', when: 'freeze' },
