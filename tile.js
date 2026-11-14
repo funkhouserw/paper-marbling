@@ -258,3 +258,15 @@ export function swirlTiled(marble, cx, cy, theta) {
     o[1] = y + sample(uy, mx, my);
   }, { slowNearWalls: false, clamp: false });
 }
+
+// A texture that repeats every `period` mm, stretched so it repeats with the tile: a whole number of
+// times across and up, and an even number along the way a brick or half-drop offset shifts the rows
+// or columns by half a tile. Returns the texture's period each way, in mm.
+export function texturePeriod(period, W, H, offset = null) {
+  const fit = (span, even) => {
+    let n = Math.max(1, Math.round(span / period));
+    if (even && n % 2) n += n > 1 && span / period < n ? -1 : 1;
+    return span / n;
+  };
+  return { x: fit(W, offset === 'brick'), y: fit(H, offset === 'halfDrop') };
+}

@@ -13,7 +13,7 @@
 
 import { PALETTES, palette } from './palettes.js';
 import { makeAir } from './air.js';
-import { wrapX, wrapY, doubled, closedDirection, latticeShifts, pushApartTiled, swirlTiled } from './tile.js';
+import { wrapX, wrapY, doubled, closedDirection, latticeShifts, pushApartTiled, swirlTiled, texturePeriod } from './tile.js';
 import { cutDisc } from './erase.js';
 import { tintOf, squeezedColour, paintColour } from './tint.js';
 import { SEAM, SEAM_SHARE as BARE_SHARE, seamed, mergedPoints, bareSeam, contactKeep, contactRuns, bandWidth } from './seam.js';
@@ -4131,14 +4131,20 @@ export class Marble {
   _drawShimmer(ctx, rule, amount) {
     shimmerTiles ??= makeShimmerTiles();
     ctx.save();
+    // On a repeating tank the textures repeat with the tile, so shimmer meets itself across the seam.
+    const fit = (size, scale) => {
+      if (!this.tileOn) return [scale, scale];
+      const p = texturePeriod(size * scale, this.width, this.height, this.tileOffset);
+      return [p.x / size, p.y / size];
+    };
     const sheen = ctx.createPattern(shimmerTiles.sheen, 'repeat');
-    sheen.setTransform(new DOMMatrix().translate(this.sheenPhase * 40, this.sheenPhase * 25).scale(1.6));
+    sheen.setTransform(new DOMMatrix().translate(this.sheenPhase * 40, this.sheenPhase * 25).scale(...fit(512, 1.6)));
     ctx.globalCompositeOperation = 'screen';
     ctx.globalAlpha = amount;
     ctx.fillStyle = sheen;
     ctx.fill(rule);
     const flakes = ctx.createPattern(shimmerTiles.flakes, 'repeat');
-    flakes.setTransform(new DOMMatrix().scale(0.7));
+    flakes.setTransform(new DOMMatrix().scale(...fit(256, 0.7)));
     ctx.globalCompositeOperation = 'overlay';
     ctx.fillStyle = flakes;
     ctx.fill(rule);
