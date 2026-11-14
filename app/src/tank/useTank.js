@@ -122,6 +122,13 @@ function uiReducer(s, a) {
   return { ...s, ...a };
 }
 
+// The palette with this name, or undefined. The session can remember a palette that was since
+// deleted or never saved on this browser; looking it up must not stop the page from loading.
+function knownPalette(name) {
+  paletteChoices(); // makes sure the saved palettes are among PALETTES
+  return PALETTES.find((p) => p.name.toLowerCase() === String(name).toLowerCase());
+}
+
 export function useTank() {
   const controller = useMemo(() => {
     // The editor starts on Wake (fast), Ilse's choice, unless a simulator was chosen before.
@@ -147,6 +154,7 @@ export function useTank() {
       if (!last.heartAngles && typeof last.values?.hearts?.angle === 'number') c.values.hearts.angle = (last.values.hearts.angle + 90) % 360;
       if (last.tool && c.values[last.tool]) c.setTool(last.tool);
       if (last.palette) {
+        paletteChoices(); // the saved palettes must be known before one of them can be chosen
         try { c.usePalette(last.palette); } catch { /* a palette that's since been deleted */ }
         // The palette brings its own base colour; the one last chosen wins.
         if (lastSettings.bath) { c.settings.bath = lastSettings.bath; c.commitBath(); }
@@ -165,7 +173,7 @@ export function useTank() {
     return {
       ...start,
       ...(['simple', 'advanced'].includes(last.view) && { view: last.view }),
-      ...(typeof last.palette === 'string' && { palette: last.palette }),
+      ...(typeof last.palette === 'string' && knownPalette(last.palette) && { palette: last.palette }),
       ...(Number.isInteger(last.ink) && c.inks[last.ink] && { ink: last.ink }),
       ...(typeof last.tint === 'string' && { tint: last.tint }),
       page: { ...start.page, ...pick(last.page, start.page) },
@@ -465,7 +473,7 @@ export function useTank() {
     inkNow: { rgb: c.inkRgb(), alpha: c.inkAlpha(), shimmer: c.shimmer },
     version,
   };
-  const pal = findPalette(ui.palette) ?? PALETTES[0];
+  const pal = knownPalette(ui.palette) ?? PALETTES[0]; // a remembered palette may be gone: never throw here
   const paletteView = { name: pal.name, bath: c.settings.bath, inks: c.inks };
 
   // The assistant, on the local server. Its reply replaces the script; nothing runs until Run.
