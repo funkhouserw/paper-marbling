@@ -323,7 +323,7 @@ export function TransportBar({ tank, commands }) {
       <IconButton label="Finish now" onClick={() => commands.run('finish')}><FastForward size={18} /></IconButton>
       {applies({ when: 'calm' }, state, false) && (
         <span className="flex items-center gap-1">
-          <Button onClick={() => commands.run('calm')}>Let it settle</Button>
+          <Button className="whitespace-nowrap" onClick={() => commands.run('calm')}>Let it settle</Button>
           <InfoTip text={INFO.calm} label="Let it settle" />
         </span>
       )}

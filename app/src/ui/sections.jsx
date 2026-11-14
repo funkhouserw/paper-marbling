@@ -3,6 +3,7 @@ import {
   Bookmark, Code, Download, Droplet, FastForward, Gauge, Grid2x2, History, Palette, Pause, Play, Printer, Redo2,
   Square, Trash2, Undo2, Waves,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { ACTIONS, SECTIONS } from './features.js';
 import { SETTINGS } from '../../../controller.js';
 import { MODELS } from '../../../models.js';
@@ -16,6 +17,25 @@ export const SECTION_ICONS = {
   grid: Grid2x2, waves: Waves, gauge: Gauge, code: Code, drop: Droplet,
 };
 export const ACTION_ICONS = { undo: Undo2, redo: Redo2, trash: Trash2, play: Play, pause: Pause, finish: FastForward, printer: Printer };
+
+// A typed hex colour. Takes #rgb or #rrggbb, with or without the #, and passes it on once it is a
+// whole colour; half-typed text just waits.
+export function parseHex(text) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text.trim());
+  if (!m) return null;
+  const h = m[1].length === 3 ? [...m[1]].map((ch) => ch + ch).join('') : m[1];
+  return `#${h.toLowerCase()}`;
+}
+function HexField({ value, label, onChange }) {
+  const [text, setText] = useState(value);
+  useEffect(() => { setText(value); }, [value]);
+  return (
+    <input type="text" aria-label={label} value={text} spellCheck={false} maxLength={7}
+      onChange={(e) => { setText(e.target.value); const hex = parseHex(e.target.value); if (hex && hex !== value) onChange(hex); }}
+      onBlur={() => setText(value)}
+      className="w-[5.5rem] rounded border border-ink-600 bg-transparent px-1.5 py-0.5 font-mono text-ink-200 focus:border-ink-300 focus:outline-none" />
+  );
+}
 
 const seamsShown = (simulator) => {
   const model = MODELS.find((m) => m.id === simulator);
@@ -175,7 +195,7 @@ export function Control({ c: placed, tank, run }) {
           <label className="flex items-center gap-2 text-xs text-ink-300">
             Colour
             <input type="color" value={ink.rgb} onChange={(e) => setInk({ rgb: e.target.value })} className="h-6 w-10 cursor-pointer rounded border border-ink-600 bg-transparent" />
-            <span className="font-mono text-ink-400">{ink.rgb}</span>
+            <HexField label="Colour as hex" value={ink.rgb} onChange={(rgb) => setInk({ rgb })} />
           </label>
           <Slider label="Opacity (%)" value={Math.round(ink.alpha * 100)} min={0} max={100} step={1} info={INFO['color.alpha']} onChange={(v) => setInk({ alpha: v / 100 })} />
           <Slider label="Shimmer (%)" value={Math.round(ink.shimmer * 100)} min={0} max={100} step={1} info={INFO['color.shimmer']} onChange={(v) => setInk({ shimmer: v / 100 })} />
@@ -190,6 +210,7 @@ export function Control({ c: placed, tank, run }) {
             {palette.inks.map((k, i) => (
               <div key={i} className="flex items-center gap-2">
                 <input type="color" aria-label={`Ink ${i + 1} colour`} value={k.color.slice(0, 7)} onChange={(e) => dispatch({ type: 'paletteInk', i, rgb: e.target.value })} className="h-6 w-8 cursor-pointer rounded border border-ink-600 bg-transparent" />
+                <HexField label={`Ink ${i + 1} colour as hex`} value={k.color.slice(0, 7)} onChange={(rgb) => dispatch({ type: 'paletteInk', i, rgb })} />
                 <Slider className="flex-1" label={`Ink ${i + 1} shimmer`} value={Math.round(k.shimmer * 100)} min={0} max={100} step={1} onChange={(v) => dispatch({ type: 'paletteInk', i, shimmer: v / 100 })} />
                 <button type="button" aria-label={`Remove ink ${i + 1}`} disabled={palette.inks.length < 2} onClick={() => dispatch({ type: 'paletteInk', i, remove: true })} className="text-ink-400 hover:text-ink-100 disabled:opacity-30">×</button>
               </div>
